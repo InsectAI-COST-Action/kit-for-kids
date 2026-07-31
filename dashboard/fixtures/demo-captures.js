@@ -1,4 +1,6 @@
-window.InsectData = window.InsectData || {captures: [], addCapture: function (capture) { this.captures.push(capture); }};
+﻿window.InsectData = window.InsectData || {};
+window.InsectData.captures = window.InsectData.captures || [];
+window.InsectData.addCapture = window.InsectData.addCapture || function (capture) { this.captures.push(capture); };
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000001","uptimeMs":500,"outcome":"completed","imagePath":"fixtures/images/synthetic_beetle.png","width":640,"height":480,"jpegBytes":182340,"captureMs":48,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000002","uptimeMs":1000,"outcome":"completed","imagePath":"fixtures/images/synthetic_moth.png","width":640,"height":480,"jpegBytes":221904,"captureMs":46,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000003","uptimeMs":1500,"outcome":"completed","imagePath":"fixtures/images/synthetic_cricket.png","width":640,"height":480,"jpegBytes":205811,"captureMs":44,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
@@ -11,3 +13,4 @@ window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_00
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000010","uptimeMs":5000,"outcome":"completed","imagePath":"fixtures/images/synthetic_cricket.png","width":640,"height":480,"jpegBytes":207442,"captureMs":42,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000011","uptimeMs":5500,"outcome":"completed","imagePath":"fixtures/images/synthetic_beetle.png","width":640,"height":480,"jpegBytes":181663,"captureMs":46,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
 window.InsectData.addCapture({"runId":"demo_run_000001","captureId":"demo_run_000001_img_000012","uptimeMs":6000,"outcome":"skipped","imagePath":"","width":0,"height":0,"jpegBytes":0,"captureMs":0,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
+
