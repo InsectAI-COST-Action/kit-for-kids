@@ -29,3 +29,4 @@ detections.csv
 manifest.js
 summary.js
 *.log
+__pycache__/
