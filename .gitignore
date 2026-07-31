@@ -1,0 +1,31 @@
+# Operating-system files
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# PlatformIO / embedded build output
+.pio/
+.clangd/
+*.bin
+*.elf
+*.map
+
+# Editor-local state
+.vscode/.browse.c_cpp.db*
+.vscode/ipch/
+
+# Credentials and machine-local configuration
+.env
+.env.*
+secrets.*
+
+# Generated runtime data copied from an SD card
+images/
+thumbs/
+raw/
+data/
+captures.csv
+detections.csv
+manifest.js
+summary.js
+*.log
