@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Insect camera dashboard demo</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="fixtures/demo-manifest.js"></script>
+    <script src="fixtures/demo-summary.js"></script>
+    <script src="fixtures/demo-captures.js"></script>
+  </head>
+  <body>
+    <main>
+      <header><p class="eyebrow">Synthetic local fixture</p><h1>Insect camera sessions</h1><p id="status" role="status">Loading demo data...</p></header>
+      <section class="metrics" aria-label="Session summary">
+        <article><span>Committed frames</span><strong id="capture-count">-</strong></article>
+        <article><span>Images available</span><strong id="image-count">-</strong></article>
+        <article><span>Average capture time</span><strong id="capture-time">-</strong></article>
+        <article><span>Inference status</span><strong id="inference-status">-</strong></article>
+      </section>
+      <section class="panel" aria-labelledby="filter-title"><h2 id="filter-title">Find frames</h2><label for="search">Search capture ID or outcome</label><input id="search" type="search" autocomplete="off" placeholder="For example: storage_error"><p class="hint">Times are relative to the start of the synthetic session.</p></section>
+      <section class="panel" aria-labelledby="recent-title"><h2 id="recent-title">Recent committed frames</h2><div class="table-wrap"><table><thead><tr><th>Capture</th><th>Session time</th><th>Outcome</th><th>Image</th></tr></thead><tbody id="capture-rows"></tbody></table></div></section>
+      <section class="panel" aria-labelledby="gallery-title"><h2 id="gallery-title">Image gallery</h2><p id="gallery-empty">No committed images are available yet.</p><div id="gallery" class="gallery"></div></section>
+    </main>
+    <template id="gallery-item-template"><a class="gallery-item" target="_blank" rel="noopener"><img loading="lazy" alt=""><span></span></a></template>
+    <script src="dashboard.js"></script>
+  </body>
+</html>
