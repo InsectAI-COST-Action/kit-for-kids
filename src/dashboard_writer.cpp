@@ -13,7 +13,7 @@ bool DashboardWriter::begin(SdStorage& storage, String& diagnostic) {
   if (!loadState(diagnostic)) return false;
   current_chunk_id_ = closed_chunk_count_ + 1;
   current_part_path_ = chunkFileName(current_chunk_id_, "part");
-  storage_->fs().remove(current_part_path_);
+  if (storage_->exists(current_part_path_)) storage_->fs().remove(current_part_path_);
   diagnostic = "dashboard writer ready";
   return true;
 }
@@ -46,7 +46,7 @@ bool DashboardWriter::finish(String& diagnostic) {
 
 bool DashboardWriter::promoteCurrentChunk(String& diagnostic) {
   const String final_path = chunkFileName(current_chunk_id_, "js");
-  storage_->fs().remove(final_path);
+  if (storage_->exists(final_path)) storage_->fs().remove(final_path);
   if (!storage_->fs().rename(current_part_path_, final_path)) {
     diagnostic = "cannot promote dashboard chunk " + current_part_path_;
     return false;
@@ -123,3 +123,4 @@ String DashboardWriter::escapeJavaScript(const String& value) const {
   }
   return escaped;
 }
+

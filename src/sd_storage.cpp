@@ -39,7 +39,7 @@ bool SdStorage::writeTextAtomic(const String& path, const String& content, Strin
 bool SdStorage::writeBinaryAtomic(const String& path, const uint8_t* data, size_t length,
                                   String& diagnostic) {
   const String temporary_path = path + ".tmp";
-  SD.remove(temporary_path);
+  if (SD.exists(temporary_path)) SD.remove(temporary_path);
   File file = SD.open(temporary_path, FILE_WRITE);
   if (!file) {
     diagnostic = "cannot open temporary file " + temporary_path;
@@ -49,11 +49,11 @@ bool SdStorage::writeBinaryAtomic(const String& path, const uint8_t* data, size_
   file.flush();
   file.close();
   if (written != length) {
-    SD.remove(temporary_path);
+    if (SD.exists(temporary_path)) SD.remove(temporary_path);
     diagnostic = "short write for " + path;
     return false;
   }
-  SD.remove(path);
+  if (SD.exists(path)) SD.remove(path);
   if (!SD.rename(temporary_path, path)) {
     diagnostic = "cannot promote temporary file " + path;
     return false;
@@ -95,3 +95,4 @@ String SdStorage::readText(const String& path, size_t max_bytes, String& diagnos
 }
 
 fs::FS& SdStorage::fs() { return SD; }
+
