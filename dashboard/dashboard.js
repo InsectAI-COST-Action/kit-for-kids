@@ -79,8 +79,9 @@
       row.append(imageCell);
       rows.append(row);
     });
-    frameToggle.hidden = captures.length <= initialLimit;
-    frameToggle.textContent = showAllFrames ? 'Show fewer frames' : `Show all ${captures.length} frames`;
+    frameToggle.hidden = captures.length === 0;
+    frameToggle.disabled = captures.length <= initialLimit;
+    frameToggle.textContent = showAllFrames ? 'Show fewer frames' : (captures.length <= initialLimit ? 'All frames shown' : `Show all ${captures.length} frames`);
 
     const visibleImages = showAllImages ? images : images.slice(-initialLimit);
     gallery.replaceChildren();
@@ -95,8 +96,9 @@
       item.addEventListener('click', () => openImage(capture.imagePath, `Frame ${capture.captureId}`));
       gallery.append(item);
     });
-    galleryToggle.hidden = images.length <= initialLimit;
-    galleryToggle.textContent = showAllImages ? 'Show fewer images' : `Show all ${images.length} images`;
+    galleryToggle.hidden = images.length === 0;
+    galleryToggle.disabled = images.length <= initialLimit;
+    galleryToggle.textContent = showAllImages ? 'Show fewer images' : (images.length <= initialLimit ? 'All images shown' : `Show all ${images.length} images`);
   };
 
   const load = async () => {
@@ -122,3 +124,5 @@
   search.addEventListener('input', render);
   load();
 })();
+
+
