@@ -124,8 +124,3 @@
   search.addEventListener('input', render);
   load();
 })();
-
-
-
-
-\n
