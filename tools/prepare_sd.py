@@ -1,4 +1,4 @@
-r"""Copy the dashboard starter files to an already formatted SD-card directory.
+﻿r"""Copy the dashboard starter files to an already formatted SD-card directory.
 
 Usage: py tools\prepare_sd.py E:\
 """
@@ -29,8 +29,14 @@ def main() -> int:
     if not destination.is_dir():
         parser.error(f"destination is not an existing directory: {destination}")
 
-    for filename in ("dashboard.html", "dashboard.css", "dashboard.js", "manifest.js", "summary.js"):
+    for filename in ("dashboard.html", "dashboard.css", "dashboard.js"):
         copy_file(ASSET_DIRECTORY / filename, destination / filename, args.dry_run)
+    for filename in ("manifest.js", "summary.js"):
+        runtime_file = destination / filename
+        if runtime_file.exists():
+            print(f"Leaving existing runtime {filename} unchanged")
+        else:
+            copy_file(ASSET_DIRECTORY / filename, runtime_file, args.dry_run)
     if not (destination / "config.json").exists():
         copy_file(ROOT / "config.example.json", destination / "config.json", args.dry_run)
     else:
