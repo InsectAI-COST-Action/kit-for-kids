@@ -70,6 +70,7 @@ def check_dashboard_contract() -> None:
     require("capture-toggle" in html, "Dashboard must provide frame expand control")
     require("gallery-toggle" in html, "Dashboard must provide gallery expand control")
     require("image-modal" in html, "Dashboard must provide an image modal")
+    require(".image-modal[hidden]" in text("dashboard/dashboard.css"), "Hidden modal must not overlay the page")
     require("Show all" in javascript and "Escape" in javascript, "Dashboard must support expansion and modal close")
 
 
@@ -104,5 +105,6 @@ if __name__ == "__main__":
     except AssertionError as error:
         print(f"FAIL {error}", file=sys.stderr)
         raise SystemExit(1)
+
 
 
