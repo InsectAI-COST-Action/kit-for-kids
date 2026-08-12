@@ -80,8 +80,8 @@
       rows.append(row);
     });
     frameToggle.hidden = captures.length === 0;
-    frameToggle.disabled = captures.length <= initialLimit;
-    frameToggle.textContent = showAllFrames ? 'Show fewer frames' : (captures.length <= initialLimit ? 'All frames shown' : `Show all ${captures.length} frames`);
+    frameToggle.disabled = false;
+    frameToggle.textContent = showAllFrames ? 'Show fewer frames' : 'Show all frames';
 
     const visibleImages = showAllImages ? images : images.slice(-initialLimit);
     gallery.replaceChildren();
@@ -97,8 +97,8 @@
       gallery.append(item);
     });
     galleryToggle.hidden = images.length === 0;
-    galleryToggle.disabled = images.length <= initialLimit;
-    galleryToggle.textContent = showAllImages ? 'Show fewer images' : (images.length <= initialLimit ? 'All images shown' : `Show all ${images.length} images`);
+    galleryToggle.disabled = false;
+    galleryToggle.textContent = showAllImages ? 'Show fewer images' : 'Show all images';
   };
 
   const load = async () => {
@@ -127,3 +127,5 @@
 
 
 
+
+\n
