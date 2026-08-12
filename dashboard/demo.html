@@ -19,10 +19,23 @@
         <article><span>Inference status</span><strong id="inference-status">-</strong></article>
       </section>
       <section class="panel" aria-labelledby="filter-title"><h2 id="filter-title">Find frames</h2><label for="search">Search capture ID or outcome</label><input id="search" type="search" autocomplete="off" placeholder="For example: storage_error"><p class="hint">Times are relative to the start of the synthetic session.</p></section>
-      <section class="panel" aria-labelledby="recent-title"><h2 id="recent-title">Recent committed frames</h2><div class="table-wrap"><table><thead><tr><th>Capture</th><th>Session time</th><th>Outcome</th><th>Image</th></tr></thead><tbody id="capture-rows"></tbody></table></div></section>
-      <section class="panel" aria-labelledby="gallery-title"><h2 id="gallery-title">Image gallery</h2><p id="gallery-empty">No committed images are available yet.</p><div id="gallery" class="gallery"></div></section>
+      <section class="panel" aria-labelledby="recent-title"><h2 id="recent-title">Recent committed frames</h2><div class="table-wrap"><table><thead><tr><th>Capture</th><th>Session time</th><th>Outcome</th><th>Image</th></tr></thead><tbody id="capture-rows"></tbody></table>
+        </div>
+        <button id="capture-toggle" class="secondary-button" type="button" hidden>Show all frames</button></section>
+      <section class="panel" aria-labelledby="gallery-title"><h2 id="gallery-title">Image gallery</h2><p id="gallery-empty">No committed images are available yet.</p><div id="gallery" class="gallery"></div>
+        <button id="gallery-toggle" class="secondary-button" type="button" hidden>Show all images</button></section>
     </main>
-    <template id="gallery-item-template"><a class="gallery-item" target="_blank" rel="noopener"><img loading="lazy" alt=""><span></span></a></template>
+    <template id="gallery-item-template"><button class="gallery-item" type="button"><img loading="lazy" alt=""><span></span></button></template>
+    <div id="image-modal" class="image-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-caption">
+      <div class="image-modal-card">
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close image">Close</button>
+        <img id="modal-image" alt="">
+        <p id="modal-caption"></p>
+      </div>
+    </div>
     <script src="dashboard.js"></script>
   </body>
 </html>
+
+
+

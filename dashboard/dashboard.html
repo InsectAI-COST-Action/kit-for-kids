@@ -14,14 +14,14 @@
       <header>
         <p class="eyebrow">Offline camera log</p>
         <h1>Insect camera sessions</h1>
-        <p id="status" role="status">Loading committed camera data…</p>
+        <p id="status" role="status">Loading committed camera data???</p>
       </header>
 
       <section class="metrics" aria-label="Session summary">
-        <article><span>Committed frames</span><strong id="capture-count">—</strong></article>
-        <article><span>Images available</span><strong id="image-count">—</strong></article>
-        <article><span>Average capture time</span><strong id="capture-time">—</strong></article>
-        <article><span>Inference status</span><strong id="inference-status">—</strong></article>
+        <article><span>Committed frames</span><strong id="capture-count">???</strong></article>
+        <article><span>Images available</span><strong id="image-count">???</strong></article>
+        <article><span>Average capture time</span><strong id="capture-time">???</strong></article>
+        <article><span>Inference status</span><strong id="inference-status">???</strong></article>
       </section>
 
       <section class="panel" aria-labelledby="filter-title">
@@ -39,17 +39,29 @@
             <tbody id="capture-rows"></tbody>
           </table>
         </div>
+        <button id="capture-toggle" class="secondary-button" type="button" hidden>Show all frames</button>
       </section>
 
       <section class="panel" aria-labelledby="gallery-title">
         <h2 id="gallery-title">Image gallery</h2>
         <p id="gallery-empty">No committed images are available yet.</p>
         <div id="gallery" class="gallery"></div>
+        <button id="gallery-toggle" class="secondary-button" type="button" hidden>Show all images</button>
       </section>
     </main>
     <template id="gallery-item-template">
-      <a class="gallery-item" target="_blank" rel="noopener"><img loading="lazy" alt=""><span></span></a>
+      <button class="gallery-item" type="button"><img loading="lazy" alt=""><span></span></button>
     </template>
+    <div id="image-modal" class="image-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-caption">
+      <div class="image-modal-card">
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close image">Close</button>
+        <img id="modal-image" alt="">
+        <p id="modal-caption"></p>
+      </div>
+    </div>
     <script src="dashboard.js"></script>
   </body>
 </html>
+
+
+

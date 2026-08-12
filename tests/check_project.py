@@ -67,6 +67,10 @@ def check_dashboard_contract() -> None:
     require("textContent" in javascript, "Dashboard must use safe text rendering")
     require("document.createElement('script')" in javascript, "Dashboard must load local chunks")
     require("delete" not in javascript.lower(), "Dashboard must not promise browser-side deletion")
+    require("capture-toggle" in html, "Dashboard must provide frame expand control")
+    require("gallery-toggle" in html, "Dashboard must provide gallery expand control")
+    require("image-modal" in html, "Dashboard must provide an image modal")
+    require("Show all" in javascript and "Escape" in javascript, "Dashboard must support expansion and modal close")
 
 
 def check_fixture_schema() -> None:
@@ -100,4 +104,5 @@ if __name__ == "__main__":
     except AssertionError as error:
         print(f"FAIL {error}", file=sys.stderr)
         raise SystemExit(1)
+
 
