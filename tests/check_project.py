@@ -50,9 +50,13 @@ def check_data_safety_contract() -> None:
     require("/raw/captures.csv" in logger, "Authoritative captures CSV is missing")
     require("/raw/detections.csv" in logger, "Authoritative detections CSV is missing")
     require("current_part_path_" in dashboard, "Dashboard partial chunk is missing")
+    require("kChunkSize = 10" in text("include/dashboard_writer.h"), "Dashboard chunks must be short enough for power removal")
+    require("captures_current.js" in dashboard, "Dashboard must preserve the current open chunk")
+    require("recoverCurrentChunk" in dashboard, "Dashboard must recover an open chunk")
     require("promoteCurrentChunk" in dashboard, "Dashboard chunk promotion is missing")
     require("writeTextAtomic(\"/manifest.js\"" in dashboard, "Manifest must be atomically written")
     require("every_frame" in logger, "Every-frame retention must be logged")
+    require("interrupted_power_removed" in logger, "Power removal must be represented in run state")
 
 
 def check_dashboard_contract() -> None:
@@ -96,3 +100,4 @@ if __name__ == "__main__":
     except AssertionError as error:
         print(f"FAIL {error}", file=sys.stderr)
         raise SystemExit(1)
+

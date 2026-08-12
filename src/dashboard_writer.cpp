@@ -12,10 +12,16 @@ bool DashboardWriter::begin(SdStorage& storage, String& diagnostic) {
   storage_ = &storage;
   if (!loadState(diagnostic)) return false;
   current_chunk_id_ = closed_chunk_count_ + 1;
-  current_part_path_ = chunkFileName(current_chunk_id_, "part");
-  if (storage_->exists(current_part_path_)) storage_->fs().remove(current_part_path_);
-  diagnostic = "dashboard writer ready";
-  return true;
+  current_part_path_ = currentChunkPath();
+
+  const String legacy_path = chunkFileName(current_chunk_id_, "part");
+  if (!storage_->exists(current_part_path_) && storage_->exists(legacy_path)) {
+    if (!storage_->fs().rename(legacy_path, current_part_path_)) {
+      diagnostic = "cannot migrate dashboard partial chunk " + legacy_path;
+      return false;
+    }
+  }
+  return recoverCurrentChunk(diagnostic);
 }
 
 bool DashboardWriter::appendCapture(const DashboardCapture& capture, String& diagnostic) {
@@ -56,8 +62,40 @@ bool DashboardWriter::promoteCurrentChunk(String& diagnostic) {
   current_chunk_count_ = 0;
   if (!saveState(diagnostic) || !writeManifest(diagnostic) || !writeSummary(diagnostic)) return false;
   ++current_chunk_id_;
-  current_part_path_ = chunkFileName(current_chunk_id_, "part");
+  current_part_path_ = currentChunkPath();
   return true;
+}
+
+bool DashboardWriter::recoverCurrentChunk(String& diagnostic) {
+  if (!storage_->exists(current_part_path_)) {
+    current_chunk_count_ = 0;
+    diagnostic = "dashboard writer ready";
+    return true;
+  }
+  current_chunk_count_ = countCurrentRecords(diagnostic);
+  if (current_chunk_count_ == 0) {
+    storage_->fs().remove(current_part_path_);
+    diagnostic = "removed empty dashboard partial";
+    return true;
+  }
+  if (!promoteCurrentChunk(diagnostic)) return false;
+  diagnostic = "recovered dashboard partial chunk";
+  return true;
+}
+
+uint32_t DashboardWriter::countCurrentRecords(String& diagnostic) const {
+  File file = storage_->fs().open(current_part_path_, FILE_READ);
+  if (!file) {
+    diagnostic = "cannot read dashboard partial " + current_part_path_;
+    return 0;
+  }
+  uint32_t count = 0;
+  while (file.available()) {
+    const String line = file.readStringUntil('\n');
+    if (!line.isEmpty()) ++count;
+  }
+  file.close();
+  return count;
 }
 
 bool DashboardWriter::writeManifest(String& diagnostic) {
@@ -81,7 +119,7 @@ bool DashboardWriter::writeSummary(String& diagnostic) {
   const String content =
       "window.InsectData=window.InsectData||{};window.InsectData.summary={\"schemaVersion\":1,"
       "\"committedCaptures\":" + String(closed_capture_count_) +
-      ",\"note\":\"Only closed chunks are shown; raw CSV is authoritative.\"};\n";
+      ",\"note\":\"Closed chunks plus captures_current.js are shown; raw CSV is authoritative.\"};\n";
   return storage_->writeTextAtomic("/summary.js", content, diagnostic);
 }
 
@@ -109,6 +147,10 @@ bool DashboardWriter::saveState(String& diagnostic) {
                                    diagnostic);
 }
 
+String DashboardWriter::currentChunkPath() const {
+  return "/data/captures_current.js";
+}
+
 String DashboardWriter::escapeJavaScript(const String& value) const {
   String escaped;
   escaped.reserve(value.length());
@@ -123,4 +165,3 @@ String DashboardWriter::escapeJavaScript(const String& value) const {
   }
   return escaped;
 }
-

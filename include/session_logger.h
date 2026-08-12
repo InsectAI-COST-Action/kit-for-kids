@@ -34,6 +34,7 @@ class SessionLogger {
 
  private:
   bool initialiseRunCounter(String& diagnostic);
+  bool markPreviousRunInterrupted(String& diagnostic);
   bool writeRunManifest(const String& state, String& diagnostic);
   String csvEscape(const String& value) const;
 

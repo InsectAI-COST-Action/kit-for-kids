@@ -14,6 +14,7 @@ const char* kCaptureHeader =
 const char* kDetectionHeader =
     "schema_version,run_id,capture_id,prediction_index,label_id,label,confidence,bbox_x,bbox_y,"
     "bbox_w,bbox_h,model_id,metadata_json";
+const char* kActiveRunPath = "/system/active_run.txt";
 }
 
 bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const String& sensor_id,
@@ -22,7 +23,7 @@ bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const Str
   config_ = config;
   sensor_id_ = sensor_id;
   started_ms_ = millis();
-  if (!initialiseRunCounter(diagnostic)) return false;
+  if (!markPreviousRunInterrupted(diagnostic) || !initialiseRunCounter(diagnostic)) return false;
   run_id_ = paddedId("run", run_counter_);
   if (!storage_->ensureDirectory("/images/" + run_id_, diagnostic) ||
       !storage_->ensureDirectory("/raw/runs", diagnostic)) return false;
@@ -31,6 +32,7 @@ bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const Str
   if (!storage_->exists("/raw/detections.csv") &&
       !storage_->appendLine("/raw/detections.csv", kDetectionHeader, diagnostic)) return false;
   if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) return false;
+  if (!storage_->writeTextAtomic(kActiveRunPath, run_id_, diagnostic)) return false;
   diagnostic = "session started: " + run_id_;
   return true;
 }
@@ -69,8 +71,12 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
 }
 
 bool SessionLogger::finish(String& diagnostic) {
-  if (!dashboard_.finish(diagnostic)) return false;
-  return writeRunManifest("finished", diagnostic);
+  if (!dashboard_.finish(diagnostic) || !writeRunManifest("finished", diagnostic)) return false;
+  if (storage_->exists(kActiveRunPath) && !storage_->fs().remove(kActiveRunPath)) {
+    diagnostic = "cannot clear active run marker";
+    return false;
+  }
+  return true;
 }
 
 const String& SessionLogger::runId() const { return run_id_; }
@@ -81,6 +87,25 @@ bool SessionLogger::initialiseRunCounter(String& diagnostic) {
   run_counter_ = previous.isEmpty() ? 1 : static_cast<uint32_t>(previous.toInt() + 1);
   if (run_counter_ == 0) run_counter_ = 1;
   return storage_->writeTextAtomic("/system/next_run.txt", String(run_counter_), diagnostic);
+}
+
+bool SessionLogger::markPreviousRunInterrupted(String& diagnostic) {
+  if (!storage_->exists(kActiveRunPath)) return true;
+  const String previous = storage_->readText(kActiveRunPath, 64, diagnostic);
+  if (previous.isEmpty()) return false;
+  const String manifest_path = "/raw/runs/" + previous + ".json";
+  if (storage_->exists(manifest_path)) {
+    String manifest = storage_->readText(manifest_path, 512, diagnostic);
+    if (manifest.isEmpty()) return false;
+    manifest.replace("\"state\": \"running\"", "\"state\": \"interrupted_power_removed\"");
+    if (!storage_->writeTextAtomic(manifest_path, manifest, diagnostic)) return false;
+  }
+  if (!storage_->fs().remove(kActiveRunPath)) {
+    diagnostic = "cannot clear stale active run marker";
+    return false;
+  }
+  diagnostic = "previous run marked interrupted_power_removed";
+  return true;
 }
 
 bool SessionLogger::writeRunManifest(const String& state, String& diagnostic) {

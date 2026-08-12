@@ -26,12 +26,15 @@ class DashboardWriter {
   bool finish(String& diagnostic);
 
  private:
-  static constexpr uint16_t kChunkSize = 100;
+  static constexpr uint16_t kChunkSize = 10;
   bool promoteCurrentChunk(String& diagnostic);
+  bool recoverCurrentChunk(String& diagnostic);
+  uint32_t countCurrentRecords(String& diagnostic) const;
   bool writeManifest(String& diagnostic);
   bool writeSummary(String& diagnostic);
   bool loadState(String& diagnostic);
   bool saveState(String& diagnostic);
+  String currentChunkPath() const;
   String escapeJavaScript(const String& value) const;
 
   SdStorage* storage_ = nullptr;

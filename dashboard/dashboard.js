@@ -32,16 +32,15 @@
 
   const render = () => {
     const captures = filteredCaptures();
-    const committed = data.summary?.committedCaptures ?? data.captures.length;
     const images = captures.filter((capture) => capture.imagePath);
     const averageCaptureMs = captures.length
       ? Math.round(captures.reduce((total, capture) => total + capture.captureMs, 0) / captures.length)
       : 0;
     const inferenceOutcomes = new Set(captures.map((capture) => capture.inferenceOutcome));
 
-    document.querySelector('#capture-count').textContent = String(committed);
+    document.querySelector('#capture-count').textContent = String(data.captures.length);
     document.querySelector('#image-count').textContent = String(images.length);
-    document.querySelector('#capture-time').textContent = captures.length ? `${averageCaptureMs} ms` : '—';
+    document.querySelector('#capture-time').textContent = captures.length ? `${averageCaptureMs} ms` : '-';
     document.querySelector('#inference-status').textContent = inferenceOutcomes.size
       ? [...inferenceOutcomes].join(', ') : 'No data';
 
@@ -81,15 +80,24 @@
   const load = async () => {
     const chunks = data.manifest?.captureChunks || [];
     const failures = [];
+    let currentLoaded = false;
+    try {
+      await loadScript('data/captures_current.js');
+      currentLoaded = true;
+    } catch (error) {
+      // A card with no open chunk is valid; closed chunks are still useful.
+    }
     for (const chunk of chunks) {
       try { await loadScript(chunk); } catch (error) { failures.push(error.message); }
     }
     if (failures.length) {
-      status.textContent = `Loaded committed data with ${failures.length} unavailable chunk(s).`;
-    } else if (!chunks.length) {
-      status.textContent = 'No closed data chunks yet. The camera writes dashboard data in groups of 100 frames.';
+      status.textContent = `Loaded data with ${failures.length} unavailable closed chunk(s).`;
+    } else if (!chunks.length && !currentLoaded) {
+      status.textContent = 'No dashboard data chunks are available yet.';
+    } else if (currentLoaded) {
+      status.textContent = `Loaded ${chunks.length} closed chunk(s) and the current open chunk.`;
     } else {
-      status.textContent = `Loaded ${chunks.length} committed data chunk(s).`;
+      status.textContent = `Loaded ${chunks.length} closed data chunk(s).`;
     }
     render();
   };
