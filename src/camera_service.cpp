@@ -1,6 +1,6 @@
 #include "camera_service.h"
 
-#include <esp_psram.h>
+#include <esp32-hal-psram.h>
 #include <sensor.h>
 
 namespace {
@@ -81,3 +81,5 @@ void CameraService::release(camera_fb_t* frame) {
 }
 
 const String& CameraService::sensorId() const { return sensor_id_; }
+
+
