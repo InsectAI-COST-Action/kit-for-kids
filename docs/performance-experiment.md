@@ -65,3 +65,15 @@ Only after the instrumented full-pipeline run is backed up should we create test
 3. image write only.
 
 Each variant must retain serial warnings that it is test-only and must be run on a copied card. The full-pipeline firmware remains the acceptance configuration.
+## First instrumented result: run_000010
+
+The ten-minute diagnostic run was stopped by the normal battery disconnect, so its run manifest remains `running` and one final `.tmp` image is expected. The run produced 483 completed image records before removal.
+
+| Sample | Image write | Logger | Total | Start lateness |
+| --- | ---: | ---: | ---: | ---: |
+| Frame 100 | 560 ms | 703 ms | 1,263 ms | 294 ms |
+| Frame 200 | 924 ms | 709 ms | 1,633 ms | 510 ms |
+| Frame 300 | 1,300 ms | 739 ms | 2,040 ms | 880 ms |
+| Frame 400 | 1,705 ms | 749 ms | 2,454 ms | 1,268 ms |
+
+Camera capture remained below the millisecond resolution of the current timer, and free heap/free PSRAM stayed constant. The evidence therefore localises the progressive slowdown to the JPEG write path, not camera capture or accumulating heap allocations. The next isolation test should compare the current atomic image write against a direct final-path write on a copied card, then compare one large run directory with sharded image directories. Direct-write firmware is test-only and must not be used for retained field data.
