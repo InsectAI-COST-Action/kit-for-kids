@@ -1,7 +1,19 @@
 # Architecture
 
-The main loop targets one camera frame every 500 ms, passes it to the inference interface, writes the original JPEG, appends an authoritative capture CSV row, and returns the frame buffer on every outcome path. Actual 2-FPS acceptance remains pending validation of the performance timer.
+The main loop targets one camera frame every 500 ms, passes it to the inference interface, writes the original JPEG, appends an authoritative capture CSV row, and returns the frame buffer on every outcome path. During the browser-inference feasibility phase, the on-device interface remains the null adapter and records `model_unavailable`; it must not delay capture. Actual 2-FPS acceptance remains pending validation of the performance timer.
 
 `CameraService` owns `esp_camera`; `SdStorage` owns the SD filesystem; `SessionLogger` owns IDs, CSV rows, and run manifests; `DashboardWriter` owns only derived JavaScript chunks and summaries; and `IInferenceEngine` hides model-specific code. No module other than `CameraService` can call `esp_camera_fb_get`.
 
 Raw CSV is authoritative. JPEGs are atomically written beneath `/images/<run>/shard_<nnnn>/`, with a new shard every 100 captures to bound FAT directory growth. Dashboard chunks are immutable after promotion from `.part` to `.js`; `manifest.js` lists only promoted chunks. An interrupted partial chunk is deliberately unreferenced, so it cannot break `dashboard.html`.
+
+## Provisional inference split
+
+The next technical spike moves production-model execution out of the ESP32 capture loop and into the offline dashboard after the SD card is inserted into a computer. This is a provisional architecture, not an accepted model implementation:
+
+1. The ESP32 captures and safely stores every frame at the configured cadence.
+2. The dashboard loads the session without starting inference, so the user can explore the pictures immediately.
+3. A large, explicit child-friendly action starts local analysis of retained images.
+4. A locally bundled browser runtime and model process images without network access. The UI reports progress, remains cancellable and responsive, and makes model uncertainty clear.
+5. Results use the existing versioned prediction contract where possible. The first portable implementation may offer a download rather than write back to the SD card, because cross-browser local-file write access is not assumed.
+
+ONNX Runtime Web with WebAssembly is the baseline runtime to test across Chrome, Edge, Firefox, and Safari. WebGPU may be an optional acceleration path where supported, but must not be required. `file://` loading of the model, WebAssembly assets, workers, and image files must be proven in the full browser matrix before this architecture is accepted. See `docs/browser-inference-plan.md`.

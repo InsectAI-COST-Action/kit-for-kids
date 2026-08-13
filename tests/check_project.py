@@ -90,6 +90,17 @@ def check_fixture_schema() -> None:
         require(record["uptimeMs"] > 0, "Fixture must use session-relative time")
 
 
+def check_development_path_docs() -> None:
+    plan = text("docs/browser-inference-plan.md")
+    model_card = text("docs/model-card.md")
+    brief = text("docs/project-brief.md")
+    require("FlatBug" in plan and "FlatBug" in model_card and "FlatBug" in brief, "FlatBug candidate must be recorded")
+    require("file://" in plan, "Browser inference must preserve direct local-file operation")
+    require("WebAssembly" in plan and "WebGPU" in plan, "Portable and optional browser backends must be distinguished")
+    require("7,200" in plan, "Browser feasibility must cover a maximum session")
+    require("pause/cancel" in plan, "Long-running browser inference must remain controllable")
+
+
 def main() -> int:
     checks = [
         check_platform,
@@ -98,6 +109,7 @@ def main() -> int:
         check_data_safety_contract,
         check_dashboard_contract,
         check_fixture_schema,
+        check_development_path_docs,
     ]
     for check in checks:
         check()

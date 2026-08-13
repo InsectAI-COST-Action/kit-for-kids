@@ -1,14 +1,17 @@
 # Next session checklist
 
-Start with the SD card disconnected from the camera and mounted on the development computer.
+The SD card has been reset for rapid pilot iteration and a clean camera test is under way. Do not spend the next session reconstructing discarded early test data.
 
-1. Create a read-only backup or card image, then rerun `py tools\audit_card.py <card-root>`. Record the run-000012 result: 2,384 raw rows, 2,384 dashboard records, 2,384 JPEGs, and one final `.tmp` image. The card-wide count mismatch and older stale manifests predate this run; preserve them for later reconciliation rather than deleting files.
-2. With the card in the powered-off board, perform one brief boot and then disconnect power. This should mark run 000012 as `interrupted_power_removed` and promote any remaining current dashboard chunk. Mount the card again and audit it; do not treat the final interrupted `.tmp` file as data loss.
-3. Fix and validate the performance instrument before another rate experiment. Add an independent monotonic-duration measurement and a clear per-frame elapsed-time sanity check, then compare it with run-relative timestamps. Do not claim 2-FPS acceptance until these agree.
-4. After the timer check passes, run a copied-card, controlled capture at the configured 2 FPS. Compare the first, middle, and final `image_write_ms`, `raw_csv_ms`, `dashboard_ms`, logger, and independent elapsed-time samples. Confirm image shards remain capped at 100 JPEGs.
-5. Run the repository checks (`py tests\check_project.py`) and a clean PlatformIO build before hardware work. Keep the hardware firmware version and the test-card backup with the recorded results.
-6. Run the one-hour battery profile only after cadence validation. Record battery voltage, temperature, frame count, image count, SD errors, and whether final power removal is recovered cleanly.
-7. Test the offline dashboard on Windows 10/11 and a current macOS release in Chrome, Edge, Firefox, and Safari. Confirm full capture counts, expand/collapse controls, and image-modal loading from local files.
-8. Test the manual reset workflow on a copied card image, keeping the original card data intact until counts and backups are confirmed.
-9. Continue SD endurance testing toward 7,200 retained captures, then review whether a cleanup/reconciliation utility is needed before model integration.
-10. Keep the null inference adapter in place until a production model, model card, licence, input/output contract, and 2-FPS benchmark are approved.
+1. Power down normally by removing the cable, mount the card, and run `py tools\audit_card.py <card-root>`. Confirm the clean-card run has matching raw, dashboard, and JPEG counts and that the interrupted-run recovery path remains sound.
+2. Preserve the existing firmware/null inference boundary. The ESP32 should capture and store frames; do not add a production model to its capture loop during the browser feasibility phase.
+3. Design and implement the child-first dashboard shell described in `docs/browser-inference-plan.md`: a full-page loading state, large guided actions, clear instructions, fun accessible colours, and retained adult details. Test empty, loading, success, partial-data, and error states using local fixtures.
+4. Keep initial dashboard loading separate from AI analysis. Add the **Find insects with AI** journey as a non-functional/prototype state first, including progress, current image, pause/cancel, uncertainty language, and an honest no-model state.
+5. Investigate FlatBug as the preferred candidate. Obtain the smallest relevant official weights and record version, hash, source, licence, byte size, task, labels, input, and reference runtime. Do not add copied weights to Git until redistribution is confirmed.
+6. Run a narrow export experiment outside the dashboard: compare the reference FlatBug Python output with an ONNX export on a small fixed image set, and determine which parts of its pyramid/tiling and merging pipeline must be reproduced.
+7. Only if export parity is credible, build the offline browser spike with locally packaged ONNX Runtime Web. Prove `file://` model/WASM/JPEG loading before investing in the polished analysis UI.
+8. Benchmark at least 100 representative enclosure images in WebAssembly, then optional WebGPU, recording the measures in `docs/browser-inference-plan.md`. Extrapolate to 7,200 images and agree an acceptable post-session wait target; do not silently skip frames.
+9. Test the child dashboard and inference spike on Windows 10/11 and current macOS in Chrome, Edge, Firefox, and Safari. Treat WebAssembly as mandatory and WebGPU as optional.
+10. Complete one bounded performance-timer/cadence validation and continue SD endurance toward 7,200 retained captures. Run only a short actual-battery-pack stability/power-removal smoke test, not a formal capacity profile.
+11. Run `py tests\check_project.py`, `git diff --check`, and a clean PlatformIO build before committing a completed tranche.
+
+Decision gates for the next tranche: FlatBug model artefact/licence availability, ONNX export parity, acceptable browser package size/memory/time, safe cross-browser result persistence, and the precise claims validated by enclosure data.

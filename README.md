@@ -1,6 +1,6 @@
 # Insect camera logger
 
-Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV3660 camera. The pilot captures and stores every frame at 2 FPS for no more than one hour. Computer vision is deliberately a null adapter until a production model is selected.
+Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV3660 camera. The pilot captures and stores every frame at 2 FPS for no more than one hour. Computer vision is deliberately a null adapter on the camera while an offline, browser-side inference path is evaluated.
 
 ## Development status
 
@@ -10,7 +10,9 @@ Performance run `run_000012` is an important storage milestone. Its 2,384 comple
 
 The dashboard is working as a local file on the SD card. It loads closed chunks plus the current open chunk, shows a compact ten-item preview with working expand/collapse controls, and opens images in an in-page modal. The runtime-generated `manifest.js` and `summary.js` are preserved when `py tools\prepare_sd.py` updates static dashboard files. Host-side contract checks pass.
 
-Remaining acceptance work is timing-instrument validation, the full one-hour battery profile, SD endurance testing, cross-browser verification on Windows 10/11 and current macOS, and a final review of data integrity after repeated power removal. These are tracked in `docs/hardware-validation.md` and `docs/next-session.md`.
+The next development path has two strands: redesign the dashboard for young children, including a clear full-page loading state and guided actions, and prototype post-session insect detection entirely in the offline dashboard. FlatBug is the preferred first model candidate, but adoption is gated on model size, browser export, performance, licence compatibility, and representative-image validation. See `docs/browser-inference-plan.md`.
+
+Remaining device acceptance work is timing-instrument validation, SD endurance testing, cross-browser verification on Windows 10/11 and current macOS, and a final review of data integrity after repeated power removal. A formal battery-capacity test is deprioritised; a short stability and clean-power-removal smoke test with the intended USB battery pack remains appropriate. These are tracked in `docs/hardware-validation.md` and `docs/next-session.md`.
 
 ## Toolchain
 
@@ -41,8 +43,9 @@ Do not remove the SD card while the camera is powered. Previous committed record
 - `tests/check_project.py`: dependency-free contract/static test harness.
 - `tools/audit_card.py`: read-only SD-card integrity audit.
 - `docs/performance-experiment.md`: staged performance-instrumentation protocol.
+- `docs/browser-inference-plan.md`: child-first dashboard direction and gated local-model experiment.
 - `docs/`: architecture, operations, and hardware-validation evidence.
 
 ## Model status
 
-No production CV model has been chosen. `NullInferenceEngine` reports `model_unavailable` and writes no predictions. It must be replaced only after a model card, licence, input/output contract, and 2-FPS benchmark have been approved.
+No production CV model has been chosen. `NullInferenceEngine` reports `model_unavailable` and writes no predictions. The current hypothesis is to leave capture on the ESP32 and analyse every retained image later in the local dashboard, protecting capture rate and keeping data offline. FlatBug is the preferred candidate to investigate, not an approved dependency. The browser spike and model gates are defined in `docs/browser-inference-plan.md` and `docs/model-card.md`.

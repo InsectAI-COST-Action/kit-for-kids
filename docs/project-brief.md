@@ -1,4 +1,4 @@
-# Project Brief: Autonomous OV3660 Insect Camera, CV Logger, and Offline Dashboard
+# Project Brief: Autonomous OV3660 Insect Camera, Logger, and Offline Analysis Dashboard
 
 Status: active pilot implementation; scope authority and lower-level-agent task contract
 Reviewed: 13 August 2026
@@ -8,11 +8,13 @@ Audience: project owner, lead agent, bounded implementation agents, and reviewer
 
 The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV3660/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.
 
-Run `run_000012` verified the current JPEG-directory sharding design: 2,384 completed raw records, dashboard entries, and JPEGs were present, with image-write time remaining near 0.55 seconds through frame 2,300. This is evidence that sharding mitigates the earlier progressive FAT directory slowdown; it is not yet acceptance evidence for 2 FPS because the stage-duration telemetry conflicts with run-relative elapsed time. The next implementation work is timing-instrument validation, followed by cadence, one-hour battery, endurance, recovery, and browser-matrix acceptance tests. See `docs/performance-experiment.md`, `docs/hardware-validation.md`, and `docs/next-session.md`.
+Run `run_000012` verified the current JPEG-directory sharding design: 2,384 completed raw records, dashboard entries, and JPEGs were present, with image-write time remaining near 0.55 seconds through frame 2,300. This is evidence that sharding mitigates the earlier progressive FAT directory slowdown; it is not yet acceptance evidence for 2 FPS because the stage-duration telemetry conflicts with run-relative elapsed time. Remaining device work is a bounded timer/cadence check, endurance, recovery, and browser-matrix validation. A formal one-hour battery-capacity profile is deprioritised; retain a short stability and power-removal smoke test with the intended USB battery pack.
+
+The next development tranche is a child-first dashboard redesign and a decision-gated experiment in post-session, offline browser inference. The ESP32 continues to capture and store every frame with the null inference adapter. The dashboard will load the session first, then let the user explicitly start local analysis. FlatBug is the preferred model candidate to investigate, but it is not selected: its exact weights, licence chain, ONNX export parity, tiling requirements, package size, memory use, performance, and accuracy on enclosure images must be measured. `docs/browser-inference-plan.md` is the controlling plan for this tranche.
 
 ## 1. Purpose and authority
 
-Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures OV3660 frames at 2 FPS, runs a replaceable on-device computer-vision model after every frame, and records results safely. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access.
+Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 frames at 2 FPS. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
@@ -24,7 +26,7 @@ Manufacturer references:
 - Camera: https://wiki.seeedstudio.com/xiao_esp32s3_camera_usage/
 - Hardware files: https://github.com/Seeed-Studio/OSHW-XIAO-Series
 
-`docs/camera-spec.md` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures do not include the final inference workload: measure the completed 2-FPS capture/store/inference profile, battery duration, voltage drop, and temperature before release. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
+`docs/camera-spec.md` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures are sufficient to deprioritise a formal one-hour battery-capacity profile for this pilot. Validate the completed 2-FPS capture/store workload with a short stability, temperature, and clean-power-removal smoke test using the intended USB battery pack; browser-side inference does not add to the device power load. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
 
 ## 2. Product outcome and users
 
@@ -35,7 +37,8 @@ The primary user is a non-technical ecologist, teacher, workshop facilitator, or
 3. remove the SD card only after power is disconnected and insert it into a computer;
 4. access its files through the computer's ordinary file manager;
 5. double-click `dashboard.html`; and
-6. explore detections, images, charts, summaries, and device/run health entirely offline.
+6. explore images and simple session information, then deliberately start entertaining, clearly explained local AI analysis; and
+7. let an adult open predictions, charts, exports, and detailed device/run health entirely offline.
 
 The pilot succeeds only if data remains intelligible after ordinary faults, real detections are clearly distinguishable from test data, and the dashboard does not require browser permissions beyond opening local files.
 
@@ -44,7 +47,7 @@ The pilot succeeds only if data remains intelligible after ordinary faults, real
 ### Must — pilot platform
 
 - Pinned, reproducible Arduino-ESP32/PlatformIO firmware for the confirmed XIAO ESP32S3 Sense and OV3660.
-- Autonomous boot, fixed 2-FPS capture, inference after every captured frame, retention of every frame, structured logging, summary generation, and offline dashboard.
+- Autonomous boot, fixed 2-FPS capture and retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
 - PSRAM detection and explicit failure/degraded behaviour.
 - Versioned configuration, event/data schemas, and migration policy.
 - Direct `file://` dashboard operation in Chrome, Edge, Firefox, and Safari on Windows 10/11 and current macOS, with no `fetch()`, CDN, server, installation, or internet.
@@ -60,7 +63,7 @@ These become mandatory only after the model decision gate is satisfied:
 
 - A licensed production model artifact, label map, preprocessing/postprocessing specification, measured accuracy evidence, and supported input resolution.
 - Clear validation on representative enclosure imagery, including empty frames and likely confounders.
-- Measured capture/inference throughput and thermals using that exact model.
+- Measured browser load/inference time, memory, package size, output parity, and responsiveness using that exact model, plus independent device capture-cadence evidence.
 - No test/stub detection may be shown or exported as a real observation.
 
 ### Should
@@ -85,8 +88,8 @@ These become mandatory only after the model decision gate is satisfied:
 The following are confirmed project decisions:
 
 1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
-2. **Model:** no production model exists yet. The first implementation provides only the model interface and a `MODEL_UNAVAILABLE` null engine. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
-3. **Capture/inference:** capture, store, and invoke inference for every frame at 2 FPS, for a maximum one-hour session. This is 7,200 retained frames per session. When a model is chosen, it must demonstrably sustain this cadence or the owner must approve a changed requirement; software must never silently drop analyses.
+2. **Model:** no production model exists yet. The device provides only the model interface and a `MODEL_UNAVAILABLE` null engine. FlatBug is the preferred candidate for the first browser feasibility test, not an approved production dependency. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
+3. **Capture/inference:** capture and store every frame at 2 FPS for a maximum one-hour session, or 7,200 retained frames. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 2 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
 4. **Time:** session-relative only. `boot_id + monotonic_ms` is authoritative; date, hour, and “today” controls are unavailable rather than fabricated.
 5. **Power/stop/transfer:** battery powered; disconnecting the power cable stops collection. The user then removes the SD card and inserts it into a computer for transfer. The SD card must not be removed while the device is powered.
 6. **Retention/privacy:** keep every captured frame; people may appear in view; anyone may use the transferred data; real images may be used in demonstrations. Repository samples still require appropriate permission and licensing. Users delete data manually through the computer's file manager; the dashboard has no deletion feature.
@@ -94,7 +97,7 @@ The following are confirmed project decisions:
 8. **Dashboard support:** Windows 10/11 and current macOS using Chrome, Edge, Firefox, and Safari, tested offline from `file://`.
 9. **Terminology:** use “label”, “class”, and “prediction”; do not claim species identification or ecological accuracy before model validation.
 
-Remaining future gates: select a production model before field-detection claims, and select the project’s open-source licence before public release. Transfer and deletion require no additional software feature: users work directly with the removable SD card in the computer's file manager.
+Remaining future gates: prove or reject the browser-inference architecture; select, license, export, benchmark, and validate a production model before field-detection claims; and select the project's open-source licence before public release. Transfer and deletion require no additional software feature: users work directly with the removable SD card in the computer's file manager.
 
 ## 5. Required system behaviour
 
@@ -104,16 +107,16 @@ Remaining future gates: select a production model before field-detection claims,
 2. Initialise serial diagnostics, validate PSRAM/hardware identity, and load configuration using documented defaults if missing.
 3. Mount and health-check SD. Never auto-format a card. Missing/unusable storage enters a visible error/retry state, not a reboot loop.
 4. Recover incomplete temporary files and malformed CSV tail records without discarding earlier committed data.
-5. Initialise OV3660 using a tested preset, then load/validate the selected model.
+5. Initialise OV3660 using a tested preset. Initialise the null inference adapter; do not require a production model to boot or capture during the browser feasibility phase.
 6. Create a run/session record containing firmware, schema, config, model, board, sensor, and time-source facts.
-7. Start the monotonic capture schedule. Each due frame moves through capture, inference, retention policy, image write, raw log, and summary/chunk update with explicit outcomes.
+7. Start the monotonic capture schedule. Each due frame moves through capture, null-inference status, retention policy, image write, raw log, and summary/chunk update with explicit outcomes. Post-session browser inference is a separate user-initiated workflow.
 8. Periodically flush/commit within a documented data-loss window. On power-cable disconnection, files must be recoverable within the documented loss window. The user removes the SD card only after the device has lost power.
 
-If the camera or production model cannot initialise, the system must record/indicate the fault and retry only with bounded backoff. It must never generate plausible fake detections to appear healthy.
+If the camera cannot initialise, the system must record/indicate the fault and retry only with bounded backoff. A missing production model must not prevent capture during the browser feasibility phase; the device records `model_unavailable`. Neither device nor dashboard may generate plausible fake detections to appear healthy.
 
 ### Scheduling and resource ownership
 
-- Use monotonic deadlines from a baseline to capture and invoke inference after every frame at fixed 2 FPS. If a selected production model cannot finish within the 500 ms frame budget, record an explicit failed/overrun analysis and surface it as an unsatisfied requirement; never quietly reduce the rate or create an unbounded backlog.
+- Use monotonic deadlines from a baseline to capture every frame at fixed 2 FPS. The null adapter must not delay the device loop. Browser inference runs later in bounded, cancellable batches and yields to the UI; it must report progress/errors and never quietly reduce the capture rate, skip analyses, or create an unbounded memory backlog.
 - One component owns the camera and frame-buffer lifecycle. Define who releases each buffer on every success/error path.
 - Use bounded queues. Define overflow policy and report dropped work.
 - Serialize SD writes or otherwise prove filesystem safety. Dashboard maintenance must not block capture indefinitely.
@@ -121,7 +124,7 @@ If the camera or production model cannot initialise, the system must record/indi
 
 ### Inference contract
 
-Use a narrow interface such as `InferenceEngine::run(const FrameView&, InferenceResult&)`; do not couple other modules to TensorFlow Lite Micro, Edge Impulse, ESP-DL, or a custom backend. The versioned result must support:
+Keep the device's narrow interface such as `InferenceEngine::run(const FrameView&, InferenceResult&)`; do not couple capture or storage modules to any model backend. Add a separately versioned browser adapter that maps model outputs into the same normalised result concepts without pretending browser results were produced during capture. The versioned result must support:
 
 - outcome: `ok`, `model_unavailable`, `invalid_input`, `runtime_error`, or `timeout`;
 - task type: classification or object detection;
@@ -129,7 +132,7 @@ Use a narrow interface such as `InferenceEngine::run(const FrameView&, Inference
 - capture/model IDs, inference duration, and optional bounded numeric metadata;
 - segmentation only through a future schema version/ADR, not an unused memory-heavy field in the pilot.
 
-Preprocessing and postprocessing belong to the model adapter. Other components consume normalised results. A deterministic fake engine is allowed only in tests/builds visibly marked `TEST DATA`; a null engine returns no observations and a health error.
+Preprocessing and postprocessing belong to the applicable device or browser model adapter. Other components consume normalised results. A deterministic fake engine is allowed only in tests/builds visibly marked `TEST DATA`; a null engine returns no observations and a health error. Browser exports must include analysis ID, model version/hash, settings, source capture ID, runtime, and outcome so later analysis is distinguishable from the capture-time log.
 
 ### Retention policy
 
@@ -202,6 +205,10 @@ The dashboard may load local `<script src>` files because `fetch()` is commonly 
 
 The dashboard must:
 
+- present a child-first landing experience with large touch targets, short directions, fun accessible colours, and a large full-page data-loading state with useful progress/error/retry messaging;
+- load the session before offering analysis, never start AI work automatically, and provide an explicit **Find insects with AI** action;
+- keep long analysis responsive and engaging with current-image/progress feedback, honest uncertainty, and obvious pause/cancel controls, while preserving reduced-motion and keyboard support;
+
 - open from `dashboard.html` and visibly report dataset/schema compatibility, last committed update, incomplete run, model/test-data identity, clock validity, and degraded device states;
 - remain useful if an image is missing or one nonessential chunk is invalid;
 - load bounded pages/chunks and thumbnails rather than all records/full images;
@@ -222,7 +229,7 @@ Provide synthetic, prominently labelled sample data with empty, small, large, mu
 
 Use versioned `config.json` with documented defaults and bounds. At minimum:
 
-- fixed capture/inference cadence: 2 FPS, every frame, maximum one-hour session;
+- fixed device capture cadence: 2 FPS, every frame, maximum one-hour session; browser analysis still targets every retained frame but runs post-session;
 - frame size and JPEG quality using tested presets;
 - model ID/backend and label-map version;
 - global/per-label confidence threshold for future model interpretation only; it does not alter the every-frame retention policy;
@@ -296,9 +303,9 @@ Freeze component ownership, event/state/error model, config, CSV, run manifest, 
 
 Own OV3660 lifecycle/presets, monotonic scheduling, frame-buffer ownership, rate/skip counters, and bounded delivery to inference. Provide host-testable scheduler logic and device tests. Do not implement model, SD schema, or UI.
 
-### WP3 — Inference adapter
+### WP3 - Device and browser inference adapters
 
-Own interface, preprocessing/postprocessing, null/test backend, selected production backend, model identity, predictions, resource/timing metrics, and model-card evidence. Never leak backend types into WP2/WP4. Do not claim field accuracy without the model gate.
+Own the device null/test interface plus the decision-gated browser backend, preprocessing/postprocessing, model identity, predictions, export parity, package/memory/timing metrics, and model-card evidence. Evaluate FlatBug first. Never leak backend types into WP2/WP4 or add unlicensed weights. Do not claim field accuracy without the model gate.
 
 ### WP4 — Persistence and recovery
 
@@ -306,7 +313,7 @@ Own SD lifecycle, IDs, images/thumbnails, authoritative CSV, run records, atomic
 
 ### WP5 — Offline dashboard
 
-Build against frozen WP1 fixtures before device data exists. Own loader, schema checks, overview/table/timeline/charts/gallery/search/filters/health, pagination, responsive/accessibility, local-file compatibility, and safe rendering. Do not redefine schemas or require a server/network.
+Build against frozen WP1 fixtures before device data exists. Own the child-first local-file loader; full-page loading and guided analysis states; schema checks; overview/table/timeline/charts/gallery/search/filters/health; pagination; responsive accessibility; and safe rendering. Coordinate browser-model execution through the WP3 adapter and keep adult details available without dominating the child journey. Do not redefine schemas or require a server/network.
 
 ### WP6 — Configuration, health, and physical UX
 
@@ -331,8 +338,8 @@ Required scenarios:
 - session-relative time without a valid wall clock;
 - power interruption during image, CSV, chunk, summary, and manifest updates;
 - recovery across at least 10 forced power cycles without losing earlier committed records;
-- at least 100 consecutive capture/inference cycles without leak, collision, or corrupt image;
-- at least one complete one-hour, 7,200-frame session with zero uncontrolled reboot; capture, inference, storage, and error counts must reconcile exactly;
+- at least 100 consecutive device capture/null-inference cycles without leak, collision, or corrupt image, plus a separate 100-image browser inference responsiveness/memory test after model export;
+- at least one complete one-hour, 7,200-frame session with zero uncontrolled reboot; capture, storage, and error counts must reconcile exactly; after model approval, a separate browser analysis must account for every retained frame with explicit success/error outcomes;
 - raw-to-dashboard counts and image links reconcile for empty/small/large/interrupted datasets;
 - one missing image, corrupt optional chunk, stale summary, incompatible schema, and test-data marker;
 - `dashboard.html` opened from SD/local copy in every supported OS/browser with network disabled;
@@ -342,7 +349,7 @@ Required scenarios:
 Performance budgets are established in WP0/WP3 and then frozen in an ADR. Initial measurement goals, not unsupported promises:
 
 - boot to collecting or visible fault ≤30 seconds;
-- fixed 2-FPS capture and inference attempt after every frame, with achieved capture and analysed FPS reported separately;
+- fixed 2-FPS device capture with achieved capture FPS reported; post-session browser analysis covers every retained frame and reports load time, first-result time, analysed FPS, total time, memory, and errors separately;
 - no unbounded backlog or silent skipped analysis;
 - dashboard first useful view ≤3 seconds for the agreed typical dataset and bounded memory on reference computers;
 - documented maximum tested card duration/record count/chunk size; and
@@ -362,6 +369,6 @@ Deliver:
 
 The pilot platform is accepted only when a clean machine reproduces the build; actual board/OV3660 facts are recorded; autonomous collection and all fault states work in the enclosure; committed CSV survives the power-cycle tests; derived dashboard data reconciles to raw records; the offline dashboard passes the browser matrix without network/server; test data cannot be mistaken for observations; power/thermal/storage limits are documented; and a new facilitator can complete the primary journey from the guides.
 
-A real field-detection release additionally requires the model gate, representative validation, measured model throughput, and owner-approved accuracy/label claims. Until then the deliverable is an instrumented logging/dashboard platform, not a scientifically validated species detector.
+A real field-detection release additionally requires acceptance of the browser architecture (or a documented replacement), the model gate, reference-output parity, representative validation, measured model package/memory/throughput, and owner-approved accuracy/label claims. Until then the deliverable is an instrumented logging/dashboard platform, not a scientifically validated species detector.
 
 Every subtask is done only when it traces to a requirement/ADR; interfaces, ownership, limits, schemas, and errors are documented; relevant automated/physical tests pass; commands reproduce; failure and cleanup paths were reviewed; no secret, unbounded resource use, warning, undocumented dependency, or false detection claim was introduced; shared-contract changes were communicated; and the lead can integrate without reverse-engineering unstated assumptions.
