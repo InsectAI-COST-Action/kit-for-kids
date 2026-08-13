@@ -28,5 +28,3 @@ th, td { border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent
 .modal-close { background: Canvas; border: 1px solid color-mix(in srgb, CanvasText 35%, transparent); border-radius: 50%; color: CanvasText; cursor: pointer; font-size: 1.4rem; line-height: 1; padding: .15rem .5rem; position: absolute; right: .65rem; top: .65rem; }
 :focus-visible { outline: 3px solid #cc6b2c; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
-
-

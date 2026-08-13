@@ -81,5 +81,3 @@ void CameraService::release(camera_fb_t* frame) {
 }
 
 const String& CameraService::sensorId() const { return sensor_id_; }
-
-
