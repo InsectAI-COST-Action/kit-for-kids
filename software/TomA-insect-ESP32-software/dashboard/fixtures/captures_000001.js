@@ -1,0 +1,3 @@
+window.InsectData = window.InsectData || { captures: [], addCapture: function (capture) { this.captures.push(capture); } };
+window.InsectData.addCapture({"runId":"run_000001","captureId":"run_000001_img_000001","uptimeMs":500,"outcome":"completed","imagePath":"","width":640,"height":480,"jpegBytes":12345,"captureMs":42,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
+window.InsectData.addCapture({"runId":"run_000001","captureId":"run_000001_img_000002","uptimeMs":1000,"outcome":"completed","imagePath":"","width":640,"height":480,"jpegBytes":12001,"captureMs":39,"inferenceMs":0,"inferenceOutcome":"model_unavailable"});
