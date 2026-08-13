@@ -31,8 +31,19 @@ bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const Str
       !storage_->appendLine("/raw/captures.csv", kCaptureHeader, diagnostic)) return false;
   if (!storage_->exists("/raw/detections.csv") &&
       !storage_->appendLine("/raw/detections.csv", kDetectionHeader, diagnostic)) return false;
-  if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) return false;
-  if (!storage_->writeTextAtomic(kActiveRunPath, run_id_, diagnostic)) return false;
+  captures_file_ = storage_->fs().open("/raw/captures.csv", FILE_APPEND);
+  if (!captures_file_) {
+    diagnostic = "cannot open /raw/captures.csv for session logging";
+    return false;
+  }
+  if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) {
+    captures_file_.close();
+    return false;
+  }
+  if (!storage_->writeTextAtomic(kActiveRunPath, run_id_, diagnostic)) {
+    captures_file_.close();
+    return false;
+  }
   diagnostic = "session started: " + run_id_;
   return true;
 }
@@ -53,7 +64,18 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
       String(capture.inference.prediction_count) + "," + String(capture.inference.max_confidence, 4) +
       "," + csvEscape(capture.image_path) + ",every_frame," + csvEscape(capture.save_outcome) + "," +
       csvEscape(capture.error_code);
-  if (!storage_->appendLine("/raw/captures.csv", row, diagnostic)) return false;
+  if (!captures_file_) {
+    diagnostic = "capture log file is not open";
+    return false;
+  }
+  const size_t expected = row.length() + 1;
+  size_t written = captures_file_.print(row);
+  written += captures_file_.write('\n');
+  captures_file_.flush();
+  if (written != expected) {
+    diagnostic = "short append /raw/captures.csv";
+    return false;
+  }
 
   DashboardCapture dashboard_capture;
   dashboard_capture.run_id = run_id_;
@@ -71,7 +93,10 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
 }
 
 bool SessionLogger::finish(String& diagnostic) {
-  if (!dashboard_.finish(diagnostic) || !writeRunManifest("finished", diagnostic)) return false;
+  const bool dashboard_finished = dashboard_.finish(diagnostic);
+  if (captures_file_) captures_file_.flush();
+  if (captures_file_) captures_file_.close();
+  if (!dashboard_finished || !writeRunManifest("finished", diagnostic)) return false;
   if (storage_->exists(kActiveRunPath) && !storage_->fs().remove(kActiveRunPath)) {
     diagnostic = "cannot clear active run marker";
     return false;

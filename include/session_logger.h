@@ -40,6 +40,7 @@ class SessionLogger {
 
   SdStorage* storage_ = nullptr;
   DashboardWriter dashboard_;
+  File captures_file_;
   AppConfig config_;
   String run_id_;
   String sensor_id_;

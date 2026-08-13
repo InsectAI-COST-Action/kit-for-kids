@@ -50,7 +50,10 @@ def check_data_safety_contract() -> None:
     require("/raw/captures.csv" in logger, "Authoritative captures CSV is missing")
     require("/raw/detections.csv" in logger, "Authoritative detections CSV is missing")
     require("current_part_path_" in dashboard, "Dashboard partial chunk is missing")
-    require("kChunkSize = 10" in text("include/dashboard_writer.h"), "Dashboard chunks must be short enough for power removal")
+    require("kChunkSize = 100" in text("include/dashboard_writer.h"), "Dashboard chunks must use the optimized bounded size")
+    require("current_file_" in text("include/dashboard_writer.h"), "Dashboard writer should keep its current chunk open")
+    require("captures_file_" in text("include/session_logger.h"), "Session logger should keep raw CSV open")
+    require("writeBinaryAtomicCreate" in text("src/main.cpp"), "JPEG writes should use the unique atomic path")
     require("captures_current.js" in dashboard, "Dashboard must preserve the current open chunk")
     require("recoverCurrentChunk" in dashboard, "Dashboard must recover an open chunk")
     require("promoteCurrentChunk" in dashboard, "Dashboard chunk promotion is missing")
@@ -105,6 +108,3 @@ if __name__ == "__main__":
     except AssertionError as error:
         print(f"FAIL {error}", file=sys.stderr)
         raise SystemExit(1)
-
-
-

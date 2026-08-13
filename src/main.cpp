@@ -121,7 +121,7 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   record.save_outcome = "saved";
 
   const uint32_t image_write_started = millis();
-  const bool image_saved = storage.writeBinaryAtomic(record.image_path, frame->buf, frame->len, diagnostic);
+  const bool image_saved = storage.writeBinaryAtomicCreate(record.image_path, frame->buf, frame->len, diagnostic);
   timing.image_write_ms = millis() - image_write_started;
   camera.release(frame);
   if (!image_saved) {

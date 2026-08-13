@@ -11,7 +11,13 @@ class SdStorage {
   bool writeTextAtomic(const String& path, const String& content, String& diagnostic);
   bool writeBinaryAtomic(const String& path, const uint8_t* data, size_t length,
                          String& diagnostic);
+  bool writeBinaryAtomicCreate(const String& path, const uint8_t* data, size_t length,
+                               String& diagnostic);
   bool appendLine(const String& path, const String& line, String& diagnostic);
   String readText(const String& path, size_t max_bytes, String& diagnostic) const;
   fs::FS& fs();
+
+ private:
+  bool writeBinaryAtomicInternal(const String& path, const uint8_t* data, size_t length,
+                                 bool replace_existing, String& diagnostic);
 };
