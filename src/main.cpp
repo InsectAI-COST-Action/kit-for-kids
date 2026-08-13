@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include <esp_heap_caps.h>
+
 #include "app_config.h"
 #include "camera_service.h"
 #include "inference.h"
@@ -17,6 +19,18 @@ bool ready = false;
 bool finished = false;
 uint32_t next_capture_due_ms = 0;
 uint32_t session_started_ms = 0;
+constexpr uint32_t kPerformanceSampleInterval = 100;
+
+struct CaptureTiming {
+  uint32_t scheduled_ms = 0;
+  uint32_t start_lag_ms = 0;
+  uint32_t capture_ms = 0;
+  uint32_t image_write_ms = 0;
+  uint32_t logger_ms = 0;
+  uint32_t total_ms = 0;
+  size_t jpeg_bytes = 0;
+  String outcome;
+};
 
 void report(const String& message) {
   Serial.println("[insect-logger] " + message);
@@ -38,15 +52,54 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
   if (!logger.recordCapture(record, diagnostic)) report("failed to log capture error: " + diagnostic);
 }
 
-void captureOnce(uint32_t scheduled_ms) {
+void ensurePerformanceLog() {
+  if (storage.exists("/system/performance.csv")) return;
+  String diagnostic;
+  const String header =
+      "capture_id,scheduled_ms,start_lag_ms,capture_ms,image_write_ms,logger_ms,total_ms,jpeg_bytes," \
+      "outcome,free_heap,largest_free_heap,min_free_heap,free_psram,largest_free_psram";
+  if (!storage.appendLine("/system/performance.csv", header, diagnostic)) {
+    report("performance log unavailable: " + diagnostic);
+  }
+}
+
+void writePerformanceSample(const String& capture_id, const CaptureTiming& timing) {
+  if (logger.captureCount() % kPerformanceSampleInterval != 0) return;
+  const uint32_t free_heap = ESP.getFreeHeap();
+  const uint32_t largest_free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  const uint32_t min_free_heap = ESP.getMinFreeHeap();
+  const uint32_t free_psram = ESP.getFreePsram();
+  const uint32_t largest_free_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  const String line = capture_id + "," + String(timing.scheduled_ms) + "," +
+      String(timing.start_lag_ms) + "," + String(timing.capture_ms) + "," +
+      String(timing.image_write_ms) + "," + String(timing.logger_ms) + "," +
+      String(timing.total_ms) + "," + String(static_cast<unsigned long>(timing.jpeg_bytes)) + "," +
+      timing.outcome + "," + String(free_heap) + "," + String(largest_free_heap) + "," +
+      String(min_free_heap) + "," + String(free_psram) + "," + String(largest_free_psram);
+  String diagnostic;
+  if (!storage.appendLine("/system/performance.csv", line, diagnostic)) {
+    report("performance sample write failed: " + diagnostic);
+  }
+  report("performance sample " + line);
+}
+
+CaptureTiming captureOnce(uint32_t scheduled_ms) {
+  CaptureTiming timing;
+  timing.scheduled_ms = scheduled_ms;
   const String capture_id = logger.nextCaptureId();
   String diagnostic;
+  const uint32_t total_started = millis();
+  timing.start_lag_ms = total_started - scheduled_ms;
   const uint32_t capture_started = millis();
   camera_fb_t* frame = camera.capture(diagnostic);
   if (frame == nullptr) {
     report(diagnostic);
     recordCaptureFailure(capture_id, scheduled_ms, "camera_frame_unavailable");
-    return;
+    timing.capture_ms = millis() - capture_started;
+    timing.total_ms = millis() - total_started;
+    timing.outcome = "capture_error";
+    writePerformanceSample(capture_id, timing);
+    return timing;
   }
 
   CaptureRecord record;
@@ -57,12 +110,16 @@ void captureOnce(uint32_t scheduled_ms) {
   record.height = frame->height;
   record.jpeg_bytes = frame->len;
   record.capture_ms = millis() - capture_started;
+  timing.capture_ms = record.capture_ms;
+  timing.jpeg_bytes = frame->len;
   record.inference = inference.run(*frame);
   record.image_path = imagePathFor(capture_id);
   record.outcome = "completed";
   record.save_outcome = "saved";
 
+  const uint32_t image_write_started = millis();
   const bool image_saved = storage.writeBinaryAtomic(record.image_path, frame->buf, frame->len, diagnostic);
+  timing.image_write_ms = millis() - image_write_started;
   camera.release(frame);
   if (!image_saved) {
     record.outcome = "storage_error";
@@ -71,7 +128,13 @@ void captureOnce(uint32_t scheduled_ms) {
     record.error_code = "image_write_failed";
     report(diagnostic);
   }
+  const uint32_t logger_started = millis();
   if (!logger.recordCapture(record, diagnostic)) report("capture log failure: " + diagnostic);
+  timing.logger_ms = millis() - logger_started;
+  timing.total_ms = millis() - total_started;
+  timing.outcome = record.outcome;
+  writePerformanceSample(capture_id, timing);
+  return timing;
 }
 
 void finishSession() {
@@ -96,6 +159,7 @@ void setup() {
     report("fatal storage failure: " + diagnostic);
     return;
   }
+  ensurePerformanceLog();
   config = ConfigLoader::defaults();
   if (!ConfigLoader::load(storage.fs(), config, diagnostic)) {
     report("fatal configuration failure: " + diagnostic);
