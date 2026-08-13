@@ -77,3 +77,18 @@ The ten-minute diagnostic run was stopped by the normal battery disconnect, so i
 | Frame 400 | 1,705 ms | 749 ms | 2,454 ms | 1,268 ms |
 
 Camera capture remained below the millisecond resolution of the current timer, and free heap/free PSRAM stayed constant. The evidence therefore localises the progressive slowdown to the JPEG write path, not camera capture or accumulating heap allocations. The next isolation test should compare the current atomic image write against a direct final-path write on a copied card, then compare one large run directory with sharded image directories. Direct-write firmware is test-only and must not be used for retained field data.
+## Optimized run result: run_000011
+
+The logger/JPEG optimization was tested on the same card. The run was stopped after approximately ten minutes by battery removal and produced 608 completed records.
+
+| Sample | Previous image write | Optimized image write | Previous logger | Optimized logger | Previous total | Optimized total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Frame 100 | 560 ms | 498 ms | 703 ms | 1,120 ms | 1,263 ms | 1,637 ms |
+| Frame 200 | 924 ms | 796 ms | 709 ms | 1,107 ms | 1,633 ms | 1,945 ms |
+| Frame 300 | 1,300 ms | 1,182 ms | 739 ms | 1,108 ms | 2,040 ms | 2,488 ms |
+| Frame 400 | 1,705 ms | 1,442 ms | 749 ms | 1,125 ms | 2,454 ms | 2,588 ms |
+| Frame 600 | — | 2,055 ms | — | 1,122 ms | — | 3,226 ms |
+
+The average interval changed only from 1,292 ms in run_000010 to 1,265 ms in run_000011, despite the logger changes. Image writes were modestly faster at comparable early samples but still grew with accumulation. Logger time increased to about 1.1 seconds, so keeping the files open with a flush on every row is not an improvement on this SD/FAT stack. The optimization should not be treated as accepted.
+
+Because only one card is available, this is not a clean isolated A/B test: the card contains more files than during run_000010, and JPEG sizes vary. The next implementation should revert or redesign the open-handle logger path, then instrument raw CSV append, dashboard append, and chunk promotion as separate sub-stages. The image path needs a directory-sharding experiment or a preallocation/append design rather than more metadata checks around the same per-image atomic write.
