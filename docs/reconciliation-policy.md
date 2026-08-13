@@ -37,3 +37,7 @@ The policy applies after the camera has been powered off and the SD card has bee
 - **Clean:** no findings from the audit. This means the card is internally consistent, not that the images are scientifically validated.
 
 The audit is intentionally read-only. A future quarantine/rebuild command must require an explicit destination, refuse to operate on a camera-mounted card, create a log, and support a dry run.
+
+## Current card note
+
+Run 000012 provides a verified example of the current shard layout: its 2,384 authoritative raw records, JPEGs, and dashboard records agree. The remaining card-wide warnings observed at that checkpoint (older `running` manifests, temporary files, one unreferenced complete image, and aggregate raw/dashboard drift) predate run 000012. They remain warnings to preserve and reconcile, not grounds for automatic deletion.

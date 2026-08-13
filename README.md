@@ -6,9 +6,11 @@ Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with a
 
 The firmware has been built and uploaded to the physical XIAO ESP32S3 Sense. Boot evidence confirms PSRAM, the OV3660 camera, SD configuration loading, and the null inference adapter. The SD-card recovery path has also been exercised: removing battery power marks the previous run as `interrupted_power_removed`, promotes the open dashboard chunk on the next boot, and keeps the current chunk visible to the offline dashboard.
 
+Performance run `run_000012` is an important storage milestone. Its 2,384 completed captures used 24 bounded image directories, with all 2,384 JPEGs and derived dashboard records present. Image-write times stayed effectively flat from 530 ms at frame 100 to 546 ms at frame 2,300; the earlier single-directory runs climbed above 1.7 seconds. The next development task is to validate the absolute timing telemetry: run-relative timestamps imply a much faster cadence than the individual stage-duration samples, so the instrument must be checked before claiming 2-FPS acceptance.
+
 The dashboard is working as a local file on the SD card. It loads closed chunks plus the current open chunk, shows a compact ten-item preview with working expand/collapse controls, and opens images in an in-page modal. The runtime-generated `manifest.js` and `summary.js` are preserved when `py tools\prepare_sd.py` updates static dashboard files. Host-side contract checks pass.
 
-Remaining acceptance work is the full one-hour battery profile, SD endurance testing, cross-browser verification on Windows 10/11 and current macOS, and a final review of data integrity after repeated power removal. These are tracked in `docs/hardware-validation.md` and `docs/next-session.md`.
+Remaining acceptance work is timing-instrument validation, the full one-hour battery profile, SD endurance testing, cross-browser verification on Windows 10/11 and current macOS, and a final review of data integrity after repeated power removal. These are tracked in `docs/hardware-validation.md` and `docs/next-session.md`.
 
 ## Toolchain
 

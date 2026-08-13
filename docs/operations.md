@@ -13,7 +13,7 @@
 ## Collect a session
 
 1. Connect the battery power cable.
-2. The unit records all frames at 2 FPS for up to one hour. A production model has not yet been installed, so all inference outcomes are `model_unavailable`.
+2. The unit is configured to capture and retain every frame at a 2-FPS target for up to one hour. A production model has not yet been installed, so all inference outcomes are `model_unavailable`. Absolute cadence acceptance remains a development validation item; it does not change the retention policy.
 3. Disconnect the battery cable to stop the device. This is the normal stop method; never remove the microSD card while powered.
 4. The firmware flushes each image and raw CSV row as it is captured. Dashboard records are written in bounded closed chunks plus `data/captures_current.js`; the current chunk is loaded by the dashboard so a normal power removal remains visible.
 

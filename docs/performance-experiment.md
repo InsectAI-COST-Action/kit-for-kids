@@ -20,7 +20,7 @@ It records:
 - start lateness;
 - camera capture duration;
 - JPEG write duration;
-- raw CSV/dashboard logger duration;
+- separate raw CSV and dashboard stage durations;
 - total frame-processing duration;
 - JPEG size and outcome;
 - free heap, largest free heap block, minimum free heap;
@@ -100,3 +100,17 @@ The open-handle logger change from run_000011 was rejected: logger time rose to 
 New JPEGs are written beneath `/images/<run-id>/shard_0001/`, then `shard_0002/` after each 100-frame boundary. This keeps each FAT directory bounded while preserving the authoritative raw CSV and dashboard paths. The atomic create-and-rename write is retained for power-loss safety.
 
 For the next test, use the same ten-minute, 2 FPS protocol on the available card. After disconnecting the battery and mounting the card, compare `image_write_ms`, `raw_csv_ms`, `dashboard_ms`, and `logger_ms` at frames 100, 200, 300, and 400. Also check that each shard contains no more than 100 JPEGs, every raw row points to an existing image or an explicitly recorded save failure, and the dashboard count includes all closed chunks plus the recovered current chunk.
+
+## Storage milestone: run_000012
+
+Run 000012 tested the revised per-row logger together with 100-image JPEG directory shards. It produced 2,384 completed captures before the normal battery disconnect. The run-relative records, dashboard data, and retained JPEGs all agree: 2,384 records, 2,384 dashboard entries, and 2,384 JPEGs across `shard_0001` through `shard_0024`. The one final `.tmp` file is the interrupted atomic write expected at power removal.
+
+| Sample | Image write | Raw CSV | Dashboard | Logger | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Frame 100 | 530 ms | 55 ms | 802 ms | 857 ms | 1,387 ms |
+| Frame 1,000 | 652 ms | 64 ms | 1,305 ms | 1,370 ms | 2,023 ms |
+| Frame 2,300 | 546 ms | 73 ms | 814 ms | 888 ms | 1,435 ms |
+
+This accepts directory sharding as the effective mitigation for the progressive JPEG-write slowdown: comparable earlier runs rose from about 500 ms to more than 1.7 or 2.0 seconds, whereas this run remained close to 0.55 seconds across 2,300 samples. Raw CSV and dashboard times were also broadly stable, aside from the isolated frame-1,000 dashboard outlier.
+
+Do not yet treat the absolute capture cadence as accepted. The final raw row is at 1,340,538 ms for capture 2,384, which suggests roughly 1.78 frames per second, but the sampled `total_ms` values are usually about 1.4 seconds and cannot coexist with that elapsed time. The next firmware change must validate duration measurement with an independent monotonic source and record a per-frame consistency check before another rate conclusion is made.

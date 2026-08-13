@@ -1,8 +1,14 @@
 # Project Brief: Autonomous OV3660 Insect Camera, CV Logger, and Offline Dashboard
 
-Status: planning specification; do not begin implementation until authorised
-Reviewed: 31 July 2026
+Status: active pilot implementation; scope authority and lower-level-agent task contract
+Reviewed: 13 August 2026
 Audience: project owner, lead agent, bounded implementation agents, and reviewers
+
+## Current implementation status
+
+The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV3660/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.
+
+Run `run_000012` verified the current JPEG-directory sharding design: 2,384 completed raw records, dashboard entries, and JPEGs were present, with image-write time remaining near 0.55 seconds through frame 2,300. This is evidence that sharding mitigates the earlier progressive FAT directory slowdown; it is not yet acceptance evidence for 2 FPS because the stage-duration telemetry conflicts with run-relative elapsed time. The next implementation work is timing-instrument validation, followed by cadence, one-hour battery, endurance, recovery, and browser-matrix acceptance tests. See `docs/performance-experiment.md`, `docs/hardware-validation.md`, and `docs/next-session.md`.
 
 ## 1. Purpose and authority
 
@@ -10,7 +16,7 @@ Build firmware and a removable-microSD data product for an insect-enclosure pilo
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
-At review time no software exists in this directory. Hardware facts are authoritatively recorded in `camera-spec.txt`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV3660, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
+The repository now contains a built and device-tested pilot firmware, offline dashboard, SD preparation/audit tools, and host-side contract checks. Hardware facts are authoritatively recorded in `camera-spec.txt`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV3660, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
 
 Manufacturer references:
 
