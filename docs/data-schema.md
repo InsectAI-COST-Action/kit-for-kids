@@ -29,4 +29,4 @@ The dashboard reads `manifest.js`, `summary.js`, and closed JavaScript chunks un
 
 ## Images
 
-Every successful capture uses `/images/<run-id>/<capture-id>.jpg`. Image presence is confirmed only after a complete write and promotion; a CSV row must leave `image_path` empty after an image write error.
+Every successful capture uses `/images/<run-id>/shard_<nnnn>/<capture-id>.jpg`. Image presence is confirmed only after a complete write and promotion; a CSV row must leave `image_path` empty after an image write error.

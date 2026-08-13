@@ -92,3 +92,11 @@ The logger/JPEG optimization was tested on the same card. The run was stopped af
 The average interval changed only from 1,292 ms in run_000010 to 1,265 ms in run_000011, despite the logger changes. Image writes were modestly faster at comparable early samples but still grew with accumulation. Logger time increased to about 1.1 seconds, so keeping the files open with a flush on every row is not an improvement on this SD/FAT stack. The optimization should not be treated as accepted.
 
 Because only one card is available, this is not a clean isolated A/B test: the card contains more files than during run_000010, and JPEG sizes vary. The next implementation should revert or redesign the open-handle logger path, then instrument raw CSV append, dashboard append, and chunk promotion as separate sub-stages. The image path needs a directory-sharding experiment or a preallocation/append design rather than more metadata checks around the same per-image atomic write.
+
+## Next diagnostic build: run_000012 preparation
+
+The open-handle logger change from run_000011 was rejected: logger time rose to about 1.1 seconds per frame. The next build restores the safer per-row append behaviour and records the two logger sub-stages separately as `raw_csv_ms` and `dashboard_ms` in `/system/performance_<run-id>.csv`.
+
+New JPEGs are written beneath `/images/<run-id>/shard_0001/`, then `shard_0002/` after each 100-frame boundary. This keeps each FAT directory bounded while preserving the authoritative raw CSV and dashboard paths. The atomic create-and-rename write is retained for power-loss safety.
+
+For the next test, use the same ten-minute, 2 FPS protocol on the available card. After disconnecting the battery and mounting the card, compare `image_write_ms`, `raw_csv_ms`, `dashboard_ms`, and `logger_ms` at frames 100, 200, 300, and 400. Also check that each shard contains no more than 100 JPEGs, every raw row points to an existing image or an explicitly recorded save failure, and the dashboard count includes all closed chunks plus the recovered current chunk.

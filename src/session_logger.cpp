@@ -31,19 +31,8 @@ bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const Str
       !storage_->appendLine("/raw/captures.csv", kCaptureHeader, diagnostic)) return false;
   if (!storage_->exists("/raw/detections.csv") &&
       !storage_->appendLine("/raw/detections.csv", kDetectionHeader, diagnostic)) return false;
-  captures_file_ = storage_->fs().open("/raw/captures.csv", FILE_APPEND);
-  if (!captures_file_) {
-    diagnostic = "cannot open /raw/captures.csv for session logging";
-    return false;
-  }
-  if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) {
-    captures_file_.close();
-    return false;
-  }
-  if (!storage_->writeTextAtomic(kActiveRunPath, run_id_, diagnostic)) {
-    captures_file_.close();
-    return false;
-  }
+  if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) return false;
+  if (!storage_->writeTextAtomic(kActiveRunPath, run_id_, diagnostic)) return false;
   diagnostic = "session started: " + run_id_;
   return true;
 }
@@ -53,7 +42,7 @@ String SessionLogger::nextCaptureId() {
   return run_id_ + "_img_" + String(capture_sequence_);
 }
 
-bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnostic) {
+bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnostic, LoggerTiming* timing) {
   const String row =
       String(INSECT_LOGGER_SCHEMA_VERSION) + ",device_000001," + csvEscape(run_id_) + ",boot_" +
       String(started_ms_) + "," + csvEscape(capture.capture_id) + ",," + String(capture.uptime_ms) +
@@ -64,18 +53,9 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
       String(capture.inference.prediction_count) + "," + String(capture.inference.max_confidence, 4) +
       "," + csvEscape(capture.image_path) + ",every_frame," + csvEscape(capture.save_outcome) + "," +
       csvEscape(capture.error_code);
-  if (!captures_file_) {
-    diagnostic = "capture log file is not open";
-    return false;
-  }
-  const size_t expected = row.length() + 1;
-  size_t written = captures_file_.print(row);
-  written += captures_file_.write('\n');
-  captures_file_.flush();
-  if (written != expected) {
-    diagnostic = "short append /raw/captures.csv";
-    return false;
-  }
+  const uint32_t raw_started = millis();
+  if (!storage_->appendLine("/raw/captures.csv", row, diagnostic)) return false;
+  if (timing != nullptr) timing->raw_csv_ms = millis() - raw_started;
 
   DashboardCapture dashboard_capture;
   dashboard_capture.run_id = run_id_;
@@ -89,14 +69,14 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
   dashboard_capture.capture_ms = capture.capture_ms;
   dashboard_capture.inference_ms = capture.inference.elapsed_ms;
   dashboard_capture.inference_outcome = capture.inference.outcome;
-  return dashboard_.appendCapture(dashboard_capture, diagnostic);
+  const uint32_t dashboard_started = millis();
+  const bool dashboard_ok = dashboard_.appendCapture(dashboard_capture, diagnostic);
+  if (timing != nullptr) timing->dashboard_ms = millis() - dashboard_started;
+  return dashboard_ok;
 }
 
 bool SessionLogger::finish(String& diagnostic) {
-  const bool dashboard_finished = dashboard_.finish(diagnostic);
-  if (captures_file_) captures_file_.flush();
-  if (captures_file_) captures_file_.close();
-  if (!dashboard_finished || !writeRunManifest("finished", diagnostic)) return false;
+  if (!dashboard_.finish(diagnostic) || !writeRunManifest("finished", diagnostic)) return false;
   if (storage_->exists(kActiveRunPath) && !storage_->fs().remove(kActiveRunPath)) {
     diagnostic = "cannot clear active run marker";
     return false;

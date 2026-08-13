@@ -27,7 +27,6 @@ class DashboardWriter {
 
  private:
   static constexpr uint16_t kChunkSize = 100;
-  bool openCurrentChunk(String& diagnostic);
   bool promoteCurrentChunk(String& diagnostic);
   bool recoverCurrentChunk(String& diagnostic);
   uint32_t countCurrentRecords(String& diagnostic) const;
@@ -39,7 +38,6 @@ class DashboardWriter {
   String escapeJavaScript(const String& value) const;
 
   SdStorage* storage_ = nullptr;
-  File current_file_;
   uint32_t closed_chunk_count_ = 0;
   uint32_t closed_capture_count_ = 0;
   uint32_t current_chunk_count_ = 0;

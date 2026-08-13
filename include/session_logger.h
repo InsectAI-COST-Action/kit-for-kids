@@ -7,6 +7,11 @@
 #include "inference.h"
 #include "sd_storage.h"
 
+struct LoggerTiming {
+  uint32_t raw_csv_ms = 0;
+  uint32_t dashboard_ms = 0;
+};
+
 struct CaptureRecord {
   String capture_id;
   uint32_t uptime_ms = 0;
@@ -27,7 +32,7 @@ class SessionLogger {
   bool begin(SdStorage& storage, const AppConfig& config, const String& sensor_id,
              String& diagnostic);
   String nextCaptureId();
-  bool recordCapture(const CaptureRecord& capture, String& diagnostic);
+  bool recordCapture(const CaptureRecord& capture, String& diagnostic, LoggerTiming* timing = nullptr);
   bool finish(String& diagnostic);
   const String& runId() const;
   uint32_t captureCount() const;
@@ -40,7 +45,6 @@ class SessionLogger {
 
   SdStorage* storage_ = nullptr;
   DashboardWriter dashboard_;
-  File captures_file_;
   AppConfig config_;
   String run_id_;
   String sensor_id_;

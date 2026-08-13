@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include <esp_heap_caps.h>
 
 #include "app_config.h"
@@ -26,6 +25,8 @@ struct CaptureTiming {
   uint32_t start_lag_ms = 0;
   uint32_t capture_ms = 0;
   uint32_t image_write_ms = 0;
+  uint32_t raw_csv_ms = 0;
+  uint32_t dashboard_ms = 0;
   uint32_t logger_ms = 0;
   uint32_t total_ms = 0;
   size_t jpeg_bytes = 0;
@@ -34,12 +35,16 @@ struct CaptureTiming {
 
 String performance_path;
 
-void report(const String& message) {
-  Serial.println("[insect-logger] " + message);
+void report(const String& message) { Serial.println("[insect-logger] " + message); }
+
+String imageDirectoryFor(uint32_t sequence) {
+  char shard[16];
+  snprintf(shard, sizeof(shard), "shard_%04lu", static_cast<unsigned long>(((sequence - 1) / 100) + 1));
+  return "/images/" + logger.runId() + "/" + String(shard);
 }
 
-String imagePathFor(const String& capture_id) {
-  return "/images/" + logger.runId() + "/" + capture_id + ".jpg";
+String imagePathFor(const String& capture_id, uint32_t sequence) {
+  return imageDirectoryFor(sequence) + "/" + capture_id + ".jpg";
 }
 
 void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const String& error_code) {
@@ -55,15 +60,12 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
 }
 
 void ensurePerformanceLog() {
-  if (performance_path.isEmpty()) return;
-  if (storage.exists(performance_path)) return;
+  if (performance_path.isEmpty() || storage.exists(performance_path)) return;
   String diagnostic;
   const String header =
-      "capture_id,scheduled_ms,start_lag_ms,capture_ms,image_write_ms,logger_ms,total_ms,jpeg_bytes," \
+      "capture_id,scheduled_ms,start_lag_ms,capture_ms,image_write_ms,raw_csv_ms,dashboard_ms,logger_ms,total_ms,jpeg_bytes," \
       "outcome,free_heap,largest_free_heap,min_free_heap,free_psram,largest_free_psram";
-  if (!storage.appendLine(performance_path, header, diagnostic)) {
-    report("performance log unavailable: " + diagnostic);
-  }
+  if (!storage.appendLine(performance_path, header, diagnostic)) report("performance log unavailable: " + diagnostic);
 }
 
 void writePerformanceSample(const String& capture_id, const CaptureTiming& timing) {
@@ -75,20 +77,20 @@ void writePerformanceSample(const String& capture_id, const CaptureTiming& timin
   const uint32_t largest_free_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
   const String line = capture_id + "," + String(timing.scheduled_ms) + "," +
       String(timing.start_lag_ms) + "," + String(timing.capture_ms) + "," +
-      String(timing.image_write_ms) + "," + String(timing.logger_ms) + "," +
+      String(timing.image_write_ms) + "," + String(timing.raw_csv_ms) + "," +
+      String(timing.dashboard_ms) + "," + String(timing.logger_ms) + "," +
       String(timing.total_ms) + "," + String(static_cast<unsigned long>(timing.jpeg_bytes)) + "," +
       timing.outcome + "," + String(free_heap) + "," + String(largest_free_heap) + "," +
       String(min_free_heap) + "," + String(free_psram) + "," + String(largest_free_psram);
   String diagnostic;
-  if (!storage.appendLine(performance_path, line, diagnostic)) {
-    report("performance sample write failed: " + diagnostic);
-  }
+  if (!storage.appendLine(performance_path, line, diagnostic)) report("performance sample write failed: " + diagnostic);
   report("performance sample " + line);
 }
 
 CaptureTiming captureOnce(uint32_t scheduled_ms) {
   CaptureTiming timing;
   timing.scheduled_ms = scheduled_ms;
+  const uint32_t capture_sequence = logger.captureCount() + 1;
   const String capture_id = logger.nextCaptureId();
   String diagnostic;
   const uint32_t total_started = millis();
@@ -116,7 +118,8 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   timing.capture_ms = record.capture_ms;
   timing.jpeg_bytes = frame->len;
   record.inference = inference.run(*frame);
-  record.image_path = imagePathFor(capture_id);
+  record.image_path = imagePathFor(capture_id, capture_sequence);
+  if ((capture_sequence - 1) % 100 == 0 && !storage.ensureDirectory(imageDirectoryFor(capture_sequence), diagnostic)) report(diagnostic);
   record.outcome = "completed";
   record.save_outcome = "saved";
 
@@ -132,7 +135,10 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
     report(diagnostic);
   }
   const uint32_t logger_started = millis();
-  if (!logger.recordCapture(record, diagnostic)) report("capture log failure: " + diagnostic);
+  LoggerTiming logger_timing;
+  if (!logger.recordCapture(record, diagnostic, &logger_timing)) report("capture log failure: " + diagnostic);
+  timing.raw_csv_ms = logger_timing.raw_csv_ms;
+  timing.dashboard_ms = logger_timing.dashboard_ms;
   timing.logger_ms = millis() - logger_started;
   timing.total_ms = millis() - total_started;
   timing.outcome = record.outcome;
@@ -143,11 +149,8 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
 void finishSession() {
   if (finished) return;
   String diagnostic;
-  if (!logger.finish(diagnostic)) {
-    report("session finalisation failed: " + diagnostic);
-  } else {
-    report("session complete; power off before removing SD card");
-  }
+  if (!logger.finish(diagnostic)) report("session finalisation failed: " + diagnostic);
+  else report("session complete; power off before removing SD card");
   finished = true;
 }
 }  // namespace
@@ -156,34 +159,17 @@ void setup() {
   Serial.begin(115200);
   delay(250);
   report(String("firmware ") + INSECT_LOGGER_FIRMWARE_VERSION + " starting");
-
   String diagnostic;
-  if (!storage.begin(diagnostic)) {
-    report("fatal storage failure: " + diagnostic);
-    return;
-  }
+  if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); return; }
   config = ConfigLoader::defaults();
-  if (!ConfigLoader::load(storage.fs(), config, diagnostic)) {
-    report("fatal configuration failure: " + diagnostic);
-    return;
-  }
+  if (!ConfigLoader::load(storage.fs(), config, diagnostic)) { report("fatal configuration failure: " + diagnostic); return; }
   report(diagnostic);
-  if (!camera.begin(config, diagnostic)) {
-    report("fatal camera failure: " + diagnostic);
-    return;
-  }
+  if (!camera.begin(config, diagnostic)) { report("fatal camera failure: " + diagnostic); return; }
   report(diagnostic);
-  if (!inference.begin(diagnostic)) {
-    report("fatal inference setup failure: " + diagnostic);
-    return;
-  }
+  if (!inference.begin(diagnostic)) { report("fatal inference failure: " + diagnostic); return; }
   report(diagnostic);
-  if (!logger.begin(storage, config, camera.sensorId(), diagnostic)) {
-    report("fatal session setup failure: " + diagnostic);
-    return;
-  }
+  if (!logger.begin(storage, config, camera.sensorId(), diagnostic)) { report("fatal session setup failure: " + diagnostic); return; }
   report(diagnostic);
-
   performance_path = "/system/performance_" + logger.runId() + ".csv";
   ensurePerformanceLog();
   session_started_ms = millis();
@@ -192,20 +178,10 @@ void setup() {
 }
 
 void loop() {
-  if (!ready || finished) {
-    delay(100);
-    return;
-  }
+  if (!ready || finished) { delay(100); return; }
   const uint32_t now = millis();
-  if (now - session_started_ms >= config.max_session_seconds * 1000UL) {
-    finishSession();
-    return;
-  }
-  if (static_cast<int32_t>(now - next_capture_due_ms) < 0) {
-    delay(5);
-    return;
-  }
-
+  if (now - session_started_ms >= config.max_session_seconds * 1000UL) { finishSession(); return; }
+  if (static_cast<int32_t>(now - next_capture_due_ms) < 0) { delay(5); return; }
   const uint32_t scheduled_ms = next_capture_due_ms;
   next_capture_due_ms += 1000UL / config.capture_fps;
   if (static_cast<int32_t>(now - next_capture_due_ms) >= 0) {

@@ -13,7 +13,7 @@ The policy applies after the camera has been powered off and the SD card has bee
 | `/raw/captures.csv` | Authoritative capture-attempt log | Preserve; back up before maintenance | One row exists for every capture attempt, including failures. |
 | `/raw/detections.csv` | Authoritative prediction log when a model exists | Preserve; currently header-only | Never infer predictions from dashboard files. |
 | `/raw/runs/*.json` | Authoritative run state/configuration records | Preserve | Run state explains normal stops and interrupted power removal. |
-| `/images/<run>/<capture>.jpg` referenced by CSV | Complete retained observation | Preserve | The pilot retention policy is every frame. |
+| `/images/<run>/shard_<nnnn>/<capture>.jpg` referenced by CSV | Complete retained observation | Preserve | The pilot retention policy is every frame. |
 | Unreferenced complete JPEG | Unreconciled evidence | Preserve and report | It may come from a CSV write failure, an older card state, or a manual copy. Do not delete automatically. |
 | `.tmp`/`.part` image or chunk | Incomplete candidate | Report; quarantine only after backup and review | It is not a valid observation until promoted, but it may help diagnose a failed write. |
 | Listed `data/captures_*.js` chunk | Derived dashboard index | Preserve if parseable | It is rebuildable, but useful for offline browsing and recovery evidence. |

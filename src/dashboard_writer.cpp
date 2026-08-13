@@ -13,7 +13,6 @@ bool DashboardWriter::begin(SdStorage& storage, String& diagnostic) {
   if (!loadState(diagnostic)) return false;
   current_chunk_id_ = closed_chunk_count_ + 1;
   current_part_path_ = currentChunkPath();
-
   const String legacy_path = chunkFileName(current_chunk_id_, "part");
   if (!storage_->exists(current_part_path_) && storage_->exists(legacy_path)) {
     if (!storage_->fs().rename(legacy_path, current_part_path_)) {
@@ -21,22 +20,11 @@ bool DashboardWriter::begin(SdStorage& storage, String& diagnostic) {
       return false;
     }
   }
-  if (!recoverCurrentChunk(diagnostic)) return false;
-  return openCurrentChunk(diagnostic);
-}
-
-bool DashboardWriter::openCurrentChunk(String& diagnostic) {
-  if (current_file_) current_file_.close();
-  current_file_ = storage_->fs().open(current_part_path_, FILE_APPEND);
-  if (!current_file_) {
-    diagnostic = "cannot open dashboard partial " + current_part_path_;
-    return false;
-  }
-  return true;
+  return recoverCurrentChunk(diagnostic);
 }
 
 bool DashboardWriter::appendCapture(const DashboardCapture& capture, String& diagnostic) {
-  if (storage_ == nullptr || !current_file_) {
+  if (storage_ == nullptr) {
     diagnostic = "dashboard writer not initialised";
     return false;
   }
@@ -50,29 +38,18 @@ bool DashboardWriter::appendCapture(const DashboardCapture& capture, String& dia
       String(static_cast<unsigned long>(capture.jpeg_bytes)) + ",\"captureMs\":" +
       String(capture.capture_ms) + ",\"inferenceMs\":" + String(capture.inference_ms) +
       ",\"inferenceOutcome\":\"" + inferenceOutcomeName(capture.inference_outcome) + "\"});";
-  const size_t expected = line.length() + 1;
-  size_t written = current_file_.print(line);
-  written += current_file_.write('\n');
-  current_file_.flush();
-  if (written != expected) {
-    diagnostic = "short append " + current_part_path_;
-    return false;
-  }
+  if (!storage_->appendLine(current_part_path_, line, diagnostic)) return false;
   ++current_chunk_count_;
   if (current_chunk_count_ >= kChunkSize) return promoteCurrentChunk(diagnostic);
   return true;
 }
 
 bool DashboardWriter::finish(String& diagnostic) {
-  bool result = true;
-  if (current_chunk_count_ > 0) result = promoteCurrentChunk(diagnostic);
-  if (current_file_) current_file_.close();
-  if (result) result = writeSummary(diagnostic);
-  return result;
+  if (current_chunk_count_ > 0 && !promoteCurrentChunk(diagnostic)) return false;
+  return writeSummary(diagnostic);
 }
 
 bool DashboardWriter::promoteCurrentChunk(String& diagnostic) {
-  if (current_file_) current_file_.close();
   const String final_path = chunkFileName(current_chunk_id_, "js");
   if (storage_->exists(final_path)) storage_->fs().remove(final_path);
   if (!storage_->fs().rename(current_part_path_, final_path)) {
@@ -85,7 +62,7 @@ bool DashboardWriter::promoteCurrentChunk(String& diagnostic) {
   if (!saveState(diagnostic) || !writeManifest(diagnostic) || !writeSummary(diagnostic)) return false;
   ++current_chunk_id_;
   current_part_path_ = currentChunkPath();
-  return openCurrentChunk(diagnostic);
+  return true;
 }
 
 bool DashboardWriter::recoverCurrentChunk(String& diagnostic) {
@@ -165,13 +142,10 @@ bool DashboardWriter::loadState(String& diagnostic) {
 
 bool DashboardWriter::saveState(String& diagnostic) {
   return storage_->writeTextAtomic("/system/dashboard_state.txt",
-                                   String(closed_chunk_count_) + "," + String(closed_capture_count_),
-                                   diagnostic);
+                                   String(closed_chunk_count_) + "," + String(closed_capture_count_), diagnostic);
 }
 
-String DashboardWriter::currentChunkPath() const {
-  return "/data/captures_current.js";
-}
+String DashboardWriter::currentChunkPath() const { return "/data/captures_current.js"; }
 
 String DashboardWriter::escapeJavaScript(const String& value) const {
   String escaped;
@@ -179,11 +153,8 @@ String DashboardWriter::escapeJavaScript(const String& value) const {
   for (size_t index = 0; index < value.length(); ++index) {
     const char character = value[index];
     if (character == '\\' || character == '"') escaped += '\\';
-    if (character == '\n' || character == '\r') {
-      escaped += ' ';
-    } else {
-      escaped += character;
-    }
+    if (character == '\n' || character == '\r') escaped += ' ';
+    else escaped += character;
   }
   return escaped;
 }
