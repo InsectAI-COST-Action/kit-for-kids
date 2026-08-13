@@ -32,6 +32,8 @@ struct CaptureTiming {
   String outcome;
 };
 
+String performance_path;
+
 void report(const String& message) {
   Serial.println("[insect-logger] " + message);
 }
@@ -53,12 +55,13 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
 }
 
 void ensurePerformanceLog() {
-  if (storage.exists("/system/performance.csv")) return;
+  if (performance_path.isEmpty()) return;
+  if (storage.exists(performance_path)) return;
   String diagnostic;
   const String header =
       "capture_id,scheduled_ms,start_lag_ms,capture_ms,image_write_ms,logger_ms,total_ms,jpeg_bytes," \
       "outcome,free_heap,largest_free_heap,min_free_heap,free_psram,largest_free_psram";
-  if (!storage.appendLine("/system/performance.csv", header, diagnostic)) {
+  if (!storage.appendLine(performance_path, header, diagnostic)) {
     report("performance log unavailable: " + diagnostic);
   }
 }
@@ -77,7 +80,7 @@ void writePerformanceSample(const String& capture_id, const CaptureTiming& timin
       timing.outcome + "," + String(free_heap) + "," + String(largest_free_heap) + "," +
       String(min_free_heap) + "," + String(free_psram) + "," + String(largest_free_psram);
   String diagnostic;
-  if (!storage.appendLine("/system/performance.csv", line, diagnostic)) {
+  if (!storage.appendLine(performance_path, line, diagnostic)) {
     report("performance sample write failed: " + diagnostic);
   }
   report("performance sample " + line);
@@ -159,7 +162,6 @@ void setup() {
     report("fatal storage failure: " + diagnostic);
     return;
   }
-  ensurePerformanceLog();
   config = ConfigLoader::defaults();
   if (!ConfigLoader::load(storage.fs(), config, diagnostic)) {
     report("fatal configuration failure: " + diagnostic);
@@ -182,6 +184,8 @@ void setup() {
   }
   report(diagnostic);
 
+  performance_path = "/system/performance_" + logger.runId() + ".csv";
+  ensurePerformanceLog();
   session_started_ms = millis();
   next_capture_due_ms = session_started_ms;
   ready = true;
