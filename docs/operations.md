@@ -6,7 +6,9 @@
 2. On a development computer, run `py tools\prepare_sd.py <card-root>`.
 3. Inspect `config.json`. The pilot only accepts 2 FPS and sessions no longer than 3,600 seconds.
 4. The preparation tool updates static dashboard files but preserves the runtime-generated `manifest.js` and `summary.js` when they already exist.
-5. Safely eject the card and insert it into the powered-off camera.
+5. For a transferred card, run `py tools\audit_card.py <card-root>` before changing or deleting anything.
+6. Save the audit output with a read-only backup or card image.
+7. Safely eject the card and insert it into the powered-off camera.
 
 ## Collect a session
 
@@ -29,4 +31,5 @@
 - Missing or corrupt `config.json`: restore `config.example.json` as `config.json`.
 - A missing or empty `manifest.js` means only the current open chunk can be loaded. Do not overwrite a runtime manifest with the starter dashboard file; `py tools\prepare_sd.py` now preserves it automatically.
 - On the next boot, the firmware promotes the previous open chunk and marks its run `interrupted_power_removed` before starting a new run.
+- Run `py tools\audit_card.py <card-root>` before cleanup. The audit is read-only and reports missing CSV-referenced images, temporary files, unlisted chunks, stale run states, and raw/dashboard count drift.
 - Camera/SD fault: record the serial diagnostic, firmware version, card type, and run identifier before retrying.

@@ -25,7 +25,7 @@ Calendar time is intentionally unavailable in this pilot. `uptime_ms` is millise
 
 ## Derived dashboard data
 
-The dashboard reads `manifest.js`, `summary.js`, and closed JavaScript chunks under `/data/`. The raw CSV remains authoritative. A `.part` chunk is not listed in the manifest and must not be shown by the dashboard after an unexpected power loss.
+The dashboard reads `manifest.js`, `summary.js`, and closed JavaScript chunks under `/data/`. The raw CSV remains authoritative. A `.part` chunk is not listed in the manifest and must not be shown by the dashboard after an unexpected power loss. Run `py tools\audit_card.py <card-root>` after transfer to compare raw rows, image links, run manifests, and derived chunks. The audit never modifies the card.
 
 ## Images
 

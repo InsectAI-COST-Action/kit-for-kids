@@ -37,6 +37,7 @@ Do not remove the SD card while the camera is powered. Previous committed record
 - `dashboard/`: self-contained HTML/CSS/JavaScript installed on the SD card.
 - `dashboard/fixtures/`: synthetic local-file data for dashboard testing.
 - `tests/check_project.py`: dependency-free contract/static test harness.
+- `tools/audit_card.py`: read-only SD-card integrity audit.
 - `docs/`: architecture, operations, and hardware-validation evidence.
 
 ## Model status
