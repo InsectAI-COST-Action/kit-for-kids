@@ -13,4 +13,4 @@ Update this record as evidence is collected. The full one-hour and endurance tes
 | Recovery | Power interruption preserves prior CSV/chunks and marks the run interrupted | Verified with battery disconnect and subsequent reboot. Run 000012 awaits its next card-in-board boot to receive its normal `interrupted_power_removed` state. |
 | Dashboard | Opens offline in Chrome, Edge, Firefox, Safari; images and full chunk index load | Verified locally in the SD-card dashboard; full browser matrix pending |
 
-The detailed component specification is in `camera-spec.txt`. The next validation actions are listed in `docs/next-session.md`.
+The detailed component specification is in `docs/camera-spec.md`. The next validation actions are listed in `docs/next-session.md`.

@@ -65,7 +65,11 @@ def check_data_safety_contract() -> None:
 def check_dashboard_contract() -> None:
     html = text("dashboard/dashboard.html")
     javascript = text("dashboard/dashboard.js")
+    starter_manifest = text("dashboard/manifest.js")
+    starter_summary = text("dashboard/summary.js")
     require("manifest.js" in html and "summary.js" in html, "Dashboard bootstrap files are missing")
+    require("manifestCandidates" in starter_manifest, "Blank-card manifest starter is missing")
+    require("summaryCandidates" in starter_summary, "Blank-card summary starter is missing")
     require("fetch(" not in javascript, "Dashboard must not use fetch under file://")
     require("textContent" in javascript, "Dashboard must use safe text rendering")
     require("document.createElement('script')" in javascript, "Dashboard must load local chunks")

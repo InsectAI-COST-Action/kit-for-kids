@@ -16,7 +16,7 @@ Build firmware and a removable-microSD data product for an insect-enclosure pilo
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
-The repository now contains a built and device-tested pilot firmware, offline dashboard, SD preparation/audit tools, and host-side contract checks. Hardware facts are authoritatively recorded in `camera-spec.txt`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV3660, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
+The repository now contains a built and device-tested pilot firmware, offline dashboard, SD preparation/audit tools, and host-side contract checks. Hardware facts are authoritatively recorded in `docs/camera-spec.md`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV3660, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
 
 Manufacturer references:
 
@@ -24,7 +24,7 @@ Manufacturer references:
 - Camera: https://wiki.seeedstudio.com/xiao_esp32s3_camera_usage/
 - Hardware files: https://github.com/Seeed-Studio/OSHW-XIAO-Series
 
-`camera-spec.txt` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures do not include the final inference workload: measure the completed 2-FPS capture/store/inference profile, battery duration, voltage drop, and temperature before release. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
+`docs/camera-spec.md` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures do not include the final inference workload: measure the completed 2-FPS capture/store/inference profile, battery duration, voltage drop, and temperature before release. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
 
 ## 2. Product outcome and users
 
@@ -84,7 +84,7 @@ These become mandatory only after the model decision gate is satisfied:
 
 The following are confirmed project decisions:
 
-1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `camera-spec.txt`.
+1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
 2. **Model:** no production model exists yet. The first implementation provides only the model interface and a `MODEL_UNAVAILABLE` null engine. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
 3. **Capture/inference:** capture, store, and invoke inference for every frame at 2 FPS, for a maximum one-hour session. This is 7,200 retained frames per session. When a model is chosen, it must demonstrably sustain this cadence or the owner must approve a changed requirement; software must never silently drop analyses.
 4. **Time:** session-relative only. `boot_id + monotonic_ms` is authoritative; date, hour, and “today” controls are unavailable rather than fabricated.

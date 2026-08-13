@@ -19,14 +19,27 @@ Thumbs.db
 .env.*
 secrets.*
 
-# Generated runtime data copied from an SD card
-images/
-thumbs/
-raw/
-data/
-captures.csv
-detections.csv
-manifest.js
-summary.js
+# Device-generated SD-card data (repository root only)
+/images/
+/thumbs/
+/raw/
+/data/
+/system/
+/captures.csv
+/detections.csv
+/manifest.js
+/summary.js
+/config.json
+/performance_*.csv
+*.tmp
+*.part
+
+# Local test evidence, backups, and model artifacts
+/card-backups/
+/test-runs/
+/artifacts/
+/firmware-builds/
+/models/
+*.img
 *.log
 __pycache__/
