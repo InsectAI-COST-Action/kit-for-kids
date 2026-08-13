@@ -1,0 +1,30 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { background: Canvas; color: CanvasText; margin: 0; }
+main { margin: 0 auto; max-width: 1100px; padding: 2rem 1rem 4rem; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: clamp(2rem, 6vw, 3.4rem); margin-bottom: .5rem; }
+h2 { font-size: 1.2rem; }
+.eyebrow { color: #53712d; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.metrics { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); margin: 2rem 0; }
+.metrics article, .panel { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: .75rem; padding: 1rem; }
+.metrics span { display: block; font-size: .9rem; }
+.metrics strong { display: block; font-size: 1.8rem; margin-top: .4rem; }
+.panel { margin-top: 1rem; }
+input { box-sizing: border-box; font: inherit; margin-top: .4rem; max-width: 28rem; padding: .65rem; width: 100%; }
+.hint { font-size: .9rem; opacity: .8; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; min-width: 36rem; width: 100%; }
+th, td { border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); padding: .6rem; text-align: left; }
+.inline-button { background: transparent; border: 0; color: LinkText; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.secondary-button { background: Canvas; border: 1px solid color-mix(in srgb, CanvasText 35%, transparent); border-radius: .45rem; color: CanvasText; cursor: pointer; font: inherit; margin-top: 1rem; padding: .55rem .8rem; }
+.gallery { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+.gallery-item { background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; font: inherit; gap: .35rem; padding: 0; text-align: left; }
+.gallery-item img { aspect-ratio: 4 / 3; background: #222; border-radius: .5rem; object-fit: cover; width: 100%; }
+.image-modal[hidden] { display: none; }
+.image-modal { align-items: center; background: rgb(0 0 0 / .78); display: flex; inset: 0; justify-content: center; padding: 1rem; position: fixed; z-index: 10; }
+.image-modal-card { background: Canvas; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: .75rem; max-height: 95vh; max-width: min(900px, 95vw); overflow: auto; padding: 1rem; position: relative; }
+.image-modal-card img { display: block; max-height: 78vh; max-width: 100%; object-fit: contain; }
+.image-modal-card p { margin: .7rem 0 0; }
+.modal-close { background: Canvas; border: 1px solid color-mix(in srgb, CanvasText 35%, transparent); border-radius: 50%; color: CanvasText; cursor: pointer; font-size: 1.4rem; line-height: 1; padding: .15rem .5rem; position: absolute; right: .65rem; top: .65rem; }
+:focus-visible { outline: 3px solid #cc6b2c; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
