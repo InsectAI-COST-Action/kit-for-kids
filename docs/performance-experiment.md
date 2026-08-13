@@ -11,7 +11,7 @@ The default capture behavior is unchanged: every scheduled attempt is retained i
 The firmware writes one bounded diagnostic sample for every 100 capture attempts to:
 
 ```text
-/system/performance.csv
+/system/performance_<run-id>.csv
 ```
 
 It records:
@@ -45,7 +45,7 @@ The diagnostic file is not authoritative and is not loaded by the dashboard. It 
    py tools\audit_card.py D:\
    ```
 
-6. Copy `/system/performance.csv` off the card and compare the first, middle, and final samples. Do not use the dashboard count alone to judge throughput.
+6. Copy `/system/performance_<run-id>.csv` off the card and compare the first, middle, and final samples. Do not use the dashboard count alone to judge throughput.
 7. Repeat with a fresh copied card if a second run is needed. Keep the original experiment card unchanged.
 
 ## Interpretation
@@ -87,7 +87,7 @@ The logger/JPEG optimization was tested on the same card. The run was stopped af
 | Frame 200 | 924 ms | 796 ms | 709 ms | 1,107 ms | 1,633 ms | 1,945 ms |
 | Frame 300 | 1,300 ms | 1,182 ms | 739 ms | 1,108 ms | 2,040 ms | 2,488 ms |
 | Frame 400 | 1,705 ms | 1,442 ms | 749 ms | 1,125 ms | 2,454 ms | 2,588 ms |
-| Frame 600 | — | 2,055 ms | — | 1,122 ms | — | 3,226 ms |
+| Frame 600 | ??? | 2,055 ms | ??? | 1,122 ms | ??? | 3,226 ms |
 
 The average interval changed only from 1,292 ms in run_000010 to 1,265 ms in run_000011, despite the logger changes. Image writes were modestly faster at comparable early samples but still grew with accumulation. Logger time increased to about 1.1 seconds, so keeping the files open with a flush on every row is not an improvement on this SD/FAT stack. The optimization should not be treated as accepted.
 
