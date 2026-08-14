@@ -1,6 +1,6 @@
 # Child dashboard and offline browser inference plan
 
-Status: proposed development path and decision-gated technical spike  
+Status: child dashboard shell implemented; browser inference remains a proposed, decision-gated technical spike
 Recorded: 13 August 2026
 
 ## Outcome

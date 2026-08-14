@@ -3,68 +3,123 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light dark">
-    <title>Insect camera sessions</title>
+    <meta name="color-scheme" content="light">
+    <title>Camera adventure</title>
     <link rel="stylesheet" href="dashboard.css">
     <script src="manifest.js"></script>
     <script src="summary.js"></script>
   </head>
   <body>
-    <main>
-      <header>
-        <p class="eyebrow">Offline camera log</p>
-        <h1>Insect camera sessions</h1>
-        <p id="status" role="status">Loading committed camera data???</p>
+    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-busy="true">
+      <div class="loading-card">
+        <div class="loading-motif" aria-hidden="true"><span>&#x1F41E;</span><span>&#x1F4F7;</span></div>
+        <p class="eyebrow">Your camera adventure</p>
+        <h1>Opening your camera adventure&hellip;</h1>
+        <p id="loading-message">Finding your pictures on the card.</p>
+        <div class="loading-track" aria-hidden="true"><span id="loading-progress"></span></div>
+        <p id="loading-detail" class="loading-detail">Getting everything ready</p>
+        <div id="loading-error" class="loading-error" hidden>
+          <h2>We could not open these pictures</h2>
+          <p>Try checking that the camera card is connected, then try again.</p>
+          <button id="loading-retry" class="secondary-button" type="button">Try again</button>
+        </div>
+      </div>
+    </div>
+    <main id="dashboard-main" aria-busy="true">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Offline camera adventure</p>
+          <h1>What did your camera see?</h1>
+          <p id="status" role="status">Getting your pictures ready&hellip;</p>
+        </div>
+        <div class="hero-badge" aria-hidden="true">&#x1F98B;</div>
       </header>
 
-      <section class="metrics" aria-label="Session summary">
-        <article><span>Committed frames</span><strong id="capture-count">???</strong></article>
-        <article><span>Images available</span><strong id="image-count">???</strong></article>
-        <article><span>Average capture time</span><strong id="capture-time">???</strong></article>
-        <article><span>Inference status</span><strong id="inference-status">???</strong></article>
-      </section>
-
-      <section class="panel" aria-labelledby="filter-title">
-        <h2 id="filter-title">Find frames</h2>
-        <label for="search">Search capture ID or outcome</label>
-        <input id="search" type="search" autocomplete="off" placeholder="For example: completed">
-        <p class="hint">Times are relative to the start of each session. This pilot has no calendar clock.</p>
-      </section>
-
-      <section class="panel" aria-labelledby="recent-title">
-        <h2 id="recent-title">Recent committed frames</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Capture</th><th>Session time</th><th>Outcome</th><th>Image</th></tr></thead>
-            <tbody id="capture-rows"></tbody>
-          </table>
+      <section class="welcome-card" aria-labelledby="welcome-title">
+        <div>
+          <p class="eyebrow warm">Ready to explore</p>
+          <h2 id="welcome-title">Your camera took <strong id="welcome-count">-</strong> pictures!</h2>
+          <p>Pick a picture, zoom in, and see what you can discover.</p>
         </div>
-        <button id="capture-toggle" class="secondary-button" type="button" hidden>Show all frames</button>
+        <a class="primary-button" href="#gallery-title">Explore pictures <span aria-hidden="true">&rarr;</span></a>
       </section>
 
-      <section class="panel" aria-labelledby="gallery-title">
-        <h2 id="gallery-title">Image gallery</h2>
+      <section class="metrics" aria-label="Session summary">
+        <article class="metric-card metric-purple"><span>Pictures</span><strong id="capture-count">-</strong><small>saved by your camera</small></article>
+        <article class="metric-card metric-teal"><span>Picture gallery</span><strong id="image-count">-</strong><small>ready to explore</small></article>
+        <article class="metric-card metric-yellow"><span>Camera timing</span><strong id="capture-time">-</strong><small>average capture time</small></article>
+        <article class="metric-card metric-coral"><span>AI helper</span><strong id="inference-status">-</strong><small>not connected yet</small></article>
+      </section>
+
+      <section class="adventure-grid" aria-label="Explore and discover">
+        <section class="adventure-card explore-card" aria-labelledby="explore-title">
+          <span class="card-icon" aria-hidden="true">&#x1F50E;</span>
+          <p class="eyebrow">Look closely</p>
+          <h2 id="explore-title">Explore your pictures</h2>
+          <p>Look closely at the world your camera watched.</p>
+          <a class="secondary-button" href="#gallery-title">Show me the pictures <span aria-hidden="true">&rarr;</span></a>
+        </section>
+        <section class="adventure-card ai-card" aria-labelledby="ai-title">
+          <span class="card-icon" aria-hidden="true">&#x2728;</span>
+          <p class="eyebrow">Coming soon</p>
+          <h2 id="ai-title">Ask the AI to look</h2>
+          <p>One day, your computer will help spot possible insects. Its results will be predictions, and AI can make mistakes.</p>
+          <button id="find-insects" class="primary-button" type="button">Find insects <span aria-hidden="true">&rarr;</span></button>
+          <p id="model-note" class="card-note">The AI model is not connected yet. Your pictures are safe and ready for the next step.</p>
+        </section>
+      </section>
+
+      <section class="panel gallery-panel" aria-labelledby="gallery-title">
+        <div class="section-heading">
+          <div><p class="eyebrow warm">Picture time</p><h2 id="gallery-title">Your picture gallery</h2></div>
+          <span class="section-count" id="gallery-count">0 pictures</span>
+        </div>
         <p id="gallery-empty">No committed images are available yet.</p>
         <div id="gallery" class="gallery"></div>
         <button id="gallery-toggle" class="secondary-button" type="button" hidden>Show all images</button>
       </section>
+
+      <details class="adult-details">
+        <summary>Adult details and frame search</summary>
+        <section class="panel" aria-labelledby="filter-title">
+          <h2 id="filter-title">Find frames</h2>
+          <label for="search">Search capture ID or outcome</label>
+          <input id="search" type="search" autocomplete="off" placeholder="For example: completed">
+          <p class="hint">Times are relative to the start of each session. This pilot has no calendar clock.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="recent-title">
+          <h2 id="recent-title">Recent committed frames</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Capture</th><th>Session time</th><th>Outcome</th><th>Image</th></tr></thead>
+              <tbody id="capture-rows"></tbody>
+            </table>
+          </div>
+          <button id="capture-toggle" class="secondary-button" type="button" hidden>Show all frames</button>
+        </section>
+      </details>
     </main>
+
     <template id="gallery-item-template">
       <button class="gallery-item" type="button"><img loading="lazy" alt=""><span></span></button>
     </template>
     <div id="image-modal" class="image-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-caption">
       <div class="image-modal-card">
-        <button id="modal-close" class="modal-close" type="button" aria-label="Close image">x</button>
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close image">&times;</button>
         <img id="modal-image" alt="">
         <p id="modal-caption"></p>
+      </div>
+    </div>
+    <div id="model-modal" class="model-modal" hidden role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
+      <div class="model-modal-card">
+        <button id="model-modal-close" class="modal-close" type="button" aria-label="Close message">&times;</button>
+        <div class="card-icon" aria-hidden="true">&#x1F6E0;&#xFE0F;</div>
+        <h2 id="model-modal-title">The AI is still getting ready</h2>
+        <p>We are building the picture-spotting part of this adventure. For now, you can explore every picture yourself.</p>
+        <button id="model-modal-ok" class="primary-button" type="button">Keep exploring</button>
       </div>
     </div>
     <script src="dashboard.js"></script>
   </body>
 </html>
-
-
-
-
-
-

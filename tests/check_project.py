@@ -77,7 +77,12 @@ def check_dashboard_contract() -> None:
     require("capture-toggle" in html, "Dashboard must provide frame expand control")
     require("gallery-toggle" in html, "Dashboard must provide gallery expand control")
     require("image-modal" in html, "Dashboard must provide an image modal")
+    require("loading-screen" in html and "welcome-count" in html and "loading-retry" in html, "Dashboard must provide the child loading and retry experience")
+    require("find-insects" in html and "model-modal" in html, "Dashboard must provide an honest no-model action")
+    require("adult-details" in html, "Technical details must be separated for adult users")
     require(".image-modal[hidden]" in text("dashboard/dashboard.css"), "Hidden modal must not overlay the page")
+    require(".loading-screen[hidden]" in text("dashboard/dashboard.css"), "Loading screen must be dismissible")
+    require("prefers-reduced-motion" in text("dashboard/dashboard.css"), "Dashboard must support reduced motion")
     require("Show all" in javascript and "Escape" in javascript, "Dashboard must support expansion and modal close")
 
 
