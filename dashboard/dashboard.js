@@ -44,7 +44,7 @@
     document.head.append(script);
   });
 
-  const relativeTime = (milliseconds) => `${((Number(milliseconds) || 0) / 1000).toFixed(1)} s`;
+  const relativeTime = (milliseconds) => `${((Number(milliseconds) || 0) / 1000).toFixed(1)} seconds`;
   const filteredCaptures = () => {
     const query = search.value.trim().toLowerCase();
     return data.captures.filter((capture) => !query ||
@@ -85,6 +85,7 @@
     const images = captures.filter((capture) => capture.imagePath);
     const averageCaptureMs = captures.length
       ? Math.round(captures.reduce((total, capture) => total + (Number(capture.captureMs) || 0), 0) / captures.length) : 0;
+    const averageCaptureSeconds = (averageCaptureMs / 1000).toFixed(2);
     const inferenceOutcomes = new Set(data.captures.map((capture) => capture.inferenceOutcome).filter(Boolean));
     const inferenceText = !data.captures.length ? 'No data'
       : inferenceOutcomes.size === 1 && inferenceOutcomes.has('model_unavailable') ? 'Coming soon'
@@ -94,7 +95,7 @@
     document.querySelector('#capture-count').textContent = String(data.captures.length);
     document.querySelector('#image-count').textContent = String(allImages.length);
     document.querySelector('#gallery-count').textContent = `${allImages.length} picture${allImages.length === 1 ? '' : 's'}`;
-    document.querySelector('#capture-time').textContent = captures.length ? `${averageCaptureMs} ms` : '-';
+    document.querySelector('#capture-time').textContent = captures.length ? `${averageCaptureSeconds} seconds` : '-';
     document.querySelector('#inference-status').textContent = inferenceText;
 
     const visibleCaptures = (showAllFrames ? captures : captures.slice(-initialLimit)).slice().reverse();
