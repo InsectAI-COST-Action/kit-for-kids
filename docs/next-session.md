@@ -1,17 +1,23 @@
 # Next session checklist
 
-The SD card has been reset for rapid pilot iteration and a clean camera test is under way. Do not spend the next session reconstructing discarded early test data.
+Status at hand-off (15 August 2026): the physical SD card has been reset to a clean deployment state. It retains the current dashboard, `config.json`, blank runtime starters, and the locally installed Nano/WASM package beneath `ai/`; old captures and the synthetic SD-card demo were removed. The firmware still uses `NullInferenceEngine` during capture.
 
-1. Power down normally by removing the cable, mount the card, and run `py tools\audit_card.py <card-root>`. Confirm the clean-card run has matching raw, dashboard, and JPEG counts and that the interrupted-run recovery path remains sound.
-2. Preserve the existing firmware/null inference boundary. The ESP32 should capture and store frames; do not add a production model to its capture loop during the browser feasibility phase.
-3. Review and refine the implemented child-first dashboard shell described in `docs/browser-inference-plan.md`: test the full-page loading state, large guided actions, clear instructions, fun accessible colours, and adult details using empty, loading, success, partial-data, and error fixtures.
-4. Keep initial dashboard loading separate from AI analysis. Add the **Find insects with AI** journey as a non-functional/prototype state first, including progress, current image, pause/cancel, uncertainty language, and an honest no-model state.
-5. Investigate FlatBug as the preferred candidate. Obtain the smallest relevant official weights and record version, hash, source, licence, byte size, task, labels, input, and reference runtime. Do not add copied weights to Git until redistribution is confirmed.
-6. Run a narrow export experiment outside the dashboard: compare the reference FlatBug Python output with an ONNX export on a small fixed image set, and determine which parts of its pyramid/tiling and merging pipeline must be reproduced.
-7. Only if export parity is credible, build the offline browser spike with locally packaged ONNX Runtime Web. Prove `file://` model/WASM/JPEG loading before investing in the polished analysis UI.
-8. Benchmark at least 100 representative enclosure images in WebAssembly, then optional WebGPU, recording the measures in `docs/browser-inference-plan.md`. Extrapolate to 7,200 images and agree an acceptable post-session wait target; do not silently skip frames.
-9. Test the child dashboard and inference spike on Windows 10/11 and current macOS in Chrome, Edge, Firefox, and Safari. Treat WebAssembly as mandatory and WebGPU as optional.
-10. Complete one bounded performance-timer/cadence validation and continue SD endurance toward 7,200 retained captures. Run only a short actual-battery-pack stability/power-removal smoke test, not a formal capacity profile.
-11. Run `py tests\check_project.py`, `git diff --check`, and a clean PlatformIO build before committing a completed tranche.
+## First: documentation and project presentation
 
-Decision gates for the next tranche: FlatBug model artefact/licence availability, ONNX export parity, acceptable browser package size/memory/time, safe cross-browser result persistence, and the precise claims validated by enclosure data.
+1. Review the documentation set for duplication, stale history, and audience. Agree a small canonical navigation structure before adding more material.
+2. Assess publishing the documentation through GitHub Pages in the main repository, with a simple landing page and links for teachers/facilitators, operators, and developers. This is a navigation/presentation task only; do not publish model weights, real captures, secrets, or machine-local artefacts.
+
+## Then: deployment and browser-model evidence
+
+3. Run a fresh camera collection from the clean card. After normal cable-power removal, mount the card and run `py tools\audit_card.py <card-root>`. Confirm raw, dashboard, and JPEG counts reconcile and the interrupted-power recovery path remains sound.
+4. In Chrome and Edge, open the deployed `dashboard.html`, select **Find insects with AI**, choose the top camera-card folder once, and verify the live scan, pause/continue, stop, current image, and possible-insect cards on actual saved pictures. Record browser version, model-load time, first-result time, and any errors.
+5. Benchmark at least 100 representative enclosure frames in the browser. Record median/p95 image time, total time, memory symptoms, cancellation behaviour, false positives, and misses. Extrapolate honestly to a 7,200-frame session; do not skip frames silently.
+6. Keep the ESP32 capture loop model-free. Continue the bounded cadence/timer validation and a short battery-pack stability/clean-power-removal smoke test.
+
+## Model and distribution gates
+
+7. Record the official FlatBug Nano weight provenance and redistribution position. Do not add weights to Git or make species/identification claims.
+8. Compare the browser single-pass 640x640 output against the reference FlatBug pipeline on a labelled enclosure set. Decide later whether limited tiling, a bespoke detector, or a research-only workflow is appropriate.
+9. Treat Firefox, Safari, result export/persistence, and broad cross-browser accessibility as open work; current working evidence is Chrome and Edge only.
+
+Before the next commit, run `py tests\check_project.py`, `git diff --check`, the relevant SD audit, and a clean PlatformIO build when firmware changes.

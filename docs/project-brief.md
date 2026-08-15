@@ -10,7 +10,7 @@ The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the ph
 
 Run `run_000012` verified the current JPEG-directory sharding design: 2,384 completed raw records, dashboard entries, and JPEGs were present, with image-write time remaining near 0.55 seconds through frame 2,300. This is evidence that sharding mitigates the earlier progressive FAT directory slowdown; it is not yet acceptance evidence for 2 FPS because the stage-duration telemetry conflicts with run-relative elapsed time. Remaining device work is a bounded timer/cadence check, endurance, recovery, and browser-matrix validation. A formal one-hour battery-capacity profile is deprioritised; retain a short stability and power-removal smoke test with the intended USB battery pack.
 
-The next development tranche is a child-first dashboard redesign and a decision-gated experiment in post-session, offline browser inference. The ESP32 continues to capture and store every frame with the null inference adapter. The dashboard will load the session first, then let the user explicitly start local analysis. FlatBug is the preferred model candidate to investigate, but it is not selected: its exact weights, licence chain, ONNX export parity, tiling requirements, package size, memory use, performance, and accuracy on enclosure images must be measured. `docs/browser-inference-plan.md` is the controlling plan for this tranche. The initial dashboard shell is implemented without model integration: loading, welcome, gallery, no-model messaging, modal images, adult details, and local-file data loading are now the active UI baseline.
+The current development tranche includes a child-first dashboard and a decision-gated post-session browser-analysis prototype. The ESP32 continues to capture and store every frame with the null inference adapter. After a session, an adult explicitly selects the top camera-card folder once; the dashboard then reads its saved images plus a locally installed FlatBug Nano/WASM package from File objects and scans images one at a time with progress, live provisional discoveries, and pause/stop controls. FlatBug is not selected as a production model: weight redistribution, ONNX/reference parity, the omitted tiled-pyramid workflow, package size, memory, batch performance, and enclosure accuracy remain open gates. `docs/browser-inference-plan.md` is the controlling plan and `docs/model-card.md` records the current prototype.
 
 ## 1. Purpose and authority
 
@@ -40,7 +40,7 @@ The primary user is a non-technical ecologist, teacher, workshop facilitator, or
 6. explore images and simple session information, then deliberately start entertaining, clearly explained local AI analysis; and
 7. let an adult open predictions, charts, exports, and detailed device/run health entirely offline.
 
-The pilot succeeds only if data remains intelligible after ordinary faults, real detections are clearly distinguishable from test data, and the dashboard does not require browser permissions beyond opening local files.
+The pilot succeeds only if data remains intelligible after ordinary faults, real detections are clearly distinguishable from test data, and the dashboard requires only the explicit, read-only folder selection used to open local model and image files.
 
 ## 3. Scope and priorities
 

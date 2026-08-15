@@ -1,0 +1,11 @@
+﻿<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FlatBug browser load check</title><link rel="stylesheet" href="spike.css"></head>
+<body><main>
+  <p class="eyebrow">Technical experiment â€” not the child dashboard</p>
+  <h1>FlatBug offline browser load check</h1>
+  <p>This isolated page tests whether a local model and ONNX Runtime Web load under <code>file://</code>. It does not make a prediction.</p>
+  <section><h2>Local-only check</h2><p>Expected model: <code>assets/flatbug-m.onnx</code></p><button id="run-check" type="button">Load local model</button><p id="status" data-load-state="idle" aria-live="polite">Ready. Open this page directly from its folder.</p></section>
+  <p>Use <code>tools/export_flatbug_onnx.py</code> to produce the ignored local model file. No model bytes are committed.</p>
+</main><script src="model-manifest.js"></script><script src="vendor/onnxruntime/ort.wasm.min.js"></script><script src="spike.js"></script></body>
+</html>

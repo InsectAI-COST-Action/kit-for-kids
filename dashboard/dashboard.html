@@ -48,7 +48,7 @@
         <article class="metric-card metric-purple"><span>Pictures</span><strong id="capture-count">-</strong><small>saved by your camera</small></article>
         <article class="metric-card metric-teal"><span>Picture gallery</span><strong id="image-count">-</strong><small>ready to explore</small></article>
         <article class="metric-card metric-yellow"><span>Camera timing</span><strong id="capture-time">-</strong><small>average capture time</small></article>
-        <article class="metric-card metric-coral"><span>AI helper</span><strong id="inference-status">-</strong><small>not connected yet</small></article>
+        <article class="metric-card metric-coral"><span>AI helper</span><strong id="inference-status">-</strong><small>ready when you are</small></article>
       </section>
 
       <section class="adventure-grid" aria-label="Explore and discover">
@@ -61,11 +61,11 @@
         </section>
         <section class="adventure-card ai-card" aria-labelledby="ai-title">
           <span class="card-icon" aria-hidden="true">&#x2728;</span>
-          <p class="eyebrow">Coming soon</p>
+          <p class="eyebrow">Your AI adventure</p>
           <h2 id="ai-title">Ask the AI to look</h2>
-          <p>One day, your computer will help spot possible insects. Its results will be predictions, and AI can make mistakes.</p>
-          <button id="find-insects" class="primary-button" type="button">Find insects <span aria-hidden="true">&rarr;</span></button>
-          <p id="model-note" class="card-note">The AI model is not connected yet. Your pictures are safe and ready for the next step.</p>
+          <p>Ask your computer to look through the pictures. It will share possible-insect clues, and AI can make mistakes.</p>
+          <button id="find-insects" class="primary-button" type="button">Find insects with AI <span aria-hidden="true">&rarr;</span></button>
+          <p id="model-note" class="card-note">Choose the AI helper when you are ready. Your pictures stay on this computer.</p>
         </section>
       </section>
 
@@ -120,6 +120,33 @@
         <button id="model-modal-ok" class="primary-button" type="button">Keep exploring</button>
       </div>
     </div>
+    <div id="analysis-modal" class="analysis-modal" hidden role="dialog" aria-modal="true" aria-labelledby="analysis-title">
+      <div class="analysis-modal-card">
+        <button id="analysis-close" class="modal-close" type="button" aria-label="Close AI adventure">x</button>
+        <section id="analysis-setup" class="analysis-setup">
+          <div class="card-icon" aria-hidden="true">&#x1F50D;</div>
+          <p class="eyebrow warm">AI adventure</p>
+          <h2 id="analysis-title">Let&rsquo;s look for possible insects!</h2>
+          <p>Choose the top camera-card folder once. The AI helper will look at your pictures one at a time, and its clues can be wrong.</p>
+          <label class="ai-pack-label" for="analysis-card"><span>Choose your camera card</span><input id="analysis-card" type="file" webkitdirectory multiple></label>
+          <p id="analysis-card-status" class="analysis-note" role="status">An adult chooses the top camera-card folder once. It lets the browser read pictures and the AI helper, but never change them.</p>
+          <button id="analysis-start" class="primary-button" type="button" disabled>Start looking <span aria-hidden="true">&rarr;</span></button>
+        </section>
+        <section id="analysis-scanner" class="analysis-scanner" hidden aria-live="polite">
+          <p class="eyebrow warm">AI detective at work</p>
+          <h2>Looking through your pictures</h2>
+          <p id="analysis-story" class="analysis-story">Getting ready to look carefully&hellip;</p>
+          <div class="analysis-image-wrap"><canvas id="analysis-current-image" aria-label="The picture currently being checked"></canvas><span class="scan-line" aria-hidden="true"></span></div>
+          <p id="analysis-current-caption" class="analysis-caption">Waiting for the first picture</p>
+          <div class="analysis-progress-track" aria-hidden="true"><span id="analysis-progress"></span></div>
+          <p id="analysis-progress-text" class="analysis-progress-text">Picture 0 of 0</p>
+          <div class="analysis-controls"><button id="analysis-pause" class="secondary-button" type="button" disabled>Pause search</button><button id="analysis-stop" class="quiet-button" type="button" disabled>Stop search</button></div>
+          <p id="analysis-summary" class="analysis-note" hidden></p>
+          <section class="discoveries" aria-labelledby="analysis-discoveries-title"><div class="section-heading"><div><p class="eyebrow warm">Live discoveries</p><h3 id="analysis-discoveries-title">Clues found so far</h3></div><span id="analysis-discovery-count" class="section-count">0 possible insects found</span></div><div id="analysis-discoveries" class="analysis-discoveries"><p class="empty-discoveries">No clues yet &mdash; the AI is still looking carefully.</p></div></section>
+        </section>
+      </div>
+    </div>
     <script src="dashboard.js"></script>
+    <script src="analysis.js"></script>
   </body>
 </html>

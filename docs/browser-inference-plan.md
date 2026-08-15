@@ -1,6 +1,6 @@
 # Child dashboard and offline browser inference plan
 
-Status: child dashboard shell implemented; browser inference remains a proposed, decision-gated technical spike
+Status: child dashboard and FlatBug Nano browser-analysis prototype implemented; production acceptance remains decision-gated
 Recorded: 13 August 2026
 
 ## Outcome
@@ -22,6 +22,16 @@ The main experience is for a supervised young child, while technical details rem
 - consistently say **label**, **class**, **prediction**, or **possible insect**. Explain that AI can make mistakes and do not imply species identification.
 
 The existing compact frame/gallery views, expand controls, modal image viewer, session-relative time, and adult health information should be retained or improved rather than removed.
+## Implemented browser-analysis prototype (15 August 2026)
+
+`dashboard/analysis.js` now provides the first child-facing analysis journey in the dashboard. It is a prototype, not validated detection or a production release:
+
+1. The child selects **Find insects with AI** and sees a short explanation that predictions can be wrong.
+2. An adult chooses the **top camera-card folder** once. The browser reads both its saved pictures and the FlatBug Nano ONNX/ONNX Runtime Web assets from that selected folder as File objects; it does not upload pictures, use a server, or make a network request.
+3. The child presses **Start looking**. The dashboard processes saved images one at a time, yields between pictures, shows the current image with a moving scanner, changes friendly explanatory text, and immediately adds a card whenever a provisional possible-insect box appears.
+4. Clear **Pause search** / **Keep looking** and **Stop search** controls remain available. The summary reports checked images, possible-insect image count, and any read/inference failures. Results remain in browser memory only and do not alter the authoritative SD-card records.
+
+The implementation currently fixes the package to the locally tested `flatbug-n.onnx` model, a single 640x640 pass, score threshold 0.20, IoU suppression threshold 0.20, and one WASM thread. The selected camera-card root must contain the model/runtime files beneath `ai/`: `ai/flatbug-n.onnx`, `ai/ort.wasm.bundle.min.mjs`, and `ai/ort-wasm-simd-threaded.wasm`. `py tools\install_ai_pack.py <card-root>` installs this local, untracked prototype package. The folder-selected route and the child dashboard flow have working Chrome/Edge evidence. Firefox, Safari, packaging, rights to redistribute model weights, representative-image validation, batch performance, persistence/export, and the 7,200-image feasibility gate remain open.
 
 ## Technical hypothesis
 
@@ -77,3 +87,11 @@ Browser inference becomes the production direction only when:
 - representative-image validation supports the exact claims shown to users.
 
 Until then, firmware continues to record `model_unavailable`, and the dashboard must not display synthetic or unvalidated predictions as real observations.
+
+## FlatBug `file://` loading result (14 August 2026)
+
+A reproducible isolated spike is at `spikes/flatbug-browser/`. The official FlatBug v1.0.0 medium checkpoint was exported locally to a structurally valid 98.5 MB ONNX segmentation model (opset 18). The model remains ignored by Git pending confirmation that its weights may be redistributed.
+
+The `file://` compatibility gate **did not pass in current Microsoft Edge**. The page, local ONNX model, and all ONNX Runtime Web 1.27.0 WebAssembly assets were present. However, ONNX Runtime Web dynamically imports its `.mjs` helper from its classic browser bundle, and Edge rejects that dynamic local module import from a direct local-file page. Explicit absolute `file://` asset paths and the WASM-only classic bundle produced the same failure. The ESM bundle also did not execute from the direct local-file page.
+
+The direct-import route remains a regression diagnostic, but it is no longer the chosen architecture. The successful replacement is the single top-camera-card folder selection: it supplies both the local `ai/` assets and saved image File objects, which are loaded through Blob URLs and `createImageBitmap()`. This path is implemented in `dashboard/analysis.js` and has working Chrome/Edge evidence. It remains a prototype, not a production acceptance result.

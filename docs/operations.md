@@ -22,7 +22,9 @@
 1. Remove the card only after power is disconnected.
 2. Insert it into a normal computer and open `dashboard.html` in Chrome, Edge, Firefox, or Safari while offline.
 3. The dashboard shows the total number of loaded captures, while the recent frames and image gallery initially show at most ten items. Use `Show all frames` or `Show all images` to expand the lists; the buttons then change to `Show fewer frames` or `Show fewer images`.
+4. To try the experimental browser AI in Chrome or Edge, first run `py tools\install_ai_pack.py <card-root>` on the mounted card. Then select **Find insects with AI**, and an adult chooses the top camera-card folder once (for example `D:\`), followed by **Start looking**. This supplies safe local File access to both the pictures and the AI assets. Pictures are analysed locally, one at a time; the dashboard shows live possible-insect clues and provides pause/stop controls. These are predictions, not validated identifications, and nothing is uploaded or written back to the card.
 4. Select an image to open it in the page modal; use the `x` control, Escape, or the backdrop to close it.
+5. For a safe, colourful synthetic demonstration, run `py tools\\install_dashboard_demo.py <card-root>`, open `<card-root>\\demo\\demo.html`, choose the `demo` folder itself, then select **Start looking**. This is visibly separate from real captures.
 5. Use the computer's file manager, not the dashboard, to delete data when starting a new experiment. Do not delete files during collection.
 6. Preserve `/raw/captures.csv` when analysis matters: it is the authoritative record.
 

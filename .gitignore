@@ -1,4 +1,4 @@
-# Operating-system files
+﻿# Operating-system files
 desktop.ini
 Thumbs.db
 .DS_Store
@@ -40,6 +40,13 @@ secrets.*
 /artifacts/
 /firmware-builds/
 /models/
+# Locally exported FlatBug artefacts for the browser compatibility spike.
+/spikes/flatbug-browser/assets/*.onnx
+/spikes/flatbug-browser/assets/*.pt
+/spikes/flatbug-browser/vendor/onnxruntime/*
+!/spikes/flatbug-browser/vendor/onnxruntime/ort.min.js
+!/spikes/flatbug-browser/vendor/onnxruntime/ort.wasm.bundle.min.mjs
+!/spikes/flatbug-browser/vendor/onnxruntime/ort-wasm-simd-threaded.wasm
 *.img
 *.log
 __pycache__/
