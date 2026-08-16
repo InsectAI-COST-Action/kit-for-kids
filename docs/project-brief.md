@@ -4,6 +4,8 @@ Status: active pilot implementation; scope authority and lower-level-agent task 
 Reviewed: 13 August 2026
 Audience: project owner, lead agent, bounded implementation agents, and reviewers
 
+Navigation: this is the detailed scope/requirements contract. For day-to-day operation use [operations.md](operations.md); for current priorities use [next-session.md](next-session.md); for the documentation map use [README.md](README.md).
+
 ## Current implementation status
 
 The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV3660/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.

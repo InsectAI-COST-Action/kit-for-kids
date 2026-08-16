@@ -14,6 +14,10 @@ The next development path has two strands: redesign the dashboard for young chil
 
 Remaining device acceptance work is timing-instrument validation, SD endurance testing, cross-browser verification on Windows 10/11 and current macOS, and a final review of data integrity after repeated power removal. A formal battery-capacity test is deprioritised; a short stability and clean-power-removal smoke test with the intended USB battery pack remains appropriate. These are tracked in `docs/hardware-validation.md` and `docs/next-session.md`.
 
+## Documentation
+
+[Documentation guide](docs/README.md) is the entry point for operators, developers, browser-model work, and engineering evidence. The detailed [project brief](docs/project-brief.md) remains the implementation-scope contract; [next-session.md](docs/next-session.md) is the current development hand-off.
+
 ## Toolchain
 
 Install PlatformIO Core, then run:
@@ -45,8 +49,8 @@ Do not remove the SD card while the camera is powered. Previous committed record
 - `tools/install_ai_pack.py`: install the local, untracked Nano/WASM prototype package on a card.
 - `tools/install_dashboard_demo.py`: install a separate synthetic presentation demo (not real capture data).
 - `docs/performance-experiment.md`: staged performance-instrumentation protocol.
-- `docs/browser-inference-plan.md`: child-first dashboard direction and gated local-model experiment.
-- `docs/`: architecture, operations, and hardware-validation evidence.
+- `docs/README.md`: documentation map and role-based starting points.
+- `docs/`: operations, architecture, model work, and validation evidence.
 
 ## Model status
 
