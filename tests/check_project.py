@@ -31,9 +31,22 @@ def check_platform() -> None:
 
 def check_pilot_configuration() -> None:
     config = json.loads(text("config.example.json"))
-    require(config["capture_fps"] == 2, "Pilot configuration must be 2 FPS")
+    require(config["capture_fps"] == 1, "Pilot configuration must be 1 FPS")
     require(config["max_session_seconds"] == 3600, "Pilot sessions must be one hour")
+    require(config["capture_mode"] == "pilot", "Default configuration must use pilot mode")
+    require(config["camera_preset"] == "qxga_q12_1fps", "Default camera preset must be recorded")
+    require(config["frame_size"] == "QXGA" and config["jpeg_quality"] == 12, "Pilot must use the settled QXGA quality preset")
     require(config["model_id"] == "none", "No model must be configured by default")
+    parser = text("src/config.cpp")
+    require("quality_trial" in parser and "fps != 1 && fps != 2" in parser, "Quality-trial configuration bounds are missing")
+    require('pilot_mode && (fps != 1 || config.frame_size != "QXGA" || quality != 12)' in parser, "Pilot bounds must enforce the settled QXGA preset")
+    require('config.frame_size != "QXGA"' in parser, "Maximum trial resolution must be configuration-validated")
+    trial_tool = text("tools/configure_camera_trial.py")
+    require("max_qxga_q12_1fps" in trial_tool and "max_qxga_q12_2fps" in trial_tool and '"QXGA"' in trial_tool, "Maximum-resolution trial presets are missing")
+    manifest = text("src/session_logger.cpp")
+    require("camera_preset" in manifest and "String(config_.capture_fps)" in manifest, "Run manifest must record effective camera settings")
+    require((ROOT / "tools" / "configure_camera_trial.py").is_file(), "Camera-trial setup tool is missing")
+    require((ROOT / "tools" / "camera_trial_report.py").is_file(), "Camera-trial report tool is missing")
 
 
 def check_camera_contract() -> None:
@@ -42,6 +55,7 @@ def check_camera_contract() -> None:
         require(fragment in source, f"Missing expected XIAO OV3660 mapping: {fragment}")
     require("psramFound()" in source, "Camera must reject missing PSRAM")
     require("OV3660_PID" in source, "Camera must report the actual sensor PID")
+    require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
 
 
 def check_data_safety_contract() -> None:
@@ -108,7 +122,7 @@ def check_development_path_docs() -> None:
     require("FlatBug" in plan and "FlatBug" in model_card and "FlatBug" in brief, "FlatBug candidate must be recorded")
     require("file://" in plan, "Browser inference must preserve direct local-file operation")
     require("WebAssembly" in plan and "WebGPU" in plan, "Portable and optional browser backends must be distinguished")
-    require("7,200" in plan, "Browser feasibility must cover a maximum session")
+    require("3,600" in plan, "Browser feasibility must cover the maximum session")
     require("pause/cancel" in plan, "Long-running browser inference must remain controllable")
 
 

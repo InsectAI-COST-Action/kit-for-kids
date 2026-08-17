@@ -49,7 +49,13 @@ bool CameraService::begin(const AppConfig& config, String& diagnostic) {
   camera_config.pin_reset = kResetPin;
   camera_config.xclk_freq_hz = 20000000;
   camera_config.pixel_format = PIXFORMAT_JPEG;
-  camera_config.frame_size = config.frame_size == "SVGA" ? FRAMESIZE_SVGA : FRAMESIZE_VGA;
+  if (config.frame_size == "QXGA") {
+    camera_config.frame_size = FRAMESIZE_QXGA;
+  } else if (config.frame_size == "SVGA") {
+    camera_config.frame_size = FRAMESIZE_SVGA;
+  } else {
+    camera_config.frame_size = FRAMESIZE_VGA;
+  }
   camera_config.jpeg_quality = config.jpeg_quality;
   camera_config.fb_count = 1;
   camera_config.fb_location = CAMERA_FB_IN_PSRAM;

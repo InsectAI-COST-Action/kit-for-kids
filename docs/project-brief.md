@@ -10,13 +10,13 @@ Navigation: this is the detailed scope/requirements contract. For day-to-day ope
 
 The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV3660/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.
 
-Run `run_000012` verified the current JPEG-directory sharding design: 2,384 completed raw records, dashboard entries, and JPEGs were present, with image-write time remaining near 0.55 seconds through frame 2,300. This is evidence that sharding mitigates the earlier progressive FAT directory slowdown; it is not yet acceptance evidence for 2 FPS because the stage-duration telemetry conflicts with run-relative elapsed time. Remaining device work is a bounded timer/cadence check, endurance, recovery, and browser-matrix validation. A formal one-hour battery-capacity profile is deprioritised; retain a short stability and power-removal smoke test with the intended USB battery pack.
+Historical `run_000012` verified the JPEG-directory sharding design on the earlier VGA/2-FPS path: 2,384 completed records, dashboard entries, and JPEGs were present, with image-write time near 0.55 seconds through frame 2,300. The active pilot setting is now QXGA/JPEG-quality-12/1-FPS. Completed trial `run_000004` retained 120 QXGA images with a 1,000 ms median interval; QXGA/2-FPS captured only 171 of 240 expected images because JPEG writing exceeded the 500 ms budget. Remaining device work is the full 3,600-image endurance run, recovery, and browser-matrix validation. A formal one-hour battery-capacity profile is deprioritised; retain a short stability and power-removal smoke test with the intended USB battery pack.
 
 The current development tranche includes a child-first dashboard and a decision-gated post-session browser-analysis prototype. The ESP32 continues to capture and store every frame with the null inference adapter. After a session, an adult explicitly selects the top camera-card folder once; the dashboard then reads its saved images plus a locally installed FlatBug Nano/WASM package from File objects and scans images one at a time with progress, live provisional discoveries, and pause/stop controls. FlatBug is not selected as a production model: weight redistribution, ONNX/reference parity, the omitted tiled-pyramid workflow, package size, memory, batch performance, and enclosure accuracy remain open gates. `docs/browser-inference-plan.md` is the controlling plan and `docs/model-card.md` records the current prototype.
 
 ## 1. Purpose and authority
 
-Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 frames at 2 FPS. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
+Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 QXGA/JPEG-quality-12 frames at 1 FPS. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
@@ -28,7 +28,7 @@ Manufacturer references:
 - Camera: https://wiki.seeedstudio.com/xiao_esp32s3_camera_usage/
 - Hardware files: https://github.com/Seeed-Studio/OSHW-XIAO-Series
 
-`docs/camera-spec.md` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures are sufficient to deprioritise a formal one-hour battery-capacity profile for this pilot. Validate the completed 2-FPS capture/store workload with a short stability, temperature, and clean-power-removal smoke test using the intended USB battery pack; browser-side inference does not add to the device power load. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
+`docs/camera-spec.md` is the authority for this project’s hardware and power figures. It records battery input at 4.2 V, ready-state operation at 3.8 V/43.2 mA with the expansion board, and webcam operation at approximately 3.8 V/154 mA average and 304 mA peak. These figures are sufficient to deprioritise a formal one-hour battery-capacity profile for this pilot. Validate the completed QXGA/1-FPS capture/store workload with a short stability, temperature, and clean-power-removal smoke test using the intended USB battery pack; browser-side inference does not add to the device power load. Older OV2640 examples are reference material only; do not copy their maximum resolution or tuning assumptions.
 
 ## 2. Product outcome and users
 
@@ -49,7 +49,7 @@ The pilot succeeds only if data remains intelligible after ordinary faults, real
 ### Must — pilot platform
 
 - Pinned, reproducible Arduino-ESP32/PlatformIO firmware for the confirmed XIAO ESP32S3 Sense and OV3660.
-- Autonomous boot, fixed 2-FPS capture and retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
+- Autonomous boot, fixed 1-FPS QXGA/JPEG-quality-12 capture and retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
 - PSRAM detection and explicit failure/degraded behaviour.
 - Versioned configuration, event/data schemas, and migration policy.
 - Direct `file://` dashboard operation in Chrome, Edge, Firefox, and Safari on Windows 10/11 and current macOS, with no `fetch()`, CDN, server, installation, or internet.
@@ -91,7 +91,7 @@ The following are confirmed project decisions:
 
 1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
 2. **Model:** no production model exists yet. The device provides only the model interface and a `MODEL_UNAVAILABLE` null engine. FlatBug is the preferred candidate for the first browser feasibility test, not an approved production dependency. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
-3. **Capture/inference:** capture and store every frame at 2 FPS for a maximum one-hour session, or 7,200 retained frames. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 2 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
+3. **Capture/inference:** capture and store every QXGA/JPEG-quality-12 frame at 1 FPS for a maximum one-hour session, or 3,600 retained frames. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 1 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
 4. **Time:** session-relative only. `boot_id + monotonic_ms` is authoritative; date, hour, and “today” controls are unavailable rather than fabricated.
 5. **Power/stop/transfer:** battery powered; disconnecting the power cable stops collection. The user then removes the SD card and inserts it into a computer for transfer. The SD card must not be removed while the device is powered.
 6. **Retention/privacy:** keep every captured frame; people may appear in view; anyone may use the transferred data; real images may be used in demonstrations. Repository samples still require appropriate permission and licensing. Users delete data manually through the computer's file manager; the dashboard has no deletion feature.
@@ -118,7 +118,7 @@ If the camera cannot initialise, the system must record/indicate the fault and r
 
 ### Scheduling and resource ownership
 
-- Use monotonic deadlines from a baseline to capture every frame at fixed 2 FPS. The null adapter must not delay the device loop. Browser inference runs later in bounded, cancellable batches and yields to the UI; it must report progress/errors and never quietly reduce the capture rate, skip analyses, or create an unbounded memory backlog.
+- Use monotonic deadlines from a baseline to capture every QXGA/JPEG-quality-12 frame at fixed 1 FPS. The null adapter must not delay the device loop. Browser inference runs later in bounded, cancellable batches and yields to the UI; it must report progress/errors and never quietly reduce the capture rate, skip analyses, or create an unbounded memory backlog.
 - One component owns the camera and frame-buffer lifecycle. Define who releases each buffer on every success/error path.
 - Use bounded queues. Define overflow policy and report dropped work.
 - Serialize SD writes or otherwise prove filesystem safety. Dashboard maintenance must not block capture indefinitely.
@@ -138,7 +138,7 @@ Preprocessing and postprocessing belong to the applicable device or browser mode
 
 ### Retention policy
 
-The pilot saves every captured frame: 2 FPS for no more than one hour (7,200 images). There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV3660 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
+The pilot saves every captured QXGA/JPEG-quality-12 frame: 1 FPS for no more than one hour (3,600 images). There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV3660 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
 
 ## 6. Authoritative data model
 
@@ -231,7 +231,7 @@ Provide synthetic, prominently labelled sample data with empty, small, large, mu
 
 Use versioned `config.json` with documented defaults and bounds. At minimum:
 
-- fixed device capture cadence: 2 FPS, every frame, maximum one-hour session; browser analysis still targets every retained frame but runs post-session;
+- fixed device capture cadence: QXGA/JPEG quality 12 at 1 FPS, every frame, maximum one-hour session; browser analysis still targets every retained frame but runs post-session;
 - frame size and JPEG quality using tested presets;
 - model ID/backend and label-map version;
 - global/per-label confidence threshold for future model interpretation only; it does not alter the every-frame retention policy;
@@ -336,12 +336,12 @@ Required scenarios:
 - clean/missing/corrupt/out-of-range configuration;
 - empty, typical, and nearly/full SD; removal/write/rename failure where safely testable;
 - camera/model/PSRAM init failure and inference runtime failure;
-- rate overrun, queue overflow, 7,200-frame session, multiple predictions, and no detections;
+- rate overrun, queue overflow, 3,600-frame session, multiple predictions, and no detections;
 - session-relative time without a valid wall clock;
 - power interruption during image, CSV, chunk, summary, and manifest updates;
 - recovery across at least 10 forced power cycles without losing earlier committed records;
 - at least 100 consecutive device capture/null-inference cycles without leak, collision, or corrupt image, plus a separate 100-image browser inference responsiveness/memory test after model export;
-- at least one complete one-hour, 7,200-frame session with zero uncontrolled reboot; capture, storage, and error counts must reconcile exactly; after model approval, a separate browser analysis must account for every retained frame with explicit success/error outcomes;
+- at least one complete one-hour, 3,600-frame QXGA session with zero uncontrolled reboot; capture, storage, and error counts must reconcile exactly; after model approval, a separate browser analysis must account for every retained frame with explicit success/error outcomes;
 - raw-to-dashboard counts and image links reconcile for empty/small/large/interrupted datasets;
 - one missing image, corrupt optional chunk, stale summary, incompatible schema, and test-data marker;
 - `dashboard.html` opened from SD/local copy in every supported OS/browser with network disabled;
@@ -351,7 +351,7 @@ Required scenarios:
 Performance budgets are established in WP0/WP3 and then frozen in an ADR. Initial measurement goals, not unsupported promises:
 
 - boot to collecting or visible fault ≤30 seconds;
-- fixed 2-FPS device capture with achieved capture FPS reported; post-session browser analysis covers every retained frame and reports load time, first-result time, analysed FPS, total time, memory, and errors separately;
+- fixed 1-FPS QXGA/JPEG-quality-12 device capture with achieved capture FPS reported; post-session browser analysis covers every retained frame and reports load time, first-result time, analysed FPS, total time, memory, and errors separately;
 - no unbounded backlog or silent skipped analysis;
 - dashboard first useful view ≤3 seconds for the agreed typical dataset and bounded memory on reference computers;
 - documented maximum tested card duration/record count/chunk size; and

@@ -118,7 +118,12 @@ bool SessionLogger::writeRunManifest(const String& state, String& diagnostic) {
       "{\n  \"schema_version\": 1,\n  \"run_id\": \"" + run_id_ +
       "\",\n  \"state\": \"" + state + "\",\n  \"sensor\": \"" + sensor_id_ +
       "\",\n  \"model_id\": \"" + config_.model_id +
-      "\",\n  \"capture_fps\": 2,\n  \"time_source\": \"session_relative\"\n}\n";
+      "\",\n  \"capture_mode\": \"" + config_.capture_mode +
+      "\",\n  \"camera_preset\": \"" + config_.camera_preset +
+      "\",\n  \"capture_fps\": " + String(config_.capture_fps) +
+      ",\n  \"frame_size\": \"" + config_.frame_size +
+      "\",\n  \"jpeg_quality\": " + String(config_.jpeg_quality) +
+      ",\n  \"time_source\": \"session_relative\"\n}\n";
   return storage_->writeTextAtomic("/raw/runs/" + run_id_ + ".json", content, diagnostic);
 }
 

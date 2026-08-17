@@ -1,5 +1,7 @@
 # Performance experiment
 
+> Historical record: the 2-FPS/VGA experiments below led to the current directory-sharding implementation. On 17 August 2026 the pilot setting was changed to QXGA/JPEG-quality-12/1-FPS after the dedicated quality trials: QXGA at 1 FPS completed cleanly, while QXGA at 2 FPS captured only 171 of 240 expected images. The active acceptance protocol is now in [camera-quality-trial.md](camera-quality-trial.md).
+
 ## Purpose
 
 The first one-hour run completed safely but slowed from roughly 0.9 seconds per frame at the beginning to roughly 5.5 seconds per frame at the end. This experiment identifies whether the growth comes from camera capture, image writes, raw/dashboard logging, or heap fragmentation.

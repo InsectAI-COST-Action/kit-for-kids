@@ -4,7 +4,7 @@
 
 1. Format a supported microSD card as FAT32. Formatting removes existing data.
 2. On a development computer, run `py tools\prepare_sd.py <card-root>`.
-3. Inspect `config.json`. The pilot only accepts 2 FPS and sessions no longer than 3,600 seconds.
+3. Inspect `config.json`. Normal `pilot` mode is fixed to QXGA (2048?1536), JPEG quality 12, 1 FPS, and sessions no longer than 3,600 seconds. Install that normal setting with `py tools\configure_camera_trial.py <card-root> --install-pilot-default`. The separate, short `quality_trial` mode is retained only as historical/diagnostic tooling; see [camera-quality-trial.md](camera-quality-trial.md).
 4. The preparation tool updates static dashboard files but preserves the runtime-generated `manifest.js` and `summary.js` when they already exist.
 5. For a transferred card, run `py tools\audit_card.py <card-root>` before changing or deleting anything.
 6. Save the audit output with a read-only backup or card image.
@@ -13,7 +13,7 @@
 ## Collect a session
 
 1. Connect the battery power cable.
-2. The unit is configured to capture and retain every frame at a 2-FPS target for up to one hour. A production model has not yet been installed, so all inference outcomes are `model_unavailable`. Absolute cadence acceptance remains a development validation item; it does not change the retention policy.
+2. The unit is configured to capture and retain every QXGA/JPEG-quality-12 frame at a 1-FPS target for up to one hour (3,600 images). A production model has not yet been installed, so all inference outcomes are `model_unavailable`. The one-hour QXGA cadence/endurance acceptance run remains outstanding.
 3. Disconnect the battery cable to stop the device. This is the normal stop method; never remove the microSD card while powered.
 4. The firmware flushes each image and raw CSV row as it is captured. Dashboard records are written in bounded closed chunks plus `data/captures_current.js`; the current chunk is loaded by the dashboard so a normal power removal remains visible.
 

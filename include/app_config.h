@@ -4,9 +4,11 @@
 #include <FS.h>
 
 struct AppConfig {
-  uint32_t capture_fps = 2;
+  uint32_t capture_fps = 1;
   uint32_t max_session_seconds = 3600;
-  String frame_size = "VGA";
+  String capture_mode = "pilot";
+  String camera_preset = "qxga_q12_1fps";
+  String frame_size = "QXGA";
   uint8_t jpeg_quality = 12;
   String model_id = "none";
   String log_level = "info";

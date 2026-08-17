@@ -1,6 +1,6 @@
 # Architecture
 
-The main loop targets one camera frame every 500 ms, passes it to the inference interface, writes the original JPEG, appends an authoritative capture CSV row, and returns the frame buffer on every outcome path. During the browser-inference feasibility phase, the on-device interface remains the null adapter and records `model_unavailable`; it must not delay capture. Actual 2-FPS acceptance remains pending validation of the performance timer.
+The main loop targets one QXGA/JPEG-quality-12 camera frame every 1,000 ms, passes it to the inference interface, writes the original JPEG, appends an authoritative capture CSV row, and returns the frame buffer on every outcome path. During the browser-inference feasibility phase, the on-device interface remains the null adapter and records `model_unavailable`; it must not delay capture. A complete one-hour QXGA/1-FPS endurance acceptance run remains pending.
 
 `CameraService` owns `esp_camera`; `SdStorage` owns the SD filesystem; `SessionLogger` owns IDs, CSV rows, and run manifests; `DashboardWriter` owns only derived JavaScript chunks and summaries; and `IInferenceEngine` hides model-specific code. No module other than `CameraService` can call `esp_camera_fb_get`.
 

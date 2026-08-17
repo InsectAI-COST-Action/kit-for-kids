@@ -1,23 +1,24 @@
 # Next session checklist
 
-Status at hand-off (15 August 2026): the physical SD card has been reset to a clean deployment state. It retains the current dashboard, `config.json`, blank runtime starters, and the locally installed Nano/WASM package beneath `ai/`; old captures and the synthetic SD-card demo were removed. The firmware still uses `NullInferenceEngine` during capture.
+Status at hand-off (17 August 2026): image-quality trials are concluded. The settled pilot setting is QXGA (2048?1536), JPEG quality 12, 1 FPS, with a maximum 3,600-second session. The firmware and `config.example.json` enforce this normal `pilot` setting; the mounted deployment card must be prepared with `py tools\configure_camera_trial.py <card-root> --install-pilot-default`. Earlier trial captures are retained as evidence and must not be deleted automatically.
 
-## First: documentation and project presentation
+## First: one-hour QXGA pilot acceptance
 
-1. Review the documentation set for duplication, stale history, and audience. Agree a small canonical navigation structure before adding more material.
-2. Assess publishing the documentation through GitHub Pages in the main repository, with a simple landing page and links for teachers/facilitators, operators, and developers. This is a navigation/presentation task only; do not publish model weights, real captures, secrets, or machine-local artefacts.
+1. Confirm the card uses the pilot default, safely eject it, and collect for just over one hour. Disconnect power only after the session has completed normally.
+2. Mount the card and run `py tools\audit_card.py <card-root>` and `py tools\camera_trial_report.py <card-root>`. Require 3,600 completed 2048?1536 JPEGs, matching raw/dashboard/image counts, no uncontrolled reboot/storage error, and a documented power-removal recovery result.
+3. Record card capacity/free space, USB battery pack/cable, enclosure state, temperature observations, browser/OS, and firmware commit/build with the result in [hardware-validation.md](hardware-validation.md).
+4. Review representative source images in the dashboard for focus, lighting, exposure, colour, and small-insect detail.
 
-## Then: deployment and browser-model evidence
+## Then: browser-model evidence
 
-3. Run a fresh camera collection from the clean card. After normal cable-power removal, mount the card and run `py tools\audit_card.py <card-root>`. Confirm raw, dashboard, and JPEG counts reconcile and the interrupted-power recovery path remains sound.
-4. In Chrome and Edge, open the deployed `dashboard.html`, select **Find insects with AI**, choose the top camera-card folder once, and verify the live scan, pause/continue, stop, current image, and possible-insect cards on actual saved pictures. Record browser version, model-load time, first-result time, and any errors.
-5. Benchmark at least 100 representative enclosure frames in the browser. Record median/p95 image time, total time, memory symptoms, cancellation behaviour, false positives, and misses. Extrapolate honestly to a 7,200-frame session; do not skip frames silently.
-6. Keep the ESP32 capture loop model-free. Continue the bounded cadence/timer validation and a short battery-pack stability/clean-power-removal smoke test.
+5. In Chrome and Edge, open the deployed `dashboard.html`, select **Find insects with AI**, choose the top camera-card folder once, and verify live scanning, pause/continue, stop, current image, and possible-insect cards on actual QXGA images. Record browser version, model-load time, first-result time, and errors.
+6. Benchmark at least 100 representative enclosure frames in the browser. Record median/p95 image time, total time, memory symptoms, cancellation behaviour, false positives, and misses. Extrapolate honestly to a 3,600-image session; do not skip frames silently.
+7. Keep the ESP32 capture loop model-free. Continue the short intended-battery-pack stability/temperature/clean-power-removal smoke test.
 
 ## Model and distribution gates
 
-7. Record the official FlatBug Nano weight provenance and redistribution position. Do not add weights to Git or make species/identification claims.
-8. Compare the browser single-pass 640x640 output against the reference FlatBug pipeline on a labelled enclosure set. Decide later whether limited tiling, a bespoke detector, or a research-only workflow is appropriate.
-9. Treat Firefox, Safari, result export/persistence, and broad cross-browser accessibility as open work; current working evidence is Chrome and Edge only.
+8. Record the official FlatBug Nano weight provenance and redistribution position. Do not add weights to Git or make species/identification claims.
+9. Compare the browser single-pass 640?640 output against the reference FlatBug pipeline on a labelled enclosure set. Decide later whether limited tiling, a bespoke detector, or a research-only workflow is appropriate.
+10. Treat Firefox, Safari, result export/persistence, and broad cross-browser accessibility as open work; current working evidence is Chrome and Edge only.
 
 Before the next commit, run `py tests\check_project.py`, `git diff --check`, the relevant SD audit, and a clean PlatformIO build when firmware changes.

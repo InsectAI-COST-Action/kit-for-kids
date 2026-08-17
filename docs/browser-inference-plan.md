@@ -5,7 +5,7 @@ Recorded: 13 August 2026
 
 ## Outcome
 
-Keep the ESP32 focused on reliable two-frame-per-second capture and SD-card persistence. After collection, let the user open `dashboard.html` and deliberately start insect analysis on the computer. All inference must remain local and offline; images must not be uploaded.
+Keep the ESP32 focused on reliable one-frame-per-second QXGA/JPEG-quality-12 capture and SD-card persistence. After collection, let the user open `dashboard.html` and deliberately start insect analysis on the computer. All inference must remain local and offline; images must not be uploaded.
 
 This path is provisional. It supersedes the earlier assumption that the first production model must execute after each capture on the ESP32, but it does not yet approve a browser runtime or model. Every retained frame remains eligible for analysis.
 
@@ -31,7 +31,7 @@ The existing compact frame/gallery views, expand controls, modal image viewer, s
 3. The child presses **Start looking**. The dashboard processes saved images one at a time, yields between pictures, shows the current image with a moving scanner, changes friendly explanatory text, and immediately adds a card whenever a provisional possible-insect box appears.
 4. Clear **Pause search** / **Keep looking** and **Stop search** controls remain available. The summary reports checked images, possible-insect image count, and any read/inference failures. Results remain in browser memory only and do not alter the authoritative SD-card records.
 
-The implementation currently fixes the package to the locally tested `flatbug-n.onnx` model, a single 640x640 pass, score threshold 0.20, IoU suppression threshold 0.20, and one WASM thread. The selected camera-card root must contain the model/runtime files beneath `ai/`: `ai/flatbug-n.onnx`, `ai/ort.wasm.bundle.min.mjs`, and `ai/ort-wasm-simd-threaded.wasm`. `py tools\install_ai_pack.py <card-root>` installs this local, untracked prototype package. The folder-selected route and the child dashboard flow have working Chrome/Edge evidence. Firefox, Safari, packaging, rights to redistribute model weights, representative-image validation, batch performance, persistence/export, and the 7,200-image feasibility gate remain open.
+The implementation currently fixes the package to the locally tested `flatbug-n.onnx` model, a single 640x640 pass, score threshold 0.20, IoU suppression threshold 0.20, and one WASM thread. The selected camera-card root must contain the model/runtime files beneath `ai/`: `ai/flatbug-n.onnx`, `ai/ort.wasm.bundle.min.mjs`, and `ai/ort-wasm-simd-threaded.wasm`. `py tools\install_ai_pack.py <card-root>` installs this local, untracked prototype package. The folder-selected route and the child dashboard flow have working Chrome/Edge evidence. Firefox, Safari, packaging, rights to redistribute model weights, representative-image validation, batch performance, persistence/export, and the 3,600-image feasibility gate remain open.
 
 ## Technical hypothesis
 
@@ -73,7 +73,7 @@ Use a fixed representative set of at least 100 enclosure images, including empty
 - UI responsiveness and child-facing comprehensibility; and
 - results for each required OS/browser combination, with WebAssembly results mandatory and WebGPU results supplementary.
 
-Extrapolate the measured batch time and memory behaviour to a maximum 7,200-image session. Do not require analysis to match the camera's real-time 2 FPS capture rate; instead, agree a child-appropriate post-session wait-time target after the first benchmark. Do not auto-skip frames to meet it.
+Extrapolate the measured batch time and memory behaviour to a maximum 3,600-image session. Do not require analysis to match the camera's real-time 1 FPS capture rate; instead, agree a child-appropriate post-session wait-time target after the first benchmark. Do not auto-skip frames to meet it.
 
 ## Acceptance gate
 

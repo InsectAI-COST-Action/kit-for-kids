@@ -31,6 +31,17 @@ bool readString(const String& document, const char* key, String& value) {
   return true;
 }
 
+bool isSafeIdentifier(const String& value) {
+  if (value.isEmpty() || value.length() > 48) return false;
+  for (size_t index = 0; index < value.length(); ++index) {
+    const char character = value[index];
+    const bool allowed = (character >= 'a' && character <= 'z') ||
+                         (character >= '0' && character <= '9') || character == '_';
+    if (!allowed) return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 AppConfig ConfigLoader::defaults() { return AppConfig{}; }
@@ -55,6 +66,8 @@ bool ConfigLoader::load(fs::FS& fs, AppConfig& config, String& diagnostic) {
   if (!readUnsigned(document, "capture_fps", fps) ||
       !readUnsigned(document, "max_session_seconds", session_seconds) ||
       !readUnsigned(document, "jpeg_quality", quality) ||
+      !readString(document, "capture_mode", config.capture_mode) ||
+      !readString(document, "camera_preset", config.camera_preset) ||
       !readString(document, "frame_size", config.frame_size) ||
       !readString(document, "model_id", config.model_id) ||
       !readString(document, "log_level", config.log_level)) {
@@ -62,14 +75,20 @@ bool ConfigLoader::load(fs::FS& fs, AppConfig& config, String& diagnostic) {
     return false;
   }
 
-  if (fps != 2 || session_seconds == 0 || session_seconds > 3600 || quality > 63 ||
-      (config.frame_size != "VGA" && config.frame_size != "SVGA")) {
-    diagnostic = "config.json conflicts with pilot safety bounds";
+  const bool pilot_mode = config.capture_mode == "pilot";
+  const bool quality_trial_mode = config.capture_mode == "quality_trial";
+  if ((fps != 1 && fps != 2) || session_seconds == 0 || session_seconds > 3600 || quality > 63 ||
+      !isSafeIdentifier(config.camera_preset) ||
+      (config.frame_size != "VGA" && config.frame_size != "SVGA" && config.frame_size != "QXGA") ||
+      (!pilot_mode && !quality_trial_mode) ||
+      (pilot_mode && (fps != 1 || config.frame_size != "QXGA" || quality != 12)) ||
+      (quality_trial_mode && session_seconds > 600)) {
+    diagnostic = "config.json conflicts with pilot or quality-trial safety bounds";
     return false;
   }
   config.capture_fps = fps;
   config.max_session_seconds = session_seconds;
   config.jpeg_quality = static_cast<uint8_t>(quality);
-  diagnostic = "config.json loaded";
+  diagnostic = "config.json loaded: " + config.capture_mode + "/" + config.camera_preset;
   return true;
 }

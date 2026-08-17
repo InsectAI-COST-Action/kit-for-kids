@@ -18,6 +18,7 @@ This directory separates everyday operation from technical design and historical
 | [Architecture](architecture.md) | Component boundaries and data-flow decisions. |
 | [Data schema](data-schema.md) | Capture, run, and derived-dashboard record formats. |
 | [Camera specification](camera-spec.md) | Confirmed OV3660/XIAO hardware and power facts. |
+| [OV3660 image-quality trial](camera-quality-trial.md) | Controlled resolution/JPEG/rate comparison and decision rule. |
 | [Operations guide](operations.md) | Human operating procedure; use this for SD-card handling. |
 
 ## Browser AI and model work

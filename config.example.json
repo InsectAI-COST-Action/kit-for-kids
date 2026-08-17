@@ -1,8 +1,10 @@
 {
   "schema_version": 1,
-  "capture_fps": 2,
+  "capture_fps": 1,
   "max_session_seconds": 3600,
-  "frame_size": "VGA",
+  "capture_mode": "pilot",
+  "camera_preset": "qxga_q12_1fps",
+  "frame_size": "QXGA",
   "jpeg_quality": 12,
   "model_id": "none",
   "log_level": "info"
