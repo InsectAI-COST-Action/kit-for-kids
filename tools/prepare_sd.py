@@ -17,6 +17,7 @@ ASSET_DIRECTORY = ROOT / "dashboard"
 def copy_file(source: Path, destination: Path, dry_run: bool) -> None:
     print(f"{'Would copy' if dry_run else 'Copying'} {source.name} -> {destination}")
     if not dry_run:
+        destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
 
@@ -29,8 +30,10 @@ def main() -> int:
     if not destination.is_dir():
         parser.error(f"destination is not an existing directory: {destination}")
 
-    for filename in ("dashboard.html", "dashboard.css", "dashboard.js", "analysis.js"):
+    for filename in ("dashboard.html", "dashboard.css", "dashboard.js", "analysis.js", "card-access.js", "favicon.svg", "site.webmanifest"):
         copy_file(ASSET_DIRECTORY / filename, destination / filename, args.dry_run)
+    for filename in ("mediabunny.min.cjs", "mediabunny-LICENSE.txt", "README.md"):
+        copy_file(ASSET_DIRECTORY / "vendor" / filename, destination / "vendor" / filename, args.dry_run)
     for filename in ("manifest.js", "summary.js"):
         runtime_file = destination / filename
         if runtime_file.exists():

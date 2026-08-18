@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><script src="../dashboard/vendor/mediabunny.min.cjs"></script><canvas id="frame" width="320" height="240"></canvas><pre id="result">Starting...</pre><script>
+(async () => {
+  const result = document.querySelector('#result');
+  try {
+    if (!window.Mediabunny || !window.VideoEncoder) throw new Error('Mediabunny or WebCodecs is not available');
+    const canvas = document.querySelector('#frame');
+    const context = canvas.getContext('2d');
+    const target = new Mediabunny.BufferTarget();
+    const output = new Mediabunny.Output({ format: new Mediabunny.Mp4OutputFormat(), target });
+    const source = new Mediabunny.CanvasSource(canvas, { codec: 'avc', bitrate: 500000 });
+    output.addVideoTrack(source, { frameRate: 60 });
+    await output.start();
+    for (let index = 0; index < 60; index += 1) {
+      context.fillStyle = `hsl(${index * 6}, 70%, 50%)`;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#ffffff'; context.font = 'bold 40px sans-serif'; context.fillText(String(index + 1), 130, 130);
+      await source.add(index / 60, 1 / 60);
+    }
+    await output.finalize();
+    const bytes = new Uint8Array(target.buffer);
+    const read = (offset, length) => String.fromCharCode(...bytes.slice(offset, offset + length));
+    const boxes = []; for (let index = 0; index + 8 < bytes.length;) { const length = new DataView(bytes.buffer).getUint32(index); const name = read(index + 4, 4); boxes.push(name); if (!length) break; index += length; }
+    if (!boxes.includes('moov') || !boxes.includes('mdat')) throw new Error(`Unexpected MP4 boxes: ${boxes.join(', ')}`);
+    result.textContent = `PASS: finalized MP4 (${bytes.length} bytes) with ${boxes.join(', ')}.`;
+  } catch (error) { result.textContent = `FAIL: ${error.message}`; }
+})();
+</script>

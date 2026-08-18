@@ -1,4 +1,4 @@
-﻿# Operating-system files
+# Operating-system files
 desktop.ini
 Thumbs.db
 .DS_Store
@@ -50,3 +50,13 @@ secrets.*
 *.img
 *.log
 __pycache__/
+# Local computer-vision training images (metadata and annotation labels remain tracked)
+/datasets/*/images/
+# Images staged from the RF-DETR Roboflow export; normalized annotations remain tracked.
+/datasets/ant-detector-rfdetr-v2/train/*
+/datasets/ant-detector-rfdetr-v2/valid/*
+/datasets/ant-detector-rfdetr-v2/test/*
+!/datasets/ant-detector-rfdetr-v2/train/_annotations.coco.json
+!/datasets/ant-detector-rfdetr-v2/valid/_annotations.coco.json
+!/datasets/ant-detector-rfdetr-v2/test/_annotations.coco.json
+/secrets.roboflow.env

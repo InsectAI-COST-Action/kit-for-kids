@@ -1,0 +1,16 @@
+{
+  "source": "Roboflow COCO export",
+  "source_version": "ui-2026-08-18",
+  "imported_at_utc": "2026-08-18T08:32:38.260182+00:00",
+  "class_mapping": {
+    "roboflow": [
+      "ant",
+      "ants"
+    ],
+    "local_yolo_class": 0,
+    "local_name": "ant"
+  },
+  "images": 37,
+  "annotations": 492,
+  "local_split": "train"
+}

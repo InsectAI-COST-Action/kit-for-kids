@@ -1,0 +1,10 @@
+{
+  "name": "Insect AI Kit-for-Kids",
+  "short_name": "Insect AI",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "theme_color": "#17324d",
+  "background_color": "#fdfbf5",
+  "display": "standalone"
+}

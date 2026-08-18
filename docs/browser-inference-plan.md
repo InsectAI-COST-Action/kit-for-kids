@@ -31,7 +31,14 @@ The existing compact frame/gallery views, expand controls, modal image viewer, s
 3. The child presses **Start looking**. The dashboard processes saved images one at a time, yields between pictures, shows the current image with a moving scanner, changes friendly explanatory text, and immediately adds a card whenever a provisional possible-insect box appears.
 4. Clear **Pause search** / **Keep looking** and **Stop search** controls remain available. The summary reports checked images, possible-insect image count, and any read/inference failures. Results remain in browser memory only and do not alter the authoritative SD-card records.
 
-The implementation currently fixes the package to the locally tested `flatbug-n.onnx` model, a single 640x640 pass, score threshold 0.20, IoU suppression threshold 0.20, and one WASM thread. The selected camera-card root must contain the model/runtime files beneath `ai/`: `ai/flatbug-n.onnx`, `ai/ort.wasm.bundle.min.mjs`, and `ai/ort-wasm-simd-threaded.wasm`. `py tools\install_ai_pack.py <card-root>` installs this local, untracked prototype package. The folder-selected route and the child dashboard flow have working Chrome/Edge evidence. Firefox, Safari, packaging, rights to redistribute model weights, representative-image validation, batch performance, persistence/export, and the 3,600-image feasibility gate remain open.
+The current offline package contains ONNX Runtime Web WebAssembly with one thread plus two experimental models. The child makes one clear choice before starting:
+
+- **AntAI - Beta**: a one-class ant detector, one 1024x1024 whole-picture pass.
+- **FlatBug - Quick look**: FlatBug Nano, one 640x640 whole-picture pass for larger or clearer insects.
+- **FlatBug - Look closely**: FlatBug Nano, 12 overlapping native-scale 640x640 tiles for a normal QXGA image, 4 across by 3 down, for tiny insects.
+
+The FlatBug output is a segmentation tensor with four box channels, one insect-confidence channel, and 32 mask-coefficient channels. The browser must read only the insect-confidence channel; interpreting the coefficients as scores caused an August 2026 false-positive/over-100-percent display defect and is now covered by a regression check. All three paths merge duplicate boxes, retain small candidates, and remain experimental. The selected top camera-card folder must contain `ai/flatbug-n.onnx`, the runtime files, and, for AntAI, `ai/antai-beta.onnx`. `py tools\install_ai_pack.py <card-root> --include-antai-beta` installs both models. Chrome/Edge folder-picker evidence exists; Firefox/Safari, redistribution, representative-image validation, batch performance, persistence/export, and the 3,600-image feasibility gate remain open.
+
 
 ## Technical hypothesis
 
@@ -95,3 +102,16 @@ A reproducible isolated spike is at `spikes/flatbug-browser/`. The official Flat
 The `file://` compatibility gate **did not pass in current Microsoft Edge**. The page, local ONNX model, and all ONNX Runtime Web 1.27.0 WebAssembly assets were present. However, ONNX Runtime Web dynamically imports its `.mjs` helper from its classic browser bundle, and Edge rejects that dynamic local module import from a direct local-file page. Explicit absolute `file://` asset paths and the WASM-only classic bundle produced the same failure. The ESM bundle also did not execute from the direct local-file page.
 
 The direct-import route remains a regression diagnostic, but it is no longer the chosen architecture. The successful replacement is the single top-camera-card folder selection: it supplies both the local `ai/` assets and saved image File objects, which are loaded through Blob URLs and `createImageBitmap()`. This path is implemented in `dashboard/analysis.js` and has working Chrome/Edge evidence. It remains a prototype, not a production acceptance result.
+
+## AntAI - Beta (in progress)
+
+AntAI - Beta is a one-class, locally trained YOLO26 Nano ant detector, separate from FlatBug Nano. It is trained from the updated 49-image Roboflow COCO export (34 train, 10 validation, 5 held-out test images), with the source labels `ant` and `ants` deliberately merged into one `ant` class. It must be described as experimental until it has a substantially larger independent evaluation set.
+
+When `artifacts/antai-beta-round-1/runs/train/weights/best.onnx` exists, install it alongside the existing runtime and FlatBug assets with:
+
+```powershell
+py tools\install_ai_pack.py D:\ --include-antai-beta
+```
+
+The dashboard presents AntAI - Beta as an ant-only choice and uses model-provided ONNX input/output names so it can coexist with FlatBug's 640px format. The card remains read-only in the browser.
+When a card contains multiple saved runs, both the movie maker and AI dialogue default to the newest available session and provide a session selector. AI analysis reads only the selected run; it does not silently mix pictures from different experiments.

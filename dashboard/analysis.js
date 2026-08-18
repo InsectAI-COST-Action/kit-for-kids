@@ -2,7 +2,12 @@
   const modal = document.querySelector('#analysis-modal');
   const openButton = document.querySelector('#find-insects');
   const closeButton = document.querySelector('#analysis-close');
-  const cardInput = document.querySelector('#analysis-card');
+  const loadCardButton = document.querySelector('#analysis-load-card');
+  const analysisChoiceInputs = [...document.querySelectorAll('input[name="analysis-choice"]')];
+  const analysisChoiceNote = document.querySelector('#analysis-choice-note');
+  const analysisSessionLabel = document.querySelector('#analysis-session-label');
+  const analysisSession = document.querySelector('#analysis-session');
+  const analysisSessionNote = document.querySelector('#analysis-session-note');
   const cardStatus = document.querySelector('#analysis-card-status');
   const startButton = document.querySelector('#analysis-start');
   const pauseButton = document.querySelector('#analysis-pause');
@@ -17,32 +22,61 @@
   const discoveryCount = document.querySelector('#analysis-discovery-count');
   const discoveries = document.querySelector('#analysis-discoveries');
   const summary = document.querySelector('#analysis-summary');
-  const MODEL_FILE = 'flatbug-n.onnx';
+  const MODELS = {
+    flatbug: { file: 'flatbug-n.onnx', name: 'FlatBug Nano', inputSize: 640, scoreThreshold: .20 },
+    antai: { file: 'antai-beta.onnx', name: 'AntAI - Beta', inputSize: 1024, scoreThreshold: .15 },
+  };
   const RUNTIME_FILES = ['ort.wasm.bundle.min.mjs', 'ort-wasm-simd-threaded.wasm'];
-  const INPUT_SIZE = 640;
-  const SCORE_THRESHOLD = .20;
+  const TILE_COLUMNS = 4;
+  const TILE_ROWS = 3;
   const IOU_THRESHOLD = .20;
-  const MINIMUM_BOX_SIZE = 32;
   let ort;
   let session;
   let lastFocus;
-  let selectedFiles = new Map();
+  const card = window.InsectCard;
   const state = { active: false, paused: false, index: 0, inspected: 0, errors: 0, discoveries: 0, entries: [] };
 
   const say = (text) => { story.textContent = text; };
-  const normalisePath = (value) => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '').toLowerCase();
-  const fileByName = (name) => {
-    const wanted = name.toLowerCase();
-    for (const [path, file] of selectedFiles) if (path === wanted || path.endsWith(`/${wanted}`)) return file;
-    return undefined;
-  };
-  const fileForCapture = (capture) => {
-    const wanted = normalisePath(capture.imagePath);
-    return selectedFiles.get(wanted) || fileByName(wanted);
-  };
+  const fileForCapture = (capture) => card.fileFor(capture.imagePath);
   const expectedEntries = () => (window.InsectData?.captures || [])
     .filter((capture) => capture.imagePath)
     .map((capture) => ({ capture, file: fileForCapture(capture) }));
+  const availableEntries = (entries) => entries.filter((entry) => entry.file);
+  const sessionId = (entry) => entry.capture.runId || String(entry.capture.imagePath).split('/')[2] || 'unknown_session';
+  const analysisSessions = () => {
+    const sessions = new Map();
+    for (const entry of availableEntries(expectedEntries())) {
+      const runId = sessionId(entry), group = sessions.get(runId) || [];
+      group.push(entry);
+      sessions.set(runId, group);
+    }
+    return [...sessions.entries()].sort(([first], [second]) => second.localeCompare(first, undefined, { numeric: true }));
+  };
+  const selectedAnalysisEntries = () => expectedEntries().filter((entry) => sessionId(entry) === analysisSession.value);
+  const selectedSessionLabel = () => analysisSession.selectedOptions[0]?.textContent || 'No session selected';
+  const refreshAnalysisSessions = () => {
+    const sessions = analysisSessions(), previous = analysisSession.value;
+    analysisSession.replaceChildren();
+    sessions.forEach(([runId, entries], index) => {
+      const option = document.createElement('option');
+      option.value = runId;
+      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${entries.length} pictures)`;
+      analysisSession.append(option);
+    });
+    if (sessions.some(([runId]) => runId === previous)) analysisSession.value = previous;
+    analysisSessionLabel.hidden = !sessions.length;
+    analysisSession.disabled = !sessions.length;
+    analysisSessionNote.textContent = sessions.length ? `${selectedSessionLabel()} is selected. The AI will only look at these pictures.` : 'There are no saved picture sessions available on this card.';
+  };
+  const ANALYSIS_CHOICES = {
+    antai: { model: MODELS.antai, mode: 'quick', note: 'AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.' },
+    'flatbug-quick': { model: MODELS.flatbug, mode: 'quick', note: 'FlatBug Quick look is selected: one fast check of each whole picture.' },
+    'flatbug-close': { model: MODELS.flatbug, mode: 'close', note: 'FlatBug Look closely is selected: 12 zoomed-in checks for each picture, so it takes longer.' },
+  };
+  const selectedChoice = () => ANALYSIS_CHOICES[analysisChoiceInputs.find((input) => input.checked)?.value || 'antai'];
+  const selectedAnalysisMode = () => selectedChoice().mode;
+  const selectedModel = () => selectedChoice().model;
+  const updateChoiceNote = () => { analysisChoiceNote.textContent = selectedChoice().note; };
   const updateProgress = () => {
     const total = state.entries.length;
     const percent = total ? Math.round((state.inspected / total) * 100) : 0;
@@ -64,34 +98,63 @@
     }
     return retained;
   };
-  const decode = (output, scale, padX, padY, imageWidth, imageHeight) => {
-    const stride = 8400, candidates = [];
+  const decode = (tensor, scale, padX, padY, tileWidth, tileHeight, offsetX = 0, offsetY = 0) => {
+    const output = tensor.data, dimensions = tensor.dims, candidates = [];
+    // AntAI Beta's YOLO26 export is end-to-end: [batch, 300, x1/y1/x2/y2/score/class].
+    if (dimensions.length === 3 && dimensions[2] === 6) {
+      for (let index = 0; index < dimensions[1]; index += 1) {
+        const base = index * 6, score = output[base + 4];
+        if (score < selectedModel().scoreThreshold) continue;
+        const left = clip((output[base] - padX) / scale + offsetX, offsetX, offsetX + tileWidth), top = clip((output[base + 1] - padY) / scale + offsetY, offsetY, offsetY + tileHeight);
+        const right = clip((output[base + 2] - padX) / scale + offsetX, offsetX, offsetX + tileWidth), bottom = clip((output[base + 3] - padY) / scale + offsetY, offsetY, offsetY + tileHeight);
+        if (right > left && bottom > top) candidates.push({ score, x: left, y: top, width: right - left, height: bottom - top });
+      }
+      return suppress(candidates);
+    }
+    // FlatBug Nano is a segmentation export: [batch, 4 box values + 1 insect
+    // score + 32 mask coefficients, candidates].  Only channel 4 is a score;
+    // coefficients may legitimately be greater than 1 or negative.
+    const stride = dimensions.length >= 3 ? dimensions[dimensions.length - 1] : output.length / 5;
     for (let index = 0; index < stride; index += 1) {
-      const score = output[4 * stride + index];
+      const score = clip(output[4 * stride + index] || 0, 0, 1);
       const width = output[2 * stride + index], height = output[3 * stride + index];
-      if (score < SCORE_THRESHOLD || Math.sqrt(width * height) < MINIMUM_BOX_SIZE) continue;
+      if (score < selectedModel().scoreThreshold) continue;
       const x = output[index] - width / 2, y = output[stride + index] - height / 2;
-      const left = clip((x - padX) / scale, 0, imageWidth), top = clip((y - padY) / scale, 0, imageHeight);
-      const right = clip((x + width - padX) / scale, 0, imageWidth), bottom = clip((y + height - padY) / scale, 0, imageHeight);
+      const left = clip((x - padX) / scale + offsetX, offsetX, offsetX + tileWidth), top = clip((y - padY) / scale + offsetY, offsetY, offsetY + tileHeight);
+      const right = clip((x + width - padX) / scale + offsetX, offsetX, offsetX + tileWidth), bottom = clip((y + height - padY) / scale + offsetY, offsetY, offsetY + tileHeight);
       if (right > left && bottom > top) candidates.push({ score, x: left, y: top, width: right - left, height: bottom - top });
     }
     return suppress(candidates);
   };
-  const makeInput = (image, scale, padX, padY, width, height) => {
+  const positionsForTiles = (length, tileLength, count) => {
+    const actualCount = length > tileLength ? count : 1;
+    return Array.from({ length: actualCount }, (_, index) => actualCount === 1 ? 0 : Math.round(index * (length - tileLength) / (actualCount - 1)));
+  };
+  const makeTiles = (image, mode) => {
+    if (mode === 'quick') return [{ x: 0, y: 0, width: image.width, height: image.height }];
+    const inputSize = selectedModel().inputSize;
+    const width = Math.min(inputSize, image.width), height = Math.min(inputSize, image.height);
+    return positionsForTiles(image.height, height, TILE_ROWS).flatMap((y) => positionsForTiles(image.width, width, TILE_COLUMNS).map((x) => ({ x, y, width, height })));
+  };
+  const makeInput = (image, tile) => {
+    const inputSize = selectedModel().inputSize;
+    const scale = Math.min(inputSize / tile.width, inputSize / tile.height);
+    const width = Math.round(tile.width * scale), height = Math.round(tile.height * scale);
+    const padX = Math.round((inputSize - width) / 2), padY = Math.round((inputSize - height) / 2);
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = INPUT_SIZE;
+    canvas.width = canvas.height = inputSize;
     const context = canvas.getContext('2d', { willReadFrequently: true });
     context.fillStyle = 'rgb(114,114,114)';
-    context.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
-    context.drawImage(image, padX, padY, width, height);
-    const pixels = context.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
-    const input = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE);
-    for (let index = 0; index < INPUT_SIZE * INPUT_SIZE; index += 1) {
+    context.fillRect(0, 0, inputSize, inputSize);
+    context.drawImage(image, tile.x, tile.y, tile.width, tile.height, padX, padY, width, height);
+    const pixels = context.getImageData(0, 0, inputSize, inputSize).data;
+    const input = new Float32Array(3 * inputSize * inputSize);
+    for (let index = 0; index < inputSize * inputSize; index += 1) {
       input[index] = pixels[index * 4] / 255;
-      input[index + INPUT_SIZE * INPUT_SIZE] = pixels[index * 4 + 1] / 255;
-      input[index + 2 * INPUT_SIZE * INPUT_SIZE] = pixels[index * 4 + 2] / 255;
+      input[index + inputSize * inputSize] = pixels[index * 4 + 1] / 255;
+      input[index + 2 * inputSize * inputSize] = pixels[index * 4 + 2] / 255;
     }
-    return input;
+    return { input, scale, padX, padY, width, height, inputSize };
   };
   const drawPicture = (image, boxes) => {
     currentCanvas.width = image.width;
@@ -140,17 +203,20 @@
     const entry = state.entries[state.index];
     if (!entry) return finish('That is every picture. What a careful search!');
     const { capture, file } = entry;
-    currentCaption.textContent = `Looking at ${capture.captureId}`;
-    say(['Looking carefully...', 'Searching the shapes...', 'Checking for tiny wings and legs...', 'Being a brilliant bug detective...'][state.index % 4]);
     let image;
     try {
       image = await createImageBitmap(file);
-      const scale = Math.min(INPUT_SIZE / image.width, INPUT_SIZE / image.height);
-      const width = Math.round(image.width * scale), height = Math.round(image.height * scale);
-      const padX = Math.round((INPUT_SIZE - width) / 2), padY = Math.round((INPUT_SIZE - height) / 2);
-      const input = makeInput(image, scale, padX, padY, width, height);
-      const output = await session.run({ images: new ort.Tensor('float32', input, [1, 3, INPUT_SIZE, INPUT_SIZE]) });
-      const boxes = decode(output.output0.data, scale, padX, padY, image.width, image.height);
+      const tiles = makeTiles(image, state.mode), candidates = [];
+      for (let tileIndex = 0; tileIndex < tiles.length; tileIndex += 1) {
+        if (!state.active || state.paused) return;
+        const tile = tiles[tileIndex];
+        currentCaption.textContent = `Looking at ${capture.captureId} - piece ${tileIndex + 1} of ${tiles.length}`;
+        say(['Looking carefully...', 'Searching the shapes...', 'Checking for tiny wings and legs...', 'Being a brilliant bug detective...'][(state.index + tileIndex) % 4]);
+        const prepared = makeInput(image, tile);
+        const output = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', prepared.input, [1, 3, prepared.inputSize, prepared.inputSize]) });
+        candidates.push(...decode(output[session.outputNames[0]], prepared.scale, prepared.padX, prepared.padY, tile.width, tile.height, tile.x, tile.y));
+      }
+      const boxes = suppress(candidates);
       drawPicture(image, boxes);
       if (boxes.length) addDiscovery(capture, boxes);
     } catch (error) {
@@ -166,12 +232,14 @@
     window.setTimeout(inspectNext, 0);
   };
   const start = () => {
-    const entries = expectedEntries();
-    const missing = entries.filter((entry) => !entry.file);
-    if (!session) return say('Choose your camera card first.');
+    const entries = selectedAnalysisEntries();
+    const available = availableEntries(entries);
+    const missingPictures = entries.length - available.length;
+    if (!session) return say('Load images and AI first.');
     if (!entries.length) return say('There are no saved pictures for the AI to look at yet.');
-    if (missing.length) return say(`Please choose the whole camera card again. ${missing.length} saved picture${missing.length === 1 ? ' is' : 's are'} missing.`);
-    Object.assign(state, { active: true, paused: false, index: 0, inspected: 0, errors: 0, discoveries: 0, entries });
+    if (!available.length) return say('There are no saved picture files available for the AI to look at yet.');
+    const mode = selectedAnalysisMode();
+    Object.assign(state, { active: true, paused: false, index: 0, inspected: 0, errors: 0, discoveries: 0, entries: available, mode });
     discoveries.replaceChildren();
     const empty = document.createElement('p');
     empty.className = 'empty-discoveries';
@@ -185,51 +253,67 @@
     startButton.disabled = true;
     document.querySelector('#inference-status').textContent = 'Looking...';
     updateProgress();
+    if (missingPictures) say(`Looking at ${available.length} available pictures. ${missingPictures} older record${missingPictures === 1 ? '' : 's'} without image files will be skipped.`);
+    else say(mode === 'close' ? 'Looking closely in 12 picture pieces for tiny possible insects...' : 'Taking a quick look through each whole picture...');
     inspectNext();
   };
   const loadCard = async () => {
-    selectedFiles = new Map();
-    for (const file of cardInput.files) {
-      const relative = normalisePath(file.webkitRelativePath || file.name);
-      selectedFiles.set(relative, file);
-      selectedFiles.set(normalisePath(file.name), file);
-    }
     session = undefined;
     startButton.disabled = true;
-    const model = fileByName(MODEL_FILE);
-    const runtime = RUNTIME_FILES.map(fileByName);
+    if (!card.loaded) {
+      loadCardButton.hidden = false;
+      cardStatus.textContent = 'Press Load images and AI, then choose the INSECT-AI drive in the next window.';
+      return;
+    }
+    const activeModel = selectedModel();
+    const model = card.fileByName(activeModel.file);
+    const runtime = RUNTIME_FILES.map(card.fileByName);
     const missingRuntime = RUNTIME_FILES.filter((name, index) => !runtime[index]);
     if (!model || missingRuntime.length) {
-      cardStatus.textContent = `This folder needs the AI files in ai/: ${[!model ? MODEL_FILE : '', ...missingRuntime].filter(Boolean).join(', ')}.`;
+      cardStatus.textContent = `This folder needs the ${activeModel.name} file and AI runtime in ai/: ${[!model ? activeModel.file : '', ...missingRuntime].filter(Boolean).join(', ')}.`;
       return;
     }
     try {
-      cardStatus.textContent = 'Opening the camera card and waking up the AI helper...';
+      cardStatus.textContent = `Opening ${activeModel.name} and waking up the AI helper...`;
       const urls = [];
       const blobUrl = (file) => { const url = URL.createObjectURL(file); urls.push(url); return url; };
-      ort = await import(blobUrl(fileByName('ort.wasm.bundle.min.mjs')));
+      ort = await import(blobUrl(card.fileByName('ort.wasm.bundle.min.mjs')));
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
-      ort.env.wasm.wasmPaths = { wasm: blobUrl(fileByName('ort-wasm-simd-threaded.wasm')) };
+      ort.env.wasm.wasmPaths = { wasm: blobUrl(card.fileByName('ort-wasm-simd-threaded.wasm')) };
       session = await ort.InferenceSession.create(new Uint8Array(await model.arrayBuffer()), { executionProviders: ['wasm'] });
-      const entries = expectedEntries();
-      const missingPictures = entries.filter((entry) => !entry.file).length;
-      if (missingPictures) {
-        cardStatus.textContent = `The AI helper is ready, but ${missingPictures} saved picture${missingPictures === 1 ? ' is' : 's are'} missing. Choose the top camera-card folder.`;
+      refreshAnalysisSessions();
+      const entries = selectedAnalysisEntries();
+      const available = availableEntries(entries);
+      const missingPictures = entries.length - available.length;
+      if (!available.length) {
+        cardStatus.textContent = `No saved picture files are available. ${missingPictures} record${missingPictures === 1 ? '' : 's'} refer to images that are no longer on this card.`;
         return;
       }
-      cardStatus.textContent = `Camera card ready! I found ${entries.length} saved picture${entries.length === 1 ? '' : 's'}. Press Start looking.`;
+      cardStatus.textContent = `${activeModel.name} is ready! I found ${available.length} saved picture${available.length === 1 ? '' : 's'}. ${missingPictures ? `${missingPictures} older record${missingPictures === 1 ? '' : 's'} without image files will be skipped. ` : ''}Press Start looking.`;
+      loadCardButton.hidden = true;
       startButton.disabled = false;
     } catch (error) {
       cardStatus.textContent = `The AI helper could not start: ${error instanceof Error ? error.message : String(error)}`;
     }
   };
-  const open = () => { lastFocus = document.activeElement; modal.hidden = false; setup.hidden = false; scanner.hidden = true; cardInput.focus(); };
+  const open = () => { lastFocus = document.activeElement; modal.hidden = false; setup.hidden = false; scanner.hidden = true; if (card.loaded) loadCard(); else loadCardButton.focus(); };
   const close = () => { state.active = false; modal.hidden = true; if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); };
   openButton.addEventListener('click', (event) => { event.stopImmediatePropagation(); open(); }, true);
   closeButton.addEventListener('click', close);
   modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
-  cardInput.addEventListener('change', loadCard);
+  analysisChoiceInputs.forEach((input) => input.addEventListener('change', () => { updateChoiceNote(); session = undefined; startButton.disabled = true; if (card.loaded) loadCard(); }));
+  analysisSession.addEventListener('change', () => {
+    const entries = selectedAnalysisEntries(), available = availableEntries(entries), missing = entries.length - available.length;
+    analysisSessionNote.textContent = `${selectedSessionLabel()} is selected. The AI will only look at these pictures.`;
+    if (session) {
+      cardStatus.textContent = `${selectedModel().name} is ready! ${selectedSessionLabel()} is selected.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''} Press Start looking.`;
+      startButton.disabled = !available.length;
+    }
+  });
+  updateChoiceNote();
+  loadCardButton.addEventListener('click', () => card.request());
+  window.addEventListener('insect-card-loaded', () => { if (!modal.hidden) loadCard(); });
   startButton.addEventListener('click', start);
   pauseButton.addEventListener('click', () => {
     if (!state.active) return;

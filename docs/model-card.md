@@ -31,7 +31,7 @@ The dashboard contains a local, child-facing feasibility prototype. It does not 
 - Candidate: FlatBug v1.0.0 Nano (`flat_bug_N.pt` exported locally to ONNX).
 - Browser artefact: `flatbug-n.onnx`, 11,906,627 bytes, SHA-256 `ec75aeb85b42c86663b006f650681a2d5728d89cff096deaefc09ef371bd9d71`.
 - Runtime: ONNX Runtime Web 1.27.0 WebAssembly, one thread, no WebGPU requirement.
-- Input route: one 640x640 letterboxed RGB pass per selected image, score threshold 0.20, IoU suppression threshold 0.20, minimum square-root box area 32 pixels.
+- Input route: one 640x640 letterboxed RGB pass per selected image, score threshold 0.20, IoU suppression threshold 0.20, no minimum-box-size filter (small candidates are retained).
 - Offline packaging: the adult selects the top camera-card folder once. The package resides locally under `ai/`; images and model assets are read as browser File objects. This avoids the `file://` canvas-read restriction encountered when loading image paths directly.
 - Browser evidence: the isolated File-object loader and the child dashboard prototype have been exercised in Chrome and Edge. The user reported Nano as suitably fast on individual test images. Firefox and Safari remain untested.
 - Sanity evidence only: a supplied bee image yielded a high raw Nano score (about 0.89); a supplied empty camera image yielded a low raw score (about 0.09); synthetic beetle, cricket, and moth fixtures yielded high raw scores. These are technical checks, not accuracy validation.
@@ -54,3 +54,15 @@ The reference FlatBug package's multi-scale tiled/pyramid workflow is **not** re
 - Known failure modes and prohibited claims:
 - Privacy/retention implications:
 - Approval date and owner:
+
+## AntAI - Beta record (experimental; not approval)
+
+AntAI - Beta is a separate one-class YOLO26 Nano detector trained locally from the updated Roboflow export. It is an evaluation aid, not a production model and must never be presented as a confirmed ant count or identification.
+
+- Task and class: object detection, one class (`ant`). Source labels `ant` and `ants` were intentionally merged.
+- Training evidence: 34 images / 468 boxes fit; 10 images / 147 boxes validation; 5 images / 58 boxes held-out test. All originate from the current camera domain, but this is far too little and too homogeneous for a reliable performance claim.
+- Training: YOLO26 Nano, 1024x1024 letterbox RGB, 40 requested CPU epochs with early stopping at epoch 23; held-out test precision 0.530, recall 0.721, mAP50 0.632, mAP50-95 0.273. These figures are unstable because the test set has only five images.
+- Browser artefact: `antai-beta.onnx`, 10,019,578 bytes, SHA-256 `be6e8f10971385e9fad5b72e7e7e02ab17d969f7014793d213d37115a73681e0`. ONNX input `images` is `[1,3,1024,1024]`; output `output0` is end-to-end `[1,300,6]` x1/y1/x2/y2/score/class candidates.
+- Runtime and packaging: the existing offline ONNX Runtime Web WebAssembly package, one thread, read-only top-card-folder picker. Install with `py tools\install_ai_pack.py D:\ --include-antai-beta`.
+- Dashboard behaviour: selectable as **AntAI - Beta** (whole-picture only, threshold 0.15) beside **FlatBug - Quick look** and **FlatBug - Look closely** (threshold 0.20); only FlatBug offers the 4x3 tiled search. IoU suppression is 0.20. The user selects one available run/session, so analyses do not mix experiments.
+- Known limitations: no independent experiment/session split, no empty-frame evaluation, no cross-browser timing evidence, no tracking, and no validation beyond five held-out annotated images.

@@ -28,7 +28,7 @@ This directory separates everyday operation from technical design and historical
 | [Browser inference plan](browser-inference-plan.md) | Architecture, child-facing behaviour, technical evidence, and acceptance gates for offline browser analysis. |
 | [Model card](model-card.md) | Candidate/prototype record and the evidence required before model approval. |
 
-The current FlatBug Nano route is a browser prototype only. It must be described as a **possible-insect prediction**, not species identification or a validated detection result.
+The current FlatBug Nano and AntAI - Beta routes are browser prototypes only. It must be described as a **possible-insect prediction**, not species identification or a validated detection result.
 
 ## Engineering evidence and history
 
