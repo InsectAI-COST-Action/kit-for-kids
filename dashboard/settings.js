@@ -47,11 +47,29 @@
       log_level: 'info',
     };
   };
+  const intervalFor = (settings) => Number(settings.capture_interval_ms) || (Number(settings.capture_fps) ? 1000 / Number(settings.capture_fps) : 1000);
+  const imageLabelFor = (settings) => {
+    if (settings.frame_size === 'QXGA' && Number(settings.jpeg_quality) === 12) return QUALITY.high.label;
+    if (settings.frame_size === 'VGA' && Number(settings.jpeg_quality) === 24) return QUALITY.low.label;
+    return `${settings.frame_size || 'unknown'} quality ${settings.jpeg_quality ?? 'unknown'}`;
+  };
   const describe = (settings) => {
-    const milliseconds = Number(settings.capture_interval_ms) || (Number(settings.capture_fps) ? 1000 / Number(settings.capture_fps) : 1000);
-    const image = settings.frame_size === 'VGA' ? QUALITY.low : QUALITY.high;
     const motionDescription = settings.motion_trigger_enabled ? 'save the first picture, then only save changes (motion score 5)' : 'save every picture';
-    return `${intervalLabel(milliseconds)}, ${image.label}, for ${durationLabel(Number(settings.max_session_seconds))}; ${motionDescription}`;
+    return `${intervalLabel(intervalFor(settings))}, ${imageLabelFor(settings)}, for ${durationLabel(Number(settings.max_session_seconds))}; ${motionDescription}`;
+  };
+  const applyCurrentToControls = (settings) => {
+    const milliseconds = intervalFor(settings);
+    const durationSeconds = Number(settings.max_session_seconds);
+    const qualityKey = settings.frame_size === 'VGA' && Number(settings.jpeg_quality) === 24 ? 'low' :
+      (settings.frame_size === 'QXGA' && Number(settings.jpeg_quality) === 12 ? 'high' : '');
+    const valid = [...interval.options].some((option) => Number(option.value) === milliseconds) &&
+      [...duration.options].some((option) => Number(option.value) === durationSeconds) && Boolean(qualityKey);
+    if (!valid) return false;
+    interval.value = String(milliseconds);
+    duration.value = String(durationSeconds);
+    quality.value = qualityKey;
+    motion.checked = settings.motion_trigger_enabled === true;
+    return true;
   };
   const renderAccess = () => {
     if (card.canWrite()) {
@@ -76,7 +94,10 @@
   const showCurrent = async () => {
     try {
       const value = JSON.parse(await card.readText('config.json'));
-      current.textContent = `Current setting: ${describe(value)}.`;
+      const controlsMatch = applyCurrentToControls(value);
+      current.textContent = controlsMatch ?
+        `Current setting on this card: ${describe(value)}. The choices below match it.` :
+        `Current setting on this card: ${describe(value)}. Choose one of the safe settings below to replace it.`;
     } catch (error) {
       current.textContent = 'Current setting: not available until the camera card is chosen.';
     }
@@ -111,7 +132,7 @@
     try {
       await card.writeText('config.json', `${JSON.stringify(settings, null, 2)}\n`);
       status.textContent = `Saved! The next camera session will use ${description}. Safely disconnect the card, then restart the board.`;
-      current.textContent = `Current setting: ${description}. Saved to config.json.`;
+      current.textContent = `Current setting on this card: ${description}. Saved to config.json; the choices above now match it.`;
     } catch (error) {
       status.textContent = `The camera card was not changed: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
