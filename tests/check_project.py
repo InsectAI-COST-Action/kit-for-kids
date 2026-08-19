@@ -65,7 +65,7 @@ def check_camera_contract() -> None:
     require("psramFound()" in source, "Camera must reject missing PSRAM")
     require("OV3660_PID" in source, "Camera must report the actual sensor PID")
     require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
-    require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source, "Camera must provide the bounded motion-preview mode")
+    require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source and "esp_camera_deinit()" in source, "Camera must reinitialise the bounded motion-preview mode with matching buffers")
 
 
 def check_data_safety_contract() -> None:
@@ -83,7 +83,7 @@ def check_data_safety_contract() -> None:
     require("recoverCurrentChunk" in dashboard, "Dashboard must recover an open chunk")
     require("promoteCurrentChunk" in dashboard, "Dashboard chunk promotion is missing")
     require("writeTextAtomic(\"/manifest.js\"" in dashboard, "Manifest must be atomically written")
-    require("every_frame" in logger and "motion_trigger" in logger and "motion_score" in logger, "Capture logs must record both retention policies and motion evidence")
+    require("every_frame" in logger and "motion_trigger" in logger and "motion_score" in logger and "captures_include_motion_columns_" in logger, "Capture logs must record both retention policies and avoid shifting legacy CSV fields")
     require("interrupted_power_removed" in logger, "Power removal must be represented in run state")
 
 

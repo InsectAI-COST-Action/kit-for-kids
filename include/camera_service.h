@@ -17,6 +17,7 @@ class CameraService {
   const String& sensorId() const;
 
  private:
+  bool initialiseCamera(pixformat_t pixel_format, framesize_t frame_size, String& diagnostic);
   bool configureCaptureSensor(String& diagnostic);
   bool configurePreviewSensor(String& diagnostic);
   framesize_t captureFrameSize() const;

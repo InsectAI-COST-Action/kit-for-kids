@@ -6,7 +6,7 @@ Calendar time is intentionally unavailable in this pilot. `uptime_ms` is millise
 
 ## Raw capture log
 
-`/raw/captures.csv` is the authoritative record. A row exists for every capture attempt, including capture and storage failures.
+`/raw/captures.csv` is the authoritative record. A row exists for every capture attempt, including capture and storage failures. Cards created before motion mode retain their original header and receive compatible rows without the optional motion columns; current/new cards use the extended header below.
 
 | Field | Meaning |
 | --- | --- |

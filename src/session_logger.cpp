@@ -27,8 +27,16 @@ bool SessionLogger::begin(SdStorage& storage, const AppConfig& config, const Str
   run_id_ = paddedId("run", run_counter_);
   if (!storage_->ensureDirectory("/images/" + run_id_, diagnostic) ||
       !storage_->ensureDirectory("/raw/runs", diagnostic)) return false;
-  if (!storage_->exists("/raw/captures.csv") &&
-      !storage_->appendLine("/raw/captures.csv", kCaptureHeader, diagnostic)) return false;
+  if (!storage_->exists("/raw/captures.csv")) {
+    if (!storage_->appendLine("/raw/captures.csv", kCaptureHeader, diagnostic)) return false;
+    captures_include_motion_columns_ = true;
+  } else {
+    File captures = storage_->fs().open("/raw/captures.csv", FILE_READ);
+    if (!captures) { diagnostic = "cannot inspect captures.csv schema"; return false; }
+    const String header = captures.readStringUntil('\n');
+    captures.close();
+    captures_include_motion_columns_ = header.indexOf("motion_score") >= 0;
+  }
   if (!storage_->exists("/raw/detections.csv") &&
       !storage_->appendLine("/raw/detections.csv", kDetectionHeader, diagnostic)) return false;
   if (!dashboard_.begin(storage, diagnostic) || !writeRunManifest("running", diagnostic)) return false;
@@ -43,7 +51,7 @@ String SessionLogger::nextCaptureId() {
 }
 
 bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnostic, LoggerTiming* timing) {
-  const String row =
+  String row =
       String(INSECT_LOGGER_SCHEMA_VERSION) + ",device_000001," + csvEscape(run_id_) + ",boot_" +
       String(started_ms_) + "," + csvEscape(capture.capture_id) + ",," + String(capture.uptime_ms) +
       "," + String(capture.scheduled_ms) + "," + csvEscape(capture.outcome) + "," +
@@ -53,8 +61,11 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
       String(capture.inference.prediction_count) + "," + String(capture.inference.max_confidence, 4) +
       "," + csvEscape(capture.image_path) + "," +
       String(config_.motion_trigger_enabled ? "motion_trigger" : "every_frame") + "," +
-      csvEscape(capture.save_outcome) + "," + String(capture.motion_score, 3) + "," +
-      String(capture.motion_threshold) + "," + csvEscape(capture.error_code);
+      csvEscape(capture.save_outcome);
+  if (captures_include_motion_columns_) {
+    row += "," + String(capture.motion_score, 3) + "," + String(capture.motion_threshold);
+  }
+  row += "," + csvEscape(capture.error_code);
   const uint32_t raw_started = millis();
   if (!storage_->appendLine("/raw/captures.csv", row, diagnostic)) return false;
   if (timing != nullptr) timing->raw_csv_ms = millis() - raw_started;

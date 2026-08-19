@@ -30,32 +30,16 @@ framesize_t CameraService::captureFrameSize() const {
   return FRAMESIZE_VGA;
 }
 
-bool CameraService::configureCaptureSensor(String& diagnostic) {
-  if (sensor_ == nullptr || sensor_->set_pixformat(sensor_, PIXFORMAT_JPEG) != 0 ||
-      sensor_->set_framesize(sensor_, captureFrameSize()) != 0) {
-    diagnostic = "cannot switch OV3660 to retained JPEG capture";
-    return false;
+bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame_size, String& diagnostic) {
+  // The ESP32 camera driver allocates DMA/frame buffers at esp_camera_init time.
+  // Changing only OV3660 sensor registers left JPEG-sized buffers active for a
+  // grayscale QQVGA preview, causing fb_get timeouts on the XIAO. Recreate the
+  // driver at each mode boundary so capture format and driver buffers agree.
+  if (sensor_ != nullptr) {
+    esp_camera_deinit();
+    sensor_ = nullptr;
   }
-  motion_preview_mode_ = false;
-  return true;
-}
 
-bool CameraService::configurePreviewSensor(String& diagnostic) {
-  if (sensor_ == nullptr || sensor_->set_pixformat(sensor_, PIXFORMAT_GRAYSCALE) != 0 ||
-      sensor_->set_framesize(sensor_, FRAMESIZE_QQVGA) != 0) {
-    diagnostic = "cannot switch OV3660 to grayscale motion preview";
-    return false;
-  }
-  motion_preview_mode_ = true;
-  return true;
-}
-
-bool CameraService::begin(const AppConfig& config, String& diagnostic) {
-  if (!psramFound()) {
-    diagnostic = "PSRAM unavailable; camera capture is disabled";
-    return false;
-  }
-  config_ = config;
   camera_config_t camera_config{};
   camera_config.ledc_channel = LEDC_CHANNEL_0;
   camera_config.ledc_timer = LEDC_TIMER_0;
@@ -76,27 +60,49 @@ bool CameraService::begin(const AppConfig& config, String& diagnostic) {
   camera_config.pin_pwdn = kPwdnPin;
   camera_config.pin_reset = kResetPin;
   camera_config.xclk_freq_hz = 20000000;
-  camera_config.pixel_format = PIXFORMAT_JPEG;
-  camera_config.frame_size = captureFrameSize();
-  camera_config.jpeg_quality = config.jpeg_quality;
+  camera_config.pixel_format = pixel_format;
+  camera_config.frame_size = frame_size;
+  camera_config.jpeg_quality = config_.jpeg_quality;
   camera_config.fb_count = 1;
   camera_config.fb_location = CAMERA_FB_IN_PSRAM;
   camera_config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
   const esp_err_t err = esp_camera_init(&camera_config);
   if (err != ESP_OK) {
-    diagnostic = "esp_camera_init failed: " + String(static_cast<int>(err));
+    diagnostic = "esp_camera_init failed while changing capture mode: " + String(static_cast<int>(err));
     return false;
   }
   sensor_ = esp_camera_sensor_get();
   if (sensor_ == nullptr) {
-    diagnostic = "camera initialised but sensor descriptor is unavailable";
+    diagnostic = "camera reinitialised but sensor descriptor is unavailable";
     return false;
   }
   sensor_id_ = sensor_->id.PID == OV3660_PID ? "OV3660" : "unexpected_pid_" + String(sensor_->id.PID);
-  if (config_.motion_trigger_enabled && !configurePreviewSensor(diagnostic)) return false;
-  diagnostic = "camera initialised: " + sensor_id_ + (config_.motion_trigger_enabled ? " (motion preview ready)" : "");
+  motion_preview_mode_ = pixel_format == PIXFORMAT_GRAYSCALE;
   return true;
+}
+
+bool CameraService::configureCaptureSensor(String& diagnostic) {
+  if (!initialiseCamera(PIXFORMAT_JPEG, captureFrameSize(), diagnostic)) return false;
+  diagnostic = "OV3660 ready for retained JPEG capture";
+  return true;
+}
+
+bool CameraService::configurePreviewSensor(String& diagnostic) {
+  if (!initialiseCamera(PIXFORMAT_GRAYSCALE, FRAMESIZE_QQVGA, diagnostic)) return false;
+  diagnostic = "OV3660 ready for grayscale motion preview";
+  return true;
+}
+
+bool CameraService::begin(const AppConfig& config, String& diagnostic) {
+  if (!psramFound()) {
+    diagnostic = "PSRAM unavailable; camera capture is disabled";
+    return false;
+  }
+  config_ = config;
+  const bool ready = config_.motion_trigger_enabled ? configurePreviewSensor(diagnostic) : configureCaptureSensor(diagnostic);
+  if (ready) diagnostic = "camera initialised: " + sensor_id_ + (config_.motion_trigger_enabled ? " (motion preview ready)" : "");
+  return ready;
 }
 
 camera_fb_t* CameraService::capture(String& diagnostic) {
@@ -115,8 +121,13 @@ bool CameraService::captureMotionPreview(MotionPreview& preview, String& diagnos
   const bool valid = frame->format == PIXFORMAT_GRAYSCALE &&
                      frame->width == kMotionPreviewWidth && frame->height == kMotionPreviewHeight &&
                      frame->len >= kMotionPreviewPixels;
-  if (valid) std::memcpy(preview.pixels, frame->buf, kMotionPreviewPixels);
-  else diagnostic = "unexpected grayscale motion-preview frame";
+  if (valid) {
+    std::memcpy(preview.pixels, frame->buf, kMotionPreviewPixels);
+  } else {
+    diagnostic = "unexpected motion-preview frame: format=" + String(frame->format) +
+                 " width=" + String(frame->width) + " height=" + String(frame->height) +
+                 " bytes=" + String(static_cast<unsigned long>(frame->len));
+  }
   release(frame);
   return valid;
 }

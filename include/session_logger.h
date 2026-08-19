@@ -50,6 +50,7 @@ class SessionLogger {
   AppConfig config_;
   String run_id_;
   String sensor_id_;
+  bool captures_include_motion_columns_ = true;
   uint32_t run_counter_ = 0;
   uint32_t capture_sequence_ = 0;
   uint32_t started_ms_ = 0;
