@@ -143,7 +143,7 @@ def check_dashboard_contract() -> None:
     require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
     scheduler = text("src/main.cpp")
     require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
-    require("kCameraWarmupMs = 5000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler, "Firmware must implement the documented warm-up and motion-capture policy")
+    require("kCameraWarmupMs = 5000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
     require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
 
 

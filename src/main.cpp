@@ -64,6 +64,16 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
   if (!logger.recordCapture(record, diagnostic)) report("failed to log capture error: " + diagnostic);
 }
 
+bool refreshMotionBaseline(String& diagnostic) {
+  // Reinitialising the OV3660 after a JPEG changes auto exposure for its first
+  // grayscale frames. Discard two of them, then compare future scheduled checks
+  // against the settled preview rather than the pre-JPEG image.
+  if (!camera.captureMotionPreview(current_motion_preview, diagnostic)) return false;
+  if (!camera.captureMotionPreview(previous_motion_preview, diagnostic)) return false;
+  motion_baseline_ready = true;
+  return true;
+}
+
 void ensurePerformanceLog() {
   if (performance_path.isEmpty() || storage.exists(performance_path)) return;
   String diagnostic;
@@ -196,6 +206,9 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
     if (!camera.restoreMotionPreview(restore_diagnostic)) {
       report(restore_diagnostic);
       record.error_code = "motion_preview_restore_failed";
+    } else if (!refreshMotionBaseline(restore_diagnostic)) {
+      report(restore_diagnostic);
+      record.error_code = "motion_preview_settle_failed";
     }
   }
   if (!image_saved) {
