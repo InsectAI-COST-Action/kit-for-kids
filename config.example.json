@@ -1,11 +1,14 @@
 {
   "schema_version": 1,
   "capture_fps": 1,
+  "capture_interval_ms": 1000,
   "max_session_seconds": 3600,
   "capture_mode": "pilot",
   "camera_preset": "qxga_q12_1fps",
   "frame_size": "QXGA",
   "jpeg_quality": 12,
+  "motion_trigger_enabled": false,
+  "motion_threshold": 5,
   "model_id": "none",
   "log_level": "info"
 }

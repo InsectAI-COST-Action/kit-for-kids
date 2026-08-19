@@ -4,6 +4,7 @@
 #include "app_config.h"
 #include "camera_service.h"
 #include "inference.h"
+#include "motion_detector.h"
 #include "sd_storage.h"
 #include "session_logger.h"
 
@@ -18,7 +19,11 @@ bool ready = false;
 bool finished = false;
 uint32_t next_capture_due_ms = 0;
 uint32_t session_started_ms = 0;
+MotionPreview previous_motion_preview;
+MotionPreview current_motion_preview;
+bool motion_baseline_ready = false;
 constexpr uint32_t kPerformanceSampleInterval = 100;
+constexpr uint32_t kCameraWarmupMs = 5000;
 
 struct CaptureTiming {
   uint32_t scheduled_ms = 0;
@@ -95,10 +100,67 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   String diagnostic;
   const uint32_t total_started = millis();
   timing.start_lag_ms = total_started - scheduled_ms;
+  float motion_score = -1.0F;
+
+  if (config.motion_trigger_enabled) {
+    const uint32_t preview_started = millis();
+    if (!camera.captureMotionPreview(current_motion_preview, diagnostic)) {
+      report(diagnostic);
+      recordCaptureFailure(capture_id, scheduled_ms, "motion_preview_unavailable");
+      timing.capture_ms = millis() - preview_started;
+      timing.total_ms = millis() - total_started;
+      timing.outcome = "capture_error";
+      writePerformanceSample(capture_id, timing);
+      return timing;
+    }
+
+    const bool retain = !motion_baseline_ready ||
+                        ((motion_score = motionLocalScore(previous_motion_preview, current_motion_preview)) >= config.motion_threshold);
+    previous_motion_preview = current_motion_preview;
+    motion_baseline_ready = true;
+    if (!retain) {
+      CaptureRecord record;
+      record.capture_id = capture_id;
+      record.uptime_ms = millis();
+      record.scheduled_ms = scheduled_ms;
+      record.outcome = "motion_not_detected";
+      record.width = kMotionPreviewWidth;
+      record.height = kMotionPreviewHeight;
+      record.capture_ms = millis() - preview_started;
+      record.save_outcome = "not_saved";
+      record.motion_score = motion_score;
+      record.motion_threshold = config.motion_threshold;
+      timing.capture_ms = record.capture_ms;
+      const uint32_t logger_started = millis();
+      LoggerTiming logger_timing;
+      if (!logger.recordCapture(record, diagnostic, &logger_timing)) report("motion log failure: " + diagnostic);
+      timing.raw_csv_ms = logger_timing.raw_csv_ms;
+      timing.dashboard_ms = logger_timing.dashboard_ms;
+      timing.logger_ms = millis() - logger_started;
+      timing.total_ms = millis() - total_started;
+      timing.outcome = record.outcome;
+      writePerformanceSample(capture_id, timing);
+      return timing;
+    }
+    if (!camera.prepareRetainedCapture(diagnostic)) {
+      report(diagnostic);
+      recordCaptureFailure(capture_id, scheduled_ms, "motion_capture_mode_unavailable");
+      timing.capture_ms = millis() - preview_started;
+      timing.total_ms = millis() - total_started;
+      timing.outcome = "capture_error";
+      writePerformanceSample(capture_id, timing);
+      return timing;
+    }
+  }
+
   const uint32_t capture_started = millis();
   camera_fb_t* frame = camera.capture(diagnostic);
   if (frame == nullptr) {
     report(diagnostic);
+    if (config.motion_trigger_enabled) {
+      String restore_diagnostic;
+      if (!camera.restoreMotionPreview(restore_diagnostic)) report(restore_diagnostic);
+    }
     recordCaptureFailure(capture_id, scheduled_ms, "camera_frame_unavailable");
     timing.capture_ms = millis() - capture_started;
     timing.total_ms = millis() - total_started;
@@ -115,6 +177,8 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   record.height = frame->height;
   record.jpeg_bytes = frame->len;
   record.capture_ms = millis() - capture_started;
+  record.motion_score = motion_score;
+  record.motion_threshold = config.motion_trigger_enabled ? config.motion_threshold : 0;
   timing.capture_ms = record.capture_ms;
   timing.jpeg_bytes = frame->len;
   record.inference = inference.run(*frame);
@@ -127,6 +191,13 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   const bool image_saved = storage.writeBinaryAtomicCreate(record.image_path, frame->buf, frame->len, diagnostic);
   timing.image_write_ms = millis() - image_write_started;
   camera.release(frame);
+  if (config.motion_trigger_enabled) {
+    String restore_diagnostic;
+    if (!camera.restoreMotionPreview(restore_diagnostic)) {
+      report(restore_diagnostic);
+      record.error_code = "motion_preview_restore_failed";
+    }
+  }
   if (!image_saved) {
     record.outcome = "storage_error";
     record.save_outcome = "failed";
@@ -172,6 +243,8 @@ void setup() {
   report(diagnostic);
   performance_path = "/system/performance_" + logger.runId() + ".csv";
   ensurePerformanceLog();
+  report("camera warm-up: waiting 5 seconds before first capture");
+  delay(kCameraWarmupMs);
   session_started_ms = millis();
   next_capture_due_ms = session_started_ms;
   ready = true;
@@ -180,13 +253,13 @@ void setup() {
 void loop() {
   if (!ready || finished) { delay(100); return; }
   const uint32_t now = millis();
-  if (now - session_started_ms >= config.max_session_seconds * 1000UL) { finishSession(); return; }
+  if (config.max_session_seconds > 0 && now - session_started_ms >= config.max_session_seconds * 1000UL) { finishSession(); return; }
   if (static_cast<int32_t>(now - next_capture_due_ms) < 0) { delay(5); return; }
   const uint32_t scheduled_ms = next_capture_due_ms;
-  next_capture_due_ms += 1000UL / config.capture_fps;
+  next_capture_due_ms += config.capture_interval_ms;
   if (static_cast<int32_t>(now - next_capture_due_ms) >= 0) {
     report("capture cadence overrun; schedule rebased without backlog");
-    next_capture_due_ms = now + 1000UL / config.capture_fps;
+    next_capture_due_ms = now + config.capture_interval_ms;
   }
   captureOnce(scheduled_ms);
 }

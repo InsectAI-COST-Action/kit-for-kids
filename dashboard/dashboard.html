@@ -78,6 +78,14 @@
           <button id="make-movie" class="secondary-button" type="button">Make my insect movie <span aria-hidden="true">&rarr;</span></button>
           <p class="card-note">It is made on this computer and downloaded when it is ready.</p>
         </section>
+        <section class="adventure-card settings-card" aria-labelledby="settings-title">
+          <span class="card-icon" aria-hidden="true">&#x2699;&#xFE0F;</span>
+          <p class="eyebrow">Grown-up helper</p>
+          <h2 id="settings-title">Set up your camera</h2>
+          <p>Choose a safe picture setting for your camera&rsquo;s next adventure.</p>
+          <button id="configure-camera" class="secondary-button" type="button">Camera settings <span aria-hidden="true">&rarr;</span></button>
+          <p class="card-note">Only change settings while the camera is switched off.</p>
+        </section>
       </section>
 
       <section class="panel gallery-panel" aria-labelledby="gallery-title">
@@ -157,6 +165,52 @@
         </section>
       </div>
     </div>
+    <div id="settings-modal" class="settings-modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+      <div class="settings-modal-card">
+        <button id="settings-close" class="modal-close" type="button" aria-label="Close camera settings">x</button>
+        <section class="settings-setup">
+          <div class="card-icon" aria-hidden="true">&#x2699;&#xFE0F;</div>
+          <p class="eyebrow warm">Grown-up helper</p>
+          <h2 id="settings-dialog-title">Set up your camera</h2>
+          <p>Choose a safe setting for the next camera adventure. The camera must be switched off while you change its card.</p>
+          <p id="settings-current" class="settings-current">Current setting: checking the camera card.</p>
+          <fieldset class="settings-choice">
+            <legend>Choose your camera settings</legend>
+            <label class="settings-control" for="settings-interval">How often should the camera take a picture?
+              <select id="settings-interval">
+                <option value="1000">1 image every 1 second</option>
+                <option value="2000">1 image every 2 seconds</option>
+                <option value="30000">1 image every 30 seconds</option>
+                <option value="60000">1 image every 1 minute</option>
+              </select>
+            </label>
+            <label class="settings-control" for="settings-quality">How clear should the pictures be?
+              <select id="settings-quality">
+                <option value="high">High quality</option>
+                <option value="low">Low quality</option>
+              </select>
+            </label>
+            <label class="settings-control" for="settings-duration">How long should the camera keep going?
+              <select id="settings-duration">
+                <option value="60">1 minute</option>
+                <option value="300">5 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600" selected>1 hour</option>
+                <option value="0">Infinite - until switched off</option>
+              </select>
+            </label>
+            <label class="settings-option" for="settings-motion-trigger">
+              <input id="settings-motion-trigger" type="checkbox">
+              <span><strong>Save pictures only when something moves</strong><small>Experimental. The camera waits 5 seconds, always saves its first picture, then checks for a change before saving later pictures.</small></span>
+            </label>
+          </fieldset>
+          <button id="settings-allow-card" class="primary-button" type="button">Allow camera-card changes <span aria-hidden="true">&rarr;</span></button>
+          <button id="settings-write" class="primary-button" type="button" disabled>Save this setting <span aria-hidden="true">&rarr;</span></button>
+          <p id="settings-status" class="analysis-note" role="status">Choose the camera card to get started.</p>
+          <p class="settings-safety">Saving replaces only <code>config.json</code>. It takes effect after the board is restarted.</p>
+        </section>
+      </div>
+    </div>
     <div id="analysis-modal" class="analysis-modal" hidden role="dialog" aria-modal="true" aria-labelledby="analysis-title">
       <div class="analysis-modal-card">
         <button id="analysis-close" class="modal-close" type="button" aria-label="Close AI adventure">x</button>
@@ -196,6 +250,7 @@
     <script src="card-access.js"></script>
     <script src="vendor/mediabunny.min.cjs"></script>
     <script src="dashboard.js"></script>
+    <script src="settings.js"></script>
     <script src="analysis.js"></script>
   </body>
 </html>

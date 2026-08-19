@@ -24,6 +24,8 @@ struct CaptureRecord {
   InferenceResult inference;
   String image_path;
   String save_outcome;
+  float motion_score = -1.0F;
+  uint8_t motion_threshold = 0;
   String error_code;
 };
 

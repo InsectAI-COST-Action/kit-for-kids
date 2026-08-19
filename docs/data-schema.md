@@ -15,11 +15,12 @@ Calendar time is intentionally unavailable in this pilot. `uptime_ms` is millise
 | `run_id`, `boot_id`, `capture_id` | Correlation identifiers. |
 | `captured_at_utc` | Empty for this session-relative-time pilot. |
 | `uptime_ms`, `scheduled_ms` | Actual and intended monotonic times. |
-| `outcome` | `completed`, `capture_error`, `storage_error`, or later `skipped`. |
+| `outcome` | `completed`, `motion_not_detected`, `capture_error`, or `storage_error`. `motion_not_detected` is a completed low-resolution preview check with no retained JPEG. |
 | `frame_width`, `frame_height`, `jpeg_bytes`, `capture_ms` | Camera facts; zero where capture failed. |
 | `inference_ms`, `model_id`, `prediction_count`, `max_confidence` | Model facts. The null model records `model_unavailable` in dashboard chunks. |
 | `image_path` | Card-relative JPEG path, empty unless the write succeeded. |
-| `save_policy`, `save_outcome`, `error_code` | Retention and failure facts. |
+| `save_policy`, `save_outcome`, `error_code` | Retention and failure facts. `save_policy` is `every_frame` or `motion_trigger`; `save_outcome` is `saved`, `not_saved`, `failed`, or `not_attempted`. |
+| `motion_score`, `motion_threshold` | The experimental preview-change score and its configured threshold. In retain-all mode these are `-1` and `0`; the first motion-mode image has score `-1` and is deliberately retained as the baseline. |
 
 `/raw/detections.csv` is reserved for one row per prediction once a production model exists. It remains header-only while the null model is active.
 

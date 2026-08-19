@@ -115,3 +115,11 @@ py tools\install_ai_pack.py D:\ --include-antai-beta
 
 The dashboard presents AntAI - Beta as an ant-only choice and uses model-provided ONNX input/output names so it can coexist with FlatBug's 640px format. The card remains read-only in the browser.
 When a card contains multiple saved runs, both the movie maker and AI dialogue default to the newest available session and provide a session selector. AI analysis reads only the selected run; it does not silently mix pictures from different experiments.
+
+## Future direct-write phone dashboard route
+
+The intended phone workflow is to plug the powered-off camera board directly into a phone and have the board expose its physical SD card as USB storage. The dashboard should then request the card folder once and be able to write clearly confirmed, validated changes - for example `config.json` and later exported AI results - back to that card. It must retain the offline/no-upload guarantee.
+
+This is a feasibility gate, not a current supported workflow. Direct browser file writes depend on browser and operating-system permission models; desktop Chrome/Edge evidence cannot be treated as proof for a phone. Test the exact target Android/Chrome and iPhone/Safari combinations with the locally opened dashboard, an explicit folder/write permission, a configuration write, and a reboot verification. Do not replace this with an external-reader/manual-copy journey if the test fails; return for an architecture decision.
+
+The board side is an ESP32-S3 USB Mass Storage Class (MSC) feasibility spike. It requires a strict state transition between camera ownership of the SD filesystem and USB-host ownership: stop capture, flush/unmount, expose storage, detect disconnect, then remount/reconcile. It must never capture while a phone can access the card. Validate device power, filesystem integrity, interrupted-disconnect recovery, and repeated hand-offs before offering it to children. Automatic dashboard launching on attachment should be investigated separately and cannot be promised until it works on the actual phones.

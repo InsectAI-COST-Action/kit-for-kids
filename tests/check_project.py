@@ -31,20 +31,21 @@ def check_platform() -> None:
 
 def check_pilot_configuration() -> None:
     config = json.loads(text("config.example.json"))
-    require(config["capture_fps"] == 1, "Pilot configuration must be 1 FPS")
+    require(config["capture_fps"] == 1 and config["capture_interval_ms"] == 1000, "Pilot configuration must capture once per second")
     require(config["max_session_seconds"] == 3600, "Pilot sessions must be one hour")
     require(config["capture_mode"] == "pilot", "Default configuration must use pilot mode")
     require(config["camera_preset"] == "qxga_q12_1fps", "Default camera preset must be recorded")
     require(config["frame_size"] == "QXGA" and config["jpeg_quality"] == 12, "Pilot must use the settled QXGA quality preset")
     require(config["model_id"] == "none", "No model must be configured by default")
+    require(config["motion_trigger_enabled"] is False and config["motion_threshold"] == 5, "Default capture must retain every image and use the fixed motion threshold")
     parser = text("src/config.cpp")
-    require("quality_trial" in parser and "fps != 1 && fps != 2" in parser, "Quality-trial configuration bounds are missing")
-    require('pilot_mode && (fps != 1 || config.frame_size != "QXGA" || quality != 12)' in parser, "Pilot bounds must enforce the settled QXGA preset")
+    require("quality_trial" in parser and "custom_mode" in parser and "isCustomInterval" in parser, "Quality-trial and child-settings configuration bounds are missing")
+    require('pilot_mode && (fps != 1 || interval_ms != 1000 || session_seconds != 3600 ||' in parser and 'config.frame_size != "QXGA" || quality != 12' in parser, "Pilot bounds must enforce the settled QXGA preset")
     require('config.frame_size != "QXGA"' in parser, "Maximum trial resolution must be configuration-validated")
     trial_tool = text("tools/configure_camera_trial.py")
     require("max_qxga_q12_1fps" in trial_tool and "max_qxga_q12_2fps" in trial_tool and '"QXGA"' in trial_tool, "Maximum-resolution trial presets are missing")
     manifest = text("src/session_logger.cpp")
-    require("camera_preset" in manifest and "String(config_.capture_fps)" in manifest, "Run manifest must record effective camera settings")
+    require("camera_preset" in manifest and "capture_interval_ms" in manifest and "max_session_seconds" in manifest, "Run manifest must record effective camera settings")
     require((ROOT / "tools" / "configure_camera_trial.py").is_file(), "Camera-trial setup tool is missing")
     require((ROOT / "tools" / "camera_trial_report.py").is_file(), "Camera-trial report tool is missing")
     dataset_builder = text("tools/build_ant_detector_dataset.py")
@@ -64,6 +65,7 @@ def check_camera_contract() -> None:
     require("psramFound()" in source, "Camera must reject missing PSRAM")
     require("OV3660_PID" in source, "Camera must report the actual sensor PID")
     require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
+    require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source, "Camera must provide the bounded motion-preview mode")
 
 
 def check_data_safety_contract() -> None:
@@ -81,7 +83,7 @@ def check_data_safety_contract() -> None:
     require("recoverCurrentChunk" in dashboard, "Dashboard must recover an open chunk")
     require("promoteCurrentChunk" in dashboard, "Dashboard chunk promotion is missing")
     require("writeTextAtomic(\"/manifest.js\"" in dashboard, "Manifest must be atomically written")
-    require("every_frame" in logger, "Every-frame retention must be logged")
+    require("every_frame" in logger and "motion_trigger" in logger and "motion_score" in logger, "Capture logs must record both retention policies and motion evidence")
     require("interrupted_power_removed" in logger, "Power removal must be represented in run state")
 
 
@@ -134,6 +136,15 @@ def check_dashboard_contract() -> None:
     require(".primary-button[hidden]" in text("dashboard/dashboard.css"), "Hidden dashboard buttons must override their visible button styling")
     require("movie-session" in html and "selectedMovieCaptures" in javascript and "Newest session" in javascript, "Movie export must default to an available newest session")
     require("analysis-session" in html and "selectedAnalysisEntries" in analysis and "refreshAnalysisSessions" in analysis and "Newest session" in analysis, "AI analysis must let users select one available camera session")
+    settings = text("dashboard/settings.js")
+    require("configure-camera" in html and "settings-modal" in html and "settings.js" in html, "Dashboard must provide a camera-settings journey")
+    require("showDirectoryPicker" in card_access and "createWritable" in card_access and "requestPermission" in card_access, "Direct settings writes must use an explicit browser folder-write permission")
+    require("settings-interval" in html and "settings-quality" in html and "settings-duration" in html and "settings-motion-trigger" in html and all(option in html for option in ("1 image every 1 second", "1 image every 2 seconds", "1 image every 30 seconds", "1 image every 1 minute", "High quality", "Low quality", "1 minute", "5 minutes", "30 minutes", "1 hour", "Infinite - until switched off")) and "capture_interval_ms" in settings and "motion_trigger_enabled" in settings and "motion_threshold" in settings and "window.confirm" in settings and "qxga_q12_1fps" in settings, "Camera settings must offer every validated interval, quality, duration, and motion choice")
+    require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
+    scheduler = text("src/main.cpp")
+    require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
+    require("kCameraWarmupMs = 5000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler, "Firmware must implement the documented warm-up and motion-capture policy")
+    require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
 
 
 def check_fixture_schema() -> None:

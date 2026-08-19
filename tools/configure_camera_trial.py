@@ -82,11 +82,14 @@ def main() -> int:
     trial_config: dict[str, object] = {
         "schema_version": 1,
         "capture_fps": preset["capture_fps"],
+        "capture_interval_ms": 1000 // preset["capture_fps"],
         "max_session_seconds": args.seconds,
         "capture_mode": "quality_trial",
         "camera_preset": args.preset,
         "frame_size": preset["frame_size"],
         "jpeg_quality": preset["jpeg_quality"],
+        "motion_trigger_enabled": False,
+        "motion_threshold": 5,
         "model_id": "none",
         "log_level": "info",
     }

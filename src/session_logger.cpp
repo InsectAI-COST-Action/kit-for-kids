@@ -10,7 +10,7 @@ String paddedId(const char* prefix, uint32_t value) {
 const char* kCaptureHeader =
     "schema_version,device_id,run_id,boot_id,capture_id,captured_at_utc,uptime_ms,scheduled_ms,"
     "outcome,frame_width,frame_height,jpeg_bytes,capture_ms,inference_ms,model_id,prediction_count,"
-    "max_confidence,image_path,save_policy,save_outcome,error_code";
+    "max_confidence,image_path,save_policy,save_outcome,motion_score,motion_threshold,error_code";
 const char* kDetectionHeader =
     "schema_version,run_id,capture_id,prediction_index,label_id,label,confidence,bbox_x,bbox_y,"
     "bbox_w,bbox_h,model_id,metadata_json";
@@ -51,8 +51,10 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
       String(static_cast<unsigned long>(capture.jpeg_bytes)) + "," + String(capture.capture_ms) + "," +
       String(capture.inference.elapsed_ms) + "," + csvEscape(capture.inference.model_id) + "," +
       String(capture.inference.prediction_count) + "," + String(capture.inference.max_confidence, 4) +
-      "," + csvEscape(capture.image_path) + ",every_frame," + csvEscape(capture.save_outcome) + "," +
-      csvEscape(capture.error_code);
+      "," + csvEscape(capture.image_path) + "," +
+      String(config_.motion_trigger_enabled ? "motion_trigger" : "every_frame") + "," +
+      csvEscape(capture.save_outcome) + "," + String(capture.motion_score, 3) + "," +
+      String(capture.motion_threshold) + "," + csvEscape(capture.error_code);
   const uint32_t raw_started = millis();
   if (!storage_->appendLine("/raw/captures.csv", row, diagnostic)) return false;
   if (timing != nullptr) timing->raw_csv_ms = millis() - raw_started;
@@ -121,6 +123,10 @@ bool SessionLogger::writeRunManifest(const String& state, String& diagnostic) {
       "\",\n  \"capture_mode\": \"" + config_.capture_mode +
       "\",\n  \"camera_preset\": \"" + config_.camera_preset +
       "\",\n  \"capture_fps\": " + String(config_.capture_fps) +
+      ",\n  \"capture_interval_ms\": " + String(config_.capture_interval_ms) +
+      ",\n  \"max_session_seconds\": " + String(config_.max_session_seconds) +
+      ",\n  \"motion_trigger_enabled\": " + String(config_.motion_trigger_enabled ? "true" : "false") +
+      ",\n  \"motion_threshold\": " + String(config_.motion_threshold) +
       ",\n  \"frame_size\": \"" + config_.frame_size +
       "\",\n  \"jpeg_quality\": " + String(config_.jpeg_quality) +
       ",\n  \"time_source\": \"session_relative\"\n}\n";

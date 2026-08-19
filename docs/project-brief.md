@@ -16,7 +16,7 @@ The current development tranche includes a child-first dashboard and a decision-
 
 ## 1. Purpose and authority
 
-Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 QXGA/JPEG-quality-12 frames at 1 FPS. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
+Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 frames using a safe default of QXGA/JPEG-quality-12 at one image each second; the dashboard may set only approved interval, quality, and duration combinations for a later reboot. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
@@ -49,7 +49,7 @@ The pilot succeeds only if data remains intelligible after ordinary faults, real
 ### Must — pilot platform
 
 - Pinned, reproducible Arduino-ESP32/PlatformIO firmware for the confirmed XIAO ESP32S3 Sense and OV3660.
-- Autonomous boot, fixed 1-FPS QXGA/JPEG-quality-12 capture and retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
+- Autonomous boot, safe default QXGA/JPEG-quality-12 capture at one image each second, approved configuration combinations, retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
 - PSRAM detection and explicit failure/degraded behaviour.
 - Versioned configuration, event/data schemas, and migration policy.
 - Direct `file://` dashboard operation in Chrome, Edge, Firefox, and Safari on Windows 10/11 and current macOS, with no `fetch()`, CDN, server, installation, or internet.
@@ -78,7 +78,7 @@ These become mandatory only after the model decision gate is satisfied:
 
 ### Could — later ADR and separate acceptance criteria
 
-- Segmentation, multiple model backends, motion pre-trigger, environmental sensors, battery telemetry, signed OTA, or network time synchronisation.
+- Segmentation, multiple model backends, environmental sensors, battery telemetry, signed OTA, or network time synchronisation. An experimental fixed-threshold motion pre-trigger is now implemented, but requires physical acceptance testing before it is treated as a normal capture mode.
 
 ### Won’t — pilot scope
 
@@ -91,7 +91,7 @@ The following are confirmed project decisions:
 
 1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
 2. **Model:** no production model exists yet. The device provides only the model interface and a `MODEL_UNAVAILABLE` null engine. FlatBug is the preferred candidate for the first browser feasibility test, not an approved production dependency. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
-3. **Capture/inference:** capture and store every QXGA/JPEG-quality-12 frame at 1 FPS for a maximum one-hour session, or 3,600 retained frames. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 1 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
+3. **Capture/inference:** by default capture and store every QXGA/JPEG-quality-12 frame at 1 FPS for a maximum one-hour session, or 3,600 retained frames. An optional experimental motion policy may retain fewer JPEGs while retaining a log row for every scheduled check. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 1 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
 4. **Time:** session-relative only. `boot_id + monotonic_ms` is authoritative; date, hour, and “today” controls are unavailable rather than fabricated.
 5. **Power/stop/transfer:** battery powered; disconnecting the power cable stops collection. The user then removes the SD card and inserts it into a computer for transfer. The SD card must not be removed while the device is powered.
 6. **Retention/privacy:** keep every captured frame; people may appear in view; anyone may use the transferred data; real images may be used in demonstrations. Repository samples still require appropriate permission and licensing. Users delete data manually through the computer's file manager; the dashboard has no deletion feature.
@@ -138,7 +138,7 @@ Preprocessing and postprocessing belong to the applicable device or browser mode
 
 ### Retention policy
 
-The pilot saves every captured QXGA/JPEG-quality-12 frame: 1 FPS for no more than one hour (3,600 images). There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV3660 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
+The default pilot saves every captured QXGA/JPEG-quality-12 frame: one image each second for no more than one hour (3,600 images). The dashboard configuration tool may instead select only the documented low-risk interval, quality, and duration combinations; an infinite session ends on power removal or a storage failure. There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV3660 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
 
 ## 6. Authoritative data model
 
@@ -231,7 +231,7 @@ Provide synthetic, prominently labelled sample data with empty, small, large, mu
 
 Use versioned `config.json` with documented defaults and bounds. At minimum:
 
-- fixed device capture cadence: QXGA/JPEG quality 12 at 1 FPS, every frame, maximum one-hour session; browser analysis still targets every retained frame but runs post-session;
+- default device cadence: QXGA/JPEG quality 12 at one image each second for a one-hour session; the child-facing configuration tool may offer only firmware-validated 1/2/30/60-second intervals, high/low quality, and 1/5/30/60-minute or infinite sessions; browser analysis still targets every retained frame but runs post-session;
 - frame size and JPEG quality using tested presets;
 - model ID/backend and label-map version;
 - global/per-label confidence threshold for future model interpretation only; it does not alter the every-frame retention policy;

@@ -38,6 +38,12 @@ The current FlatBug Nano and AntAI - Beta routes are browser prototypes only. It
 | [Performance experiment](performance-experiment.md) | Storage/capture timing investigation and the run-000012 sharding milestone. |
 | [Reconciliation policy](reconciliation-policy.md) | Rules for auditing, rebuilding, and manually cleaning SD-card data. |
 
+## Experiment files and generated evidence
+
+- `spikes/` holds small, tracked, reproducible technical experiments and their instructions. It must not contain camera photos, model weights, or generated reports.
+- `artifacts/` is Git-ignored and holds local generated evidence: reports, contact sheets, model downloads, training output, and abandoned trial output. It may be safely recreated from the relevant source workflow when appropriate.
+- The motion-trigger experiment is documented in [`../spikes/motion-detection/`](../spikes/motion-detection/README.md). Its 19 August 2026 sample evidence is local-only under `artifacts/motion-detection/`.
+
 ## Documentation rules
 
 - Keep the README short and link here rather than repeating detailed requirements.
