@@ -84,6 +84,7 @@ def check_data_safety_contract() -> None:
     require("promoteCurrentChunk" in dashboard, "Dashboard chunk promotion is missing")
     require("writeTextAtomic(\"/manifest.js\"" in dashboard, "Manifest must be atomically written")
     require("every_frame" in logger and "motion_trigger" in logger and "motion_score" in logger and "captures_include_motion_columns_" in logger, "Capture logs must record both retention policies and avoid shifting legacy CSV fields")
+    require((ROOT / "tools" / "migrate_capture_schema.py").is_file() and "CURRENT_HEADER" in text("tools/migrate_capture_schema.py"), "A safe capture-log schema migration tool is required")
     require("interrupted_power_removed" in logger, "Power removal must be represented in run state")
 
 
