@@ -25,6 +25,19 @@ Status at hand-off (18 August 2026): image-quality trials are concluded. The set
 
 Before the next commit, run `py tests\check_project.py`, `git diff --check`, the relevant SD audit, and a clean PlatformIO build when firmware changes.
 
+## Toolchain note: invoking PlatformIO on this Windows machine
+
+Windows Device Guard blocks the `pio.exe`/`platformio.exe` launcher stubs directly (`ApplicationFailedException: Your organization used Device Guard to block this app`), whichever Python installed them. Always invoke PlatformIO as a Python module through the signed `py` launcher instead:
+
+```powershell
+py -m platformio run
+py -m platformio run -e xiao_esp32s3 -t upload --upload-port COM4
+```
+
+This already matches the command form used in [performance-experiment.md](performance-experiment.md); the gotcha is that plain `pio ...` or `platformio ...` will fail on this machine even though `py -m platformio --version` and `py -m platformio run` work normally. `py --version` (Python 3.13) already has PlatformIO Core installed, so no extra setup is required.
+
+If `py -m platformio` is ever unavailable in a fresh environment, the PlatformIO VS Code extension's bundled portable Python can bootstrap a working copy without admin rights: extract `<extension-dir>\assets\predownloaded\python-portable-*.tar.gz` to `%USERPROFILE%\.platformio\python3`, run that `python.exe -m ensurepip`, then `python.exe -m venv %USERPROFILE%\.platformio\penv`. The resulting `penv\Scripts\python.exe -m platformio` works the same way (module invocation, not the `.exe` stub, which is blocked the same way).
+
 ## Motion-triggered capture: physical acceptance required
 
 The implementation is complete in firmware and the Camera settings dashboard. The default is still retain-every-image. When **Save pictures only when something moves** is enabled, the board waits five seconds, retains the first configured-quality image, then assesses 160 x 120 grayscale previews. A local 8 x 6 tile score of 5 or more retains the next full image; quieter checks are logged as `motion_not_detected` without a JPEG.
@@ -33,6 +46,20 @@ The implementation is complete in firmware and the Camera settings dashboard. Th
 2. Deliberately introduce an ant/object movement and a whole-scene brightness change. Inspect false saves/misses and compare the recorded `motion_score` distribution with the offline spike before changing the fixed threshold.
 3. Confirm repeated JPEG/grayscale sensor switching does not cause camera faults, frame-buffer leaks, cadence backlogs, corrupt images, or SD recovery failures.
 4. Record the result in [hardware-validation.md](hardware-validation.md). Do not present motion mode as a validated data-reduction method until this passes.
+
+## Device control app over Wi-Fi (new track, 21 August 2026)
+
+A device-hosted control app has been accepted for prototyping in [ADR 0001](adr/0001-device-hosted-control-app.md), with a phased plan and acceptance gates in [device-control-app-plan.md](device-control-app-plan.md). It is scoped to the control plane only — status, safe stop, configuration, and single-frame preview. The SD-card dashboard remains the data plane and stays fully offline and independent.
+
+Its first purpose is to retire the card-corruption failure recorded in [hardware-validation.md](hardware-validation.md) by giving the operator a way to invoke the existing `finishSession()` path and unmount the card before power is removed. Phase 2 of that plan is where the risk is actually retired; later phases are convenience.
+
+**Status:** Phases 1 (status page) and 2 (safe stop) are built and working on hardware — `include/control_server.h` / `src/control_server.cpp`. Safe stop has been exercised live and produces clean `finished` manifests with passing card audits. Neither phase has completed its full acceptance-cycle count yet (see the plan doc for what's outstanding).
+
+**Blocking finding, not yet resolved:** Wi-Fi (SoftAP) running at the same time as motion-triggered capture breaks motion detection — confirmed via a same-scene controlled test, 100% false-trigger rate with Wi-Fi on vs. normal discrimination with it off. Full detail in [device-control-app-plan.md](device-control-app-plan.md) Phase 1 and [hardware-validation.md](hardware-validation.md). A daytime repeat of the same control test is planned next, then a decision between three mitigation directions (electrical isolation, retuning motion tolerance, or not running Wi-Fi and motion capture concurrently). Retain-every-frame capture is unaffected.
+
+**This track runs alongside pilot acceptance, not instead of it.** The one-hour QXGA endurance run, the browser matrix, and the battery smoke test remain the critical path to a working pilot and should stay ahead of this work.
+
+Note that this supersedes the earlier parked "plug the board into a phone as SD storage" direction below for the near term: the control app addresses the same low-touch goal with far less risk, and USB-MSC remains unstarted.
 
 ## New next-session feasibility tracks
 

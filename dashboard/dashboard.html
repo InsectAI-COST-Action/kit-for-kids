@@ -88,6 +88,22 @@
         </section>
       </section>
 
+      <section class="panel motion-panel" id="motion-panel" aria-labelledby="motion-title" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow warm">Motion watch</p><h2 id="motion-title">When did something move?</h2></div>
+          <span class="section-count" id="motion-count">0 pictures saved</span>
+        </div>
+        <p class="hint">Your camera only kept a picture when its view changed enough. Each dot is one check &mdash; the orange dots crossed the line and got saved.</p>
+        <div class="motion-chart-wrap">
+          <svg id="motion-chart" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="motion-title"></svg>
+        </div>
+        <div class="motion-legend">
+          <span class="motion-legend-item"><span class="motion-swatch motion-swatch-saved"></span>Picture saved</span>
+          <span class="motion-legend-item"><span class="motion-swatch motion-swatch-quiet"></span>Nothing moved</span>
+          <span class="motion-legend-item"><span class="motion-swatch motion-swatch-threshold"></span>Save line</span>
+        </div>
+      </section>
+
       <section class="panel gallery-panel" aria-labelledby="gallery-title">
         <div class="section-heading">
           <div><p class="eyebrow warm">Picture time</p><h2 id="gallery-title">Your picture gallery</h2></div>

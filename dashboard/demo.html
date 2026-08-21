@@ -68,6 +68,22 @@
           <button id="find-insects" class="primary-button" type="button">Find insects with AI <span aria-hidden="true">&#x2192;</span></button>
           <p id="model-note" class="card-note">Choose the AI helper when you are ready. Your pictures stay on this computer.</p>
         </section>
+        <section class="adventure-card movie-card" aria-labelledby="movie-title">
+          <span class="card-icon" aria-hidden="true">&#x1F3AC;</span>
+          <p class="eyebrow warm">Make a movie</p>
+          <h2 id="movie-title">Turn pictures into a tiny movie</h2>
+          <p>Make a speedy time-lapse of everything your camera saw.</p>
+          <button id="make-movie" class="secondary-button" type="button">Make my insect movie <span aria-hidden="true">&rarr;</span></button>
+          <p class="card-note">It is made on this computer and downloaded when it is ready.</p>
+        </section>
+        <section class="adventure-card settings-card" aria-labelledby="settings-title">
+          <span class="card-icon" aria-hidden="true">&#x2699;&#xFE0F;</span>
+          <p class="eyebrow">Grown-up helper</p>
+          <h2 id="settings-title">Set up your camera</h2>
+          <p>Choose a safe picture setting for your camera&rsquo;s next adventure.</p>
+          <button id="configure-camera" class="secondary-button" type="button">Camera settings <span aria-hidden="true">&rarr;</span></button>
+          <p class="card-note">Only change settings while the camera is switched off.</p>
+        </section>
       </section>
 
       <section class="panel gallery-panel" aria-labelledby="gallery-title">
@@ -121,6 +137,78 @@
         <button id="model-modal-ok" class="primary-button" type="button">Keep exploring</button>
       </div>
     </div>
+    <div id="movie-modal" class="movie-modal" hidden role="dialog" aria-modal="true" aria-labelledby="movie-title-dialog">
+      <div class="movie-modal-card">
+        <button id="movie-close" class="modal-close" type="button" aria-label="Close movie maker">x</button>
+        <section id="movie-setup" class="movie-setup">
+          <div class="card-icon" aria-hidden="true">&#x1F3AC;</div>
+          <p class="eyebrow warm">Movie maker</p>
+          <h2 id="movie-title-dialog">Make your insect movie!</h2>
+          <p id="movie-info">Getting your pictures ready for a time-lapse.</p>
+          <p class="movie-note">This makes an MP4 video from your saved pictures at 60 pictures per second. Nothing is uploaded or changed on the camera card.</p>
+          <button id="movie-load-card" class="secondary-button" type="button">Load camera card <span aria-hidden="true">&rarr;</span></button>
+          <p id="movie-card-status" class="analysis-note" role="status">Press Load camera card, then choose this demo folder in the next window.</p>
+          <label id="movie-session-label" class="movie-session-label" for="movie-session" hidden>Choose a session<select id="movie-session"></select></label>
+          <button id="movie-start" class="primary-button" type="button" disabled>Make movie <span aria-hidden="true">&rarr;</span></button>
+          <p id="movie-support" class="analysis-note" role="status"></p>
+        </section>
+        <section id="movie-progress" class="movie-progress" hidden aria-live="polite">
+          <p class="eyebrow warm">Lights, camera, insects!</p>
+          <h2 id="movie-progress-title">Making your movie</h2>
+          <canvas id="movie-canvas" width="1024" height="768" aria-label="Picture currently being added to the movie"></canvas>
+          <div class="analysis-progress-track" aria-hidden="true"><span id="movie-progress-bar"></span></div>
+          <p id="movie-progress-text" class="analysis-progress-text">Picture 0 of 0</p>
+          <p id="movie-message" class="movie-note" role="status">Getting the first picture ready.</p>
+          <div class="analysis-controls"><button id="movie-cancel" class="quiet-button" type="button">Cancel movie</button><a id="movie-download" class="primary-button" href="#" hidden>Download movie <span aria-hidden="true">&darr;</span></a></div>
+        </section>
+      </div>
+    </div>
+    <div id="settings-modal" class="settings-modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+      <div class="settings-modal-card">
+        <button id="settings-close" class="modal-close" type="button" aria-label="Close camera settings">x</button>
+        <section class="settings-setup">
+          <div class="card-icon" aria-hidden="true">&#x2699;&#xFE0F;</div>
+          <p class="eyebrow warm">Grown-up helper</p>
+          <h2 id="settings-dialog-title">Set up your camera</h2>
+          <p>Choose a safe setting for the next camera adventure. This demo folder has its own practice <code>config.json</code> &mdash; a real camera card is never touched.</p>
+          <p id="settings-current" class="settings-current">Current setting: checking the camera card.</p>
+          <fieldset class="settings-choice">
+            <legend>Choose your camera settings</legend>
+            <label class="settings-control" for="settings-interval">How often should the camera take a picture?
+              <select id="settings-interval">
+                <option value="1000">1 image every 1 second</option>
+                <option value="2000">1 image every 2 seconds</option>
+                <option value="30000">1 image every 30 seconds</option>
+                <option value="60000">1 image every 1 minute</option>
+              </select>
+            </label>
+            <label class="settings-control" for="settings-quality">How clear should the pictures be?
+              <select id="settings-quality">
+                <option value="high">High quality</option>
+                <option value="low">Low quality</option>
+              </select>
+            </label>
+            <label class="settings-control" for="settings-duration">How long should the camera keep going?
+              <select id="settings-duration">
+                <option value="60">1 minute</option>
+                <option value="300">5 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600" selected>1 hour</option>
+                <option value="0">Infinite - until switched off</option>
+              </select>
+            </label>
+            <label class="settings-option" for="settings-motion-trigger">
+              <input id="settings-motion-trigger" type="checkbox">
+              <span><strong>Save pictures only when something moves</strong><small>Experimental. The camera waits 5 seconds, always saves its first picture, then checks for a change before saving later pictures.</small></span>
+            </label>
+          </fieldset>
+          <button id="settings-allow-card" class="primary-button" type="button">Allow camera-card changes <span aria-hidden="true">&rarr;</span></button>
+          <button id="settings-write" class="primary-button" type="button" disabled>Save this setting <span aria-hidden="true">&rarr;</span></button>
+          <p id="settings-status" class="analysis-note" role="status">Choose the camera card to get started.</p>
+          <p class="settings-safety">Saving replaces only this demo folder&rsquo;s <code>config.json</code>. It takes effect after a real board is restarted with matching settings.</p>
+        </section>
+      </div>
+    </div>
     <div id="analysis-modal" class="analysis-modal" hidden role="dialog" aria-modal="true" aria-labelledby="analysis-title">
       <div class="analysis-modal-card">
         <button id="analysis-close" class="modal-close" type="button" aria-label="Close AI adventure">x</button>
@@ -129,8 +217,17 @@
           <p class="eyebrow warm">AI adventure</p>
           <h2 id="analysis-title">Let&rsquo;s look for possible insects!</h2>
           <p>Choose the top camera-card folder once. The AI helper will look at your pictures one at a time, and its clues can be wrong.</p>
-          <label class="ai-pack-label" for="analysis-card"><span>Choose your camera card</span><input id="analysis-card" type="file" webkitdirectory multiple></label>
-          <p id="analysis-card-status" class="analysis-note" role="status">An adult chooses the top camera-card folder once. It lets the browser read pictures and the AI helper, but never change them.</p>
+          <fieldset class="analysis-mode-choice">
+            <legend>How should the AI look at this session?</legend>
+            <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="antai" checked><span><strong>AntAI &ndash; Beta &#x1F41C;</strong><small>Fast ant helper &mdash; trained on our own camera pictures. It checks each whole picture once.</small></span></label>
+            <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="flatbug-quick"><span><strong>FlatBug &ndash; Quick look &#x1F680;</strong><small>Fast general insect helper &mdash; checks each whole picture once. Best for bigger, clearer insects.</small></span></label>
+            <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="flatbug-close"><span><strong>FlatBug &ndash; Look closely &#x1F50E;</strong><small>Slower general insect helper &mdash; checks 12 zoomed-in pieces. Better for tiny insects.</small></span></label>
+          </fieldset>
+          <p id="analysis-choice-note" class="analysis-note">AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.</p>
+          <label id="analysis-session-label" class="movie-session-label" for="analysis-session" hidden>Choose a session<select id="analysis-session"></select></label>
+          <p id="analysis-session-note" class="analysis-note">Choose the newest available session to begin.</p>
+          <button id="analysis-load-card" class="primary-button" type="button">Load images and AI <span aria-hidden="true">&rarr;</span></button>
+          <p id="analysis-card-status" class="analysis-note" role="status">Press Load images and AI, then choose this demo folder in the next window. The browser can read the pictures and AI helper, but never change them.</p>
           <button id="analysis-start" class="primary-button" type="button" disabled>Start looking <span aria-hidden="true">&rarr;</span></button>
         </section>
         <section id="analysis-scanner" class="analysis-scanner" hidden aria-live="polite">
@@ -147,7 +244,11 @@
         </section>
       </div>
     </div>
+    <input id="card-picker" class="card-picker" type="file" webkitdirectory multiple aria-label="Choose camera card folder">
+    <script src="card-access.js"></script>
+    <script src="vendor/mediabunny.min.cjs"></script>
     <script src="dashboard.js"></script>
+    <script src="settings.js"></script>
     <script src="analysis.js"></script>
   </body>
 </html>

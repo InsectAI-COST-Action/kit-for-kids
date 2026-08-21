@@ -83,6 +83,7 @@ These become mandatory only after the model decision gate is satisfied:
 ### Won’t — pilot scope
 
 - Cloud storage/accounts, telemetry, remote viewing, native apps, live streaming, public web service, facial recognition, audio recording, or editing the physical enclosure/camera-case assets.
+  - **Amended 21 August 2026 by [ADR 0001](adr/0001-device-hosted-control-app.md):** a device-hosted *control* app, served over the camera's own Wi-Fi access point, is now in scope for prototyping — limited to status, safe stop, configuration, and on-demand single preview frames. Remote viewing over any network the device does not itself host, continuous/live streaming, cloud services, and serving bulk image data over Wi-Fi all remain out of scope. The `file://` SD-card dashboard remains the data plane and must stay fully functional and network-independent.
 - Claiming species-level ecological accuracy unless the selected model and validation support it. The UI should use “class” or “label” until that evidence exists.
 
 ## 4. Resolved decisions and remaining gates

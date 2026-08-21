@@ -16,6 +16,7 @@ This directory separates everyday operation from technical design and historical
 | --- | --- |
 | [Project brief](project-brief.md) | Detailed scope contract and requirements for implementation agents. It is not the day-to-day operating guide. |
 | [Architecture](architecture.md) | Component boundaries and data-flow decisions. |
+| [Decision records](adr/) | Numbered ADRs. A decision that changes scope or a shared contract is recorded here before the work starts. |
 | [Data schema](data-schema.md) | Capture, run, and derived-dashboard record formats. |
 | [Camera specification](camera-spec.md) | Confirmed OV3660/XIAO hardware and power facts. |
 | [OV3660 image-quality trial](camera-quality-trial.md) | Controlled resolution/JPEG/rate comparison and decision rule. |
@@ -34,6 +35,7 @@ The current FlatBug Nano and AntAI - Beta routes are browser prototypes only. It
 
 | Document | Purpose |
 | --- | --- |
+| [Device control app plan](device-control-app-plan.md) | Phased implementation plan and acceptance gates for the Wi-Fi control app ([ADR 0001](adr/0001-device-hosted-control-app.md)). |
 | [Hardware validation](hardware-validation.md) | Board, card, and browser verification record. |
 | [Performance experiment](performance-experiment.md) | Storage/capture timing investigation and the run-000012 sharding milestone. |
 | [Reconciliation policy](reconciliation-policy.md) | Rules for auditing, rebuilding, and manually cleaning SD-card data. |

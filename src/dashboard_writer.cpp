@@ -37,7 +37,9 @@ bool DashboardWriter::appendCapture(const DashboardCapture& capture, String& dia
       String(capture.width) + ",\"height\":" + String(capture.height) + ",\"jpegBytes\":" +
       String(static_cast<unsigned long>(capture.jpeg_bytes)) + ",\"captureMs\":" +
       String(capture.capture_ms) + ",\"inferenceMs\":" + String(capture.inference_ms) +
-      ",\"inferenceOutcome\":\"" + inferenceOutcomeName(capture.inference_outcome) + "\"});";
+      ",\"inferenceOutcome\":\"" + inferenceOutcomeName(capture.inference_outcome) +
+      "\",\"motionScore\":" + String(capture.motion_score, 3) + ",\"motionThreshold\":" +
+      String(capture.motion_threshold, 3) + "});";
   if (!storage_->appendLine(current_part_path_, line, diagnostic)) return false;
   ++current_chunk_count_;
   if (current_chunk_count_ >= kChunkSize) return promoteCurrentChunk(diagnostic);

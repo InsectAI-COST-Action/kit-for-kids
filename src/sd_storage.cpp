@@ -20,6 +20,8 @@ bool SdStorage::begin(String& diagnostic) {
          ensureDirectory("/images", diagnostic) && ensureDirectory("/data", diagnostic);
 }
 
+void SdStorage::end() { SD.end(); }
+
 bool SdStorage::ensureDirectory(const String& path, String& diagnostic) {
   if (SD.exists(path)) return true;
   if (!SD.mkdir(path)) {

@@ -3,6 +3,7 @@
 
 #include "app_config.h"
 #include "camera_service.h"
+#include "control_server.h"
 #include "inference.h"
 #include "motion_detector.h"
 #include "sd_storage.h"
@@ -14,11 +15,14 @@ SdStorage storage;
 CameraService camera;
 NullInferenceEngine inference;
 SessionLogger logger;
+ControlServer control_server;
 
 bool ready = false;
 bool finished = false;
 uint32_t next_capture_due_ms = 0;
 uint32_t session_started_ms = 0;
+uint32_t saved_image_count = 0;
+String fatal_error;
 MotionPreview previous_motion_preview;
 MotionPreview current_motion_preview;
 bool motion_baseline_ready = false;
@@ -193,7 +197,7 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   timing.jpeg_bytes = frame->len;
   record.inference = inference.run(*frame);
   record.image_path = imagePathFor(capture_id, capture_sequence);
-  if ((capture_sequence - 1) % 100 == 0 && !storage.ensureDirectory(imageDirectoryFor(capture_sequence), diagnostic)) report(diagnostic);
+  if (!storage.ensureDirectory(imageDirectoryFor(capture_sequence), diagnostic)) report(diagnostic);
   record.outcome = "completed";
   record.save_outcome = "saved";
 
@@ -217,6 +221,8 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
     record.image_path = "";
     record.error_code = "image_write_failed";
     report(diagnostic);
+  } else {
+    ++saved_image_count;
   }
   const uint32_t logger_started = millis();
   LoggerTiming logger_timing;
@@ -234,7 +240,10 @@ void finishSession() {
   if (finished) return;
   String diagnostic;
   if (!logger.finish(diagnostic)) report("session finalisation failed: " + diagnostic);
-  else report("session complete; power off before removing SD card");
+  // Unmount unconditionally: even a finaliser failure leaves earlier
+  // committed data more likely to survive a clean FAT unmount than none.
+  storage.end();
+  report("session complete; card unmounted, safe to remove");
   finished = true;
 }
 }  // namespace
@@ -244,15 +253,24 @@ void setup() {
   delay(250);
   report(String("firmware ") + INSECT_LOGGER_FIRMWARE_VERSION + " starting");
   String diagnostic;
-  if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); return; }
+  // Wi-Fi starts before any SD/camera/logger step so the control app can
+  // still report what went wrong if one of them fails; capture is the
+  // primary mission and none of those steps depend on Wi-Fi succeeding.
+#ifndef WIFI_CONTROL_DISABLED_FOR_TEST
+  if (!control_server.begin(diagnostic)) report("control app unavailable: " + diagnostic);
+  else report(diagnostic);
+#else
+  report("control app disabled for this build: motion-detection control test");
+#endif
+  if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); fatal_error = "No SD card found: " + diagnostic; return; }
   config = ConfigLoader::defaults();
-  if (!ConfigLoader::load(storage.fs(), config, diagnostic)) { report("fatal configuration failure: " + diagnostic); return; }
+  if (!ConfigLoader::load(storage.fs(), config, diagnostic)) { report("fatal configuration failure: " + diagnostic); fatal_error = "Bad configuration: " + diagnostic; return; }
   report(diagnostic);
-  if (!camera.begin(config, diagnostic)) { report("fatal camera failure: " + diagnostic); return; }
+  if (!camera.begin(config, diagnostic)) { report("fatal camera failure: " + diagnostic); fatal_error = "Camera failure: " + diagnostic; return; }
   report(diagnostic);
-  if (!inference.begin(diagnostic)) { report("fatal inference failure: " + diagnostic); return; }
+  if (!inference.begin(diagnostic)) { report("fatal inference failure: " + diagnostic); fatal_error = "Inference setup failure: " + diagnostic; return; }
   report(diagnostic);
-  if (!logger.begin(storage, config, camera.sensorId(), diagnostic)) { report("fatal session setup failure: " + diagnostic); return; }
+  if (!logger.begin(storage, config, camera.sensorId(), diagnostic)) { report("fatal session setup failure: " + diagnostic); fatal_error = "Session setup failure: " + diagnostic; return; }
   report(diagnostic);
   performance_path = "/system/performance_" + logger.runId() + ".csv";
   ensurePerformanceLog();
@@ -264,6 +282,20 @@ void setup() {
 }
 
 void loop() {
+  control_server.handleClient();
+  // Only acted on here, between captures, so a stop can never land mid-write.
+  if (ready && !finished && control_server.consumeStopRequest()) finishSession();
+
+  ControlStatus status;
+  status.run_id = logger.runId();
+  status.capture_count = logger.captureCount();
+  status.saved_count = saved_image_count;
+  status.sd_mounted = fatal_error.isEmpty() && !finished;
+  status.error = fatal_error;
+  status.elapsed_ms = ready ? (millis() - session_started_ms) : 0;
+  status.state = !fatal_error.isEmpty() ? "error" : (!ready ? "warming_up" : (finished ? "safe_to_remove" : "capturing"));
+  control_server.update(status);
+
   if (!ready || finished) { delay(100); return; }
   const uint32_t now = millis();
   if (config.max_session_seconds > 0 && now - session_started_ms >= config.max_session_seconds * 1000UL) { finishSession(); return; }

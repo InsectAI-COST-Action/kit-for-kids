@@ -6,6 +6,10 @@
 class SdStorage {
  public:
   bool begin(String& diagnostic);
+  // Flushes and unmounts the card so its FAT metadata is left in a clean
+  // state before power is removed. Safe to call only once capture has
+  // stopped; nothing else in this class may be called afterwards.
+  void end();
   bool ensureDirectory(const String& path, String& diagnostic);
   bool exists(const String& path) const;
   bool writeTextAtomic(const String& path, const String& content, String& diagnostic);

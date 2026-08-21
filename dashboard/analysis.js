@@ -299,6 +299,7 @@
   };
   const open = () => { lastFocus = document.activeElement; modal.hidden = false; setup.hidden = false; scanner.hidden = true; if (card.loaded) loadCard(); else loadCardButton.focus(); };
   const close = () => { state.active = false; modal.hidden = true; if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); };
+  if (!modal || !openButton || !loadCardButton) return;
   openButton.addEventListener('click', (event) => { event.stopImmediatePropagation(); open(); }, true);
   closeButton.addEventListener('click', close);
   modal.addEventListener('click', (event) => { if (event.target === modal) close(); });

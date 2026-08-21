@@ -17,6 +17,9 @@
   const loadingError = document.querySelector('#loading-error');
   const loadingRetry = document.querySelector('#loading-retry');
   const rows = document.querySelector('#capture-rows');
+  const motionPanel = document.querySelector('#motion-panel');
+  const motionCount = document.querySelector('#motion-count');
+  const motionChart = document.querySelector('#motion-chart');
   const gallery = document.querySelector('#gallery');
   const galleryEmpty = document.querySelector('#gallery-empty');
   const search = document.querySelector('#search');
@@ -277,6 +280,97 @@
     if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
   };
 
+  const svgEl = (tag, attrs) => {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const key in attrs) element.setAttribute(key, attrs[key]);
+    return element;
+  };
+
+  const renderMotionPanel = () => {
+    if (!motionPanel || !motionCount || !motionChart) return;
+    const runIds = [...new Set(data.captures.map((capture) => capture.runId).filter(Boolean))]
+      .sort((first, second) => second.localeCompare(first, undefined, { numeric: true }));
+    const lastRunId = runIds[0];
+    const runCaptures = lastRunId ? data.captures.filter((capture) => capture.runId === lastRunId) : [];
+    const motionCaptures = runCaptures.filter((capture) => Number(capture.motionThreshold) > 0)
+      .slice().sort((first, second) => (Number(first.uptimeMs) || 0) - (Number(second.uptimeMs) || 0));
+    if (motionCaptures.length < 2) { motionPanel.hidden = true; return; }
+
+    const saved = motionCaptures.filter((capture) => capture.imagePath);
+    const scored = motionCaptures.filter((capture) => Number(capture.motionScore) >= 0);
+    const baseline = motionCaptures.find((capture) => Number(capture.motionScore) < 0);
+    if (!scored.length) { motionPanel.hidden = true; return; }
+
+    motionPanel.hidden = false;
+    motionCount.textContent = `${saved.length} picture${saved.length === 1 ? '' : 's'} saved`;
+
+    const t0 = motionCaptures[0].uptimeMs;
+    const threshold = scored[0].motionThreshold;
+    const W = 900, H = 260;
+    const M = { top: 14, right: 18, bottom: 30, left: 40 };
+    const plotW = W - M.left - M.right;
+    const plotH = H - M.top - M.bottom;
+    const tMax = Math.max(...scored.map((capture) => (capture.uptimeMs - t0) / 1000), 1);
+    const xScale = (seconds) => M.left + (seconds / tMax) * plotW;
+    const scoreMin = 0.3;
+    const scoreMax = Math.max(10, Math.ceil(Math.max(...scored.map((capture) => capture.motionScore)) / 10) * 10);
+    const yScale = (score) => {
+      const clamped = Math.max(score, scoreMin);
+      const frac = (Math.log10(clamped) - Math.log10(scoreMin)) / (Math.log10(scoreMax) - Math.log10(scoreMin));
+      return M.top + plotH - frac * plotH;
+    };
+
+    motionChart.replaceChildren();
+    [0.3, 1, 3, 10, 30, 100].filter((value) => value <= scoreMax * 1.01).forEach((value) => {
+      const y = yScale(value);
+      motionChart.append(svgEl('line', { class: 'motion-grid', x1: M.left, x2: W - M.right, y1: y, y2: y }));
+      const label = svgEl('text', { class: 'motion-axis-label', x: M.left - 6, y: y + 3, 'text-anchor': 'end' });
+      label.textContent = value;
+      motionChart.append(label);
+    });
+    const thresholdY = yScale(threshold);
+    motionChart.append(svgEl('line', { class: 'motion-threshold-line', x1: M.left, x2: W - M.right, y1: thresholdY, y2: thresholdY }));
+    const thresholdLabel = svgEl('text', { class: 'motion-threshold-label', x: W - M.right, y: thresholdY - 6, 'text-anchor': 'end' });
+    thresholdLabel.textContent = `save line (${threshold})`;
+    motionChart.append(thresholdLabel);
+    const tMaxMin = Math.max(1, Math.ceil(tMax / 60));
+    for (let minute = 0; minute <= tMaxMin; minute += Math.max(1, Math.ceil(tMaxMin / 6))) {
+      const x = xScale(minute * 60);
+      const label = svgEl('text', { class: 'motion-axis-label', x, y: H - M.bottom + 16, 'text-anchor': 'middle' });
+      label.textContent = `${minute}m`;
+      motionChart.append(label);
+    }
+
+    const addDot = (capture, isSaved) => {
+      const title = `${capture.captureId || 'capture'}: ${isSaved ? 'saved' : 'not saved'}, score ${capture.motionScore.toFixed(2)}`;
+      const dot = svgEl('circle', {
+        class: isSaved ? 'motion-dot-saved' : 'motion-dot-quiet',
+        cx: xScale((capture.uptimeMs - t0) / 1000),
+        cy: yScale(capture.motionScore),
+        r: isSaved ? 4.5 : 2.4,
+      });
+      const dotTitle = svgEl('title', {});
+      dotTitle.textContent = title;
+      dot.append(dotTitle);
+      motionChart.append(dot);
+    };
+    scored.filter((capture) => !capture.imagePath).forEach((capture) => addDot(capture, false));
+    scored.filter((capture) => capture.imagePath).forEach((capture) => addDot(capture, true));
+
+    if (baseline) {
+      const bx = xScale((baseline.uptimeMs - t0) / 1000);
+      const by = H - M.bottom - 8;
+      const diamond = svgEl('path', {
+        d: `M ${bx} ${by - 6} L ${bx + 6} ${by} L ${bx} ${by + 6} L ${bx - 6} ${by} Z`,
+        fill: 'var(--coral)', stroke: 'var(--paper)', 'stroke-width': 1.5,
+      });
+      const diamondTitle = svgEl('title', {});
+      diamondTitle.textContent = `${baseline.captureId || 'first picture'}: always kept as a starting point`;
+      diamond.append(diamondTitle);
+      motionChart.append(diamond);
+    }
+  };
+
   const render = () => {
     const captures = filteredCaptures();
     const allImages = data.captures.filter((capture) => capture.imagePath);
@@ -334,6 +428,7 @@
     });
     galleryToggle.hidden = images.length <= initialLimit;
     galleryToggle.textContent = showAllImages ? 'Show fewer images' : 'Show all images';
+    renderMotionPanel();
     document.querySelector('#model-note').textContent = inferenceOutcomes.has('model_unavailable')
       ? 'The AI model is not connected yet. Your pictures are safe and ready for the next step.'
       : 'AI results are ready to explore.';
@@ -394,21 +489,24 @@
   modalClose.addEventListener('click', closeImage);
   modal.addEventListener('click', (event) => { if (event.target === modal) closeImage(); });
   document.querySelector('#find-insects').addEventListener('click', openModelMessage);
-  document.querySelector('#make-movie').addEventListener('click', openMovie);
-  movieClose.addEventListener('click', closeMovie);
-  movieCancel.addEventListener('click', cancelMovie);
-  movieModal.addEventListener('click', (event) => { if (event.target === movieModal && !movie.active) closeMovie(); });
-  movieLoadCard.addEventListener('click', () => card.request());
-  movieSession.addEventListener('change', updateMovieCardStatus);
-  window.addEventListener('insect-card-loaded', () => { if (!movieModal.hidden) updateMovieCardStatus(); });
-  movieStart.addEventListener('click', makeMovie);
+  const makeMovieButton = document.querySelector('#make-movie');
+  if (makeMovieButton && movieModal) {
+    makeMovieButton.addEventListener('click', openMovie);
+    movieClose.addEventListener('click', closeMovie);
+    movieCancel.addEventListener('click', cancelMovie);
+    movieModal.addEventListener('click', (event) => { if (event.target === movieModal && !movie.active) closeMovie(); });
+    movieLoadCard.addEventListener('click', () => card.request());
+    movieSession.addEventListener('change', updateMovieCardStatus);
+    window.addEventListener('insect-card-loaded', () => { if (!movieModal.hidden) updateMovieCardStatus(); });
+    movieStart.addEventListener('click', makeMovie);
+  }
   modelModalClose.addEventListener('click', closeModelMessage);
   modelModalOk.addEventListener('click', closeModelMessage);
   modelModal.addEventListener('click', (event) => { if (event.target === modelModal) closeModelMessage(); });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (!modal.hidden) closeImage();
-    else if (!movieModal.hidden) closeMovie();
+    else if (movieModal && !movieModal.hidden) closeMovie();
     else if (!modelModal.hidden) closeModelMessage();
   });
   search.addEventListener('input', render);

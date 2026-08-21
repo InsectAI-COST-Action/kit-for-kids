@@ -82,6 +82,8 @@ bool SessionLogger::recordCapture(const CaptureRecord& capture, String& diagnost
   dashboard_capture.capture_ms = capture.capture_ms;
   dashboard_capture.inference_ms = capture.inference.elapsed_ms;
   dashboard_capture.inference_outcome = capture.inference.outcome;
+  dashboard_capture.motion_score = capture.motion_score;
+  dashboard_capture.motion_threshold = capture.motion_threshold;
   const uint32_t dashboard_started = millis();
   const bool dashboard_ok = dashboard_.appendCapture(dashboard_capture, diagnostic);
   if (timing != nullptr) timing->dashboard_ms = millis() - dashboard_started;

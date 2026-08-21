@@ -17,6 +17,8 @@ struct DashboardCapture {
   uint32_t capture_ms = 0;
   uint32_t inference_ms = 0;
   InferenceOutcome inference_outcome = InferenceOutcome::ModelUnavailable;
+  float motion_score = -1.0F;
+  float motion_threshold = 0.0F;
 };
 
 class DashboardWriter {

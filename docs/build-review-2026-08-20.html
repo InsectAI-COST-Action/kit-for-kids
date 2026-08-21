@@ -1,0 +1,595 @@
+<title>Insect Camera Build Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+:root {
+  --ground:  #131A16;
+  --panel:   #1C2521;
+  --panel-2: #232E28;
+  --birch:   #EFE6D5;
+  --moss:    #8CBF6B;
+  --amber:   #E9A542;
+  --char:    #38443C;
+  --muted:   #94A69A;
+
+  --display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --body:    "Instrument Sans", system-ui, sans-serif;
+  --mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--birch);
+  font-family: var(--body);
+  overflow: hidden;
+}
+
+/* ---------- deck shell ---------- */
+
+.deck { height: 100vh; width: 100vw; position: relative; }
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: clamp(2rem, 4.5vh, 3.5rem) clamp(2rem, 5vw, 5rem) clamp(3.5rem, 7vh, 5rem);
+  overflow-y: auto;
+}
+.slide.is-active { display: flex; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: clamp(.62rem, .85vw, .78rem);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--moss);
+  margin: 0 0 .9rem;
+}
+
+h1, h2 {
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -.025em;
+  line-height: 1.02;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2.6rem, 6.4vw, 5.4rem); }
+h2 { font-size: clamp(1.8rem, 3.8vw, 3.1rem); margin-bottom: 1.4rem; }
+
+p { line-height: 1.6; margin: 0; }
+.lede { font-size: clamp(1rem, 1.5vw, 1.28rem); color: var(--birch); max-width: 62ch; }
+.sub  { font-size: clamp(.92rem, 1.25vw, 1.06rem); color: var(--muted); max-width: 66ch; }
+
+/* ---------- progress + nav ---------- */
+
+.rail {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: var(--char);
+  z-index: 10;
+}
+.rail span {
+  display: block; height: 100%;
+  background: var(--moss);
+  transition: width .32s cubic-bezier(.4,0,.2,1);
+}
+
+.chrome {
+  position: fixed;
+  bottom: 1.15rem; right: clamp(1.4rem, 4vw, 3rem);
+  display: flex; align-items: center; gap: 1rem;
+  font-family: var(--mono); font-size: .72rem;
+  color: var(--muted);
+  z-index: 10;
+}
+.chrome button {
+  background: var(--panel-2);
+  border: 1px solid var(--char);
+  color: var(--birch);
+  font: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: .35rem .6rem;
+  line-height: 1;
+}
+.chrome button:hover { border-color: var(--moss); color: var(--moss); }
+.counter { font-variant-numeric: tabular-nums; letter-spacing: .1em; }
+
+.deck-label {
+  position: fixed;
+  bottom: 1.3rem; left: clamp(1.4rem, 4vw, 3rem);
+  font-family: var(--mono); font-size: .68rem;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: var(--char);
+  z-index: 10;
+}
+
+/* ---------- title slide ---------- */
+
+.title-slide { justify-content: center; }
+.title-grid {
+  display: grid;
+  grid-template-columns: 1.25fr .95fr;
+  gap: clamp(2rem, 4vw, 4rem);
+  align-items: center;
+}
+.title-meta {
+  display: flex; flex-direction: column; gap: .55rem;
+  margin-top: 2.2rem;
+  font-family: var(--mono); font-size: .8rem; color: var(--muted);
+}
+.title-meta b { color: var(--birch); font-weight: 600; }
+.rule { height: 1px; background: var(--char); margin: 1.6rem 0; }
+
+/* ---------- generic content grid ---------- */
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1.5rem, 3.2vw, 3rem);
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+.cols.wide-left { grid-template-columns: 1.35fr 1fr; }
+
+/* ---------- objective list ---------- */
+
+.goals { display: grid; gap: .85rem; margin: 0; padding: 0; list-style: none; }
+.goal {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .95rem;
+  align-items: baseline;
+  padding: .85rem 1rem;
+  background: var(--panel);
+  border-left: 2px solid var(--moss);
+  border-radius: 0 5px 5px 0;
+}
+.goal-num {
+  font-family: var(--mono); font-size: .72rem; font-weight: 600;
+  color: var(--moss);
+}
+.goal b { font-family: var(--display); font-weight: 600; font-size: 1.02rem; display: block; margin-bottom: .12rem; }
+.goal small { color: var(--muted); font-size: .84rem; line-height: 1.45; }
+
+/* ---------- method steps ---------- */
+
+.steps { display: grid; gap: .05rem; margin: 1.3rem 0 0; padding: 0; list-style: none; counter-reset: step; }
+.step {
+  display: grid; grid-template-columns: 1.75rem 1fr;
+  gap: .9rem; align-items: baseline;
+  padding: .7rem 0;
+  border-top: 1px solid var(--char);
+  font-size: .95rem;
+  counter-increment: step;
+}
+.step::before {
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--mono); font-size: .7rem; font-weight: 600;
+  color: var(--moss);
+}
+.step b { font-weight: 600; }
+.step small { display: block; color: var(--muted); font-size: .85rem; line-height: 1.5; margin-top: .12rem; }
+
+/* ---------- spec blocks ---------- */
+
+.specs { display: grid; gap: .1rem; margin-top: 1.6rem; }
+.spec {
+  display: grid; grid-template-columns: 11rem 1fr;
+  gap: 1rem; padding: .62rem 0;
+  border-top: 1px solid var(--char);
+  font-size: .92rem;
+}
+.spec dt { font-family: var(--mono); font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding-top: .16rem; }
+.spec dd { margin: 0; }
+
+code, .m { font-family: var(--mono); font-size: .88em; }
+
+/* ---------- notes ---------- */
+
+.note {
+  margin-top: 1.5rem;
+  padding: .95rem 1.15rem;
+  background: var(--panel);
+  border: 1px solid var(--char);
+  border-radius: 6px;
+  font-size: .9rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.note b { color: var(--moss); font-weight: 600; }
+.note.warm b { color: var(--amber); }
+
+/* ---------- figures / photos ---------- */
+
+figure { margin: 0; }
+.shot {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--panel);
+  border: 1px solid var(--char);
+  border-radius: 7px;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot.pending {
+  border-style: dashed;
+  flex-direction: column; gap: .5rem;
+  font-family: var(--mono); font-size: .72rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--char);
+  text-align: center; padding: 1.5rem;
+}
+figcaption {
+  margin-top: .6rem;
+  font-family: var(--mono); font-size: .7rem;
+  letter-spacing: .08em;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ---------- inline diagrams ---------- */
+
+.dgm { width: 100%; height: auto; margin-top: .6rem; }
+.node-title { font-family: "Bricolage Grotesque", sans-serif; font-size: 15px; font-weight: 600; fill: #EFE6D5; }
+.node-sub   { font-family: "JetBrains Mono", monospace; font-size: 10.5px; fill: #94A69A; }
+.edge-label { font-family: "JetBrains Mono", monospace; font-size: 10.5px; fill: #94A69A; }
+.zone-label { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; fill: #38443C; }
+
+.schematic-slide .diagram-wrap {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  overflow-x: auto;
+}
+.schematic-slide svg { width: 100%; max-width: 1120px; height: auto; }
+
+@media (max-width: 900px) {
+  .cols, .cols.wide-left, .title-grid { grid-template-columns: 1fr; }
+  .spec { grid-template-columns: 1fr; gap: .1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+</style>
+
+<div class="deck" id="deck">
+
+  <!-- 1 ................................................. -->
+  <section class="slide title-slide is-active">
+    <div class="title-grid">
+      <div>
+        <p class="eyebrow">Kit4Kids &middot; WG2 &middot; Enclosure subgroup</p>
+        <h1>An insect camera a child can actually use</h1>
+        <div class="rule"></div>
+        <p class="lede">A battery-powered camera that watches an insect enclosure for an hour, then tells its story on any computer &mdash; no app, no server, no internet.</p>
+        <div class="title-meta">
+          <span><b>Pilot camera software system</b> &mdash; objectives, functionality and method</span>
+          <span>Tom August &middot; 21 August 2026</span>
+        </div>
+      </div>
+      <figure>
+        <div class="shot pending" id="shot-night">Photo 1<br>night field deployment</div>
+        <figcaption>Field test: enclosure, camera board and USB battery pack.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 2 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">01 &middot; Objectives</p>
+    <h2>What I set out to build</h2>
+    <div class="cols">
+      <div>
+        <p class="sub" style="margin-bottom:1.3rem">Six commitments, written down before any code. Each one rules something out &mdash; which is what makes them useful.</p>
+        <ul class="goals">
+          <li class="goal"><span class="goal-num">01</span><span><b>Runs itself</b><small>Power on, walk away, collect unattended for up to an hour.</small></span></li>
+          <li class="goal"><span class="goal-num">02</span><span><b>Never loses data</b><small>Pulling the battery mid-session must not corrupt what came before.</small></span></li>
+          <li class="goal"><span class="goal-num">03</span><span><b>No software to install</b><small>Card into a laptop, double-click one file. Fully offline.</small></span></li>
+        </ul>
+      </div>
+      <div>
+        <ul class="goals" style="margin-top:3.4rem">
+          <li class="goal"><span class="goal-num">04</span><span><b>Made for children</b><small>The first screen is a welcome, not a configuration panel.</small></span></li>
+          <li class="goal"><span class="goal-num">05</span><span><b>AI that stays honest</b><small>Always labelled a guess &mdash; never presented as a species identification.</small></span></li>
+          <li class="goal"><span class="goal-num">06</span><span><b>Open and reproducible</b><small>Pinned toolchain, documented schemas, an auditable card.</small></span></li>
+        </ul>
+        <div class="note"><b>The hardest constraint is #3.</b> It has to work on a locked-down school laptop with no internet and no admin rights &mdash; which rules out every conventional web approach and shapes the whole architecture.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">02 &middot; Functionality</p>
+    <h2>Autonomous capture</h2>
+    <div class="cols wide-left">
+      <div>
+        <p class="lede">The board is given no instructions in the field. Everything it needs is on the card, and the sequence is the same every time.</p>
+        <ol class="steps">
+          <li class="step"><b>Boot and self-check</b><small>Confirm the sensor and PSRAM are present; fail visibly rather than loop.</small></li>
+          <li class="step"><b>Read <code>config.json</code></b><small>Interval, quality, duration, motion mode. Missing or invalid falls back to documented defaults.</small></li>
+          <li class="step"><b>Open the session</b><small>New run ID, a manifest recording the settings actually in force.</small></li>
+          <li class="step"><b>Warm up for five seconds</b><small>Lets sensor exposure settle before the first real frame.</small></li>
+          <li class="step"><b>Capture on a fixed clock</b><small>One frame per second, rebased if a frame runs long &mdash; never a growing backlog.</small></li>
+        </ol>
+        <div class="note"><b>Settings are a short list, not a free-for-all.</b> The dashboard can only offer combinations the firmware knows it can honour, and the firmware re-validates on boot.</div>
+      </div>
+      <figure>
+        <div class="shot pending" id="shot-day">Photo 2<br>enclosure in use</div>
+        <figcaption>Laser-cut enclosure with the camera board mounted above the observation floor.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 4 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">03 &middot; Method</p>
+    <h2>Writing data that survives being unplugged</h2>
+    <div class="cols">
+      <div>
+        <p class="lede">Children stop the camera by pulling the battery cable. That is the intended design &mdash; so every write assumes power can vanish mid-operation.</p>
+        <dl class="specs">
+          <div class="spec"><dt>Per frame</dt><dd>One row written <em>and flushed</em> to <code>captures.csv</code> immediately &mdash; nothing is held in memory waiting for a clean shutdown</dd></div>
+          <div class="spec"><dt>Per image</dt><dd>Written to a temporary name, then atomically renamed. A half-written JPEG never acquires a real filename</dd></div>
+          <div class="spec"><dt>Directory load</dt><dd>Images sharded 100 to a folder, so write time stays flat deep into a long session</dd></div>
+          <div class="spec"><dt>On next boot</dt><dd>An unfinished run is detected and marked interrupted, never silently resumed</dd></div>
+        </dl>
+      </div>
+      <div>
+        <figure>
+          <svg class="dgm" viewBox="0 0 520 250" role="img" aria-label="A capture is written first to a temporary file, then atomically renamed to its final name; if power is lost before the rename, the temporary file is left orphaned and no log row ever points at it.">
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94A69A"/></marker>
+              <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8CBF6B"/></marker>
+              <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#E9A542"/></marker>
+            </defs>
+
+            <rect x="10" y="20" width="140" height="52" rx="5" fill="#1C2521" stroke="#38443C"/>
+            <text class="node-title" x="26" y="44">Frame captured</text>
+            <text class="node-sub"   x="26" y="61">in PSRAM</text>
+
+            <line x1="150" y1="46" x2="196" y2="46" stroke="#94A69A" marker-end="url(#a1)"/>
+
+            <rect x="200" y="20" width="150" height="52" rx="5" fill="#232E28" stroke="#38443C"/>
+            <text class="node-title" x="216" y="44">img.jpg.tmp</text>
+            <text class="node-sub"   x="216" y="61">bytes flushed</text>
+
+            <line x1="350" y1="46" x2="396" y2="46" stroke="#8CBF6B" marker-end="url(#a2)"/>
+            <text class="edge-label" x="352" y="36" fill="#8CBF6B">rename</text>
+
+            <rect x="400" y="20" width="110" height="52" rx="5" fill="#232E28" stroke="#8CBF6B" stroke-width="1.5"/>
+            <text class="node-title" x="416" y="44">img.jpg</text>
+            <text class="node-sub"   x="416" y="61">committed</text>
+
+            <line x1="455" y1="72" x2="455" y2="112" stroke="#8CBF6B" marker-end="url(#a2)"/>
+            <rect x="330" y="116" width="180" height="46" rx="5" fill="#1C2521" stroke="#38443C"/>
+            <text class="node-title" x="346" y="138">captures.csv row</text>
+            <text class="node-sub"   x="346" y="154">points at the image</text>
+
+            <line x1="275" y1="72" x2="275" y2="186" stroke="#E9A542" stroke-dasharray="4 4" marker-end="url(#a3)"/>
+            <text class="edge-label" x="286" y="120" fill="#E9A542">power lost here</text>
+
+            <rect x="120" y="190" width="310" height="46" rx="5" fill="#1C2521" stroke="#E9A542"/>
+            <text class="node-title" x="136" y="212">Orphaned .tmp, no row written</text>
+            <text class="node-sub"   x="136" y="228">ignored on read &middot; flagged by the card audit</text>
+          </svg>
+          <figcaption>The rename is the commit point. Anything interrupted before it is invisible to every reader.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">04 &middot; Method</p>
+    <h2>Keeping only what moves</h2>
+    <div class="cols wide-left">
+      <div>
+        <p class="lede">An hour at one frame per second is 3,600 images, most of them identical. Optional motion triggering keeps the interesting ones &mdash; without ever hiding that a check happened.</p>
+        <ol class="steps">
+          <li class="step"><b>Grab a tiny preview</b><small>160&times;120 greyscale &mdash; cheap enough to take every scheduled check.</small></li>
+          <li class="step"><b>Score against the previous preview</b><small>Split into an 8&times;6 tile grid and compare tile by tile, so a small local movement is not diluted by the whole frame.</small></li>
+          <li class="step"><b>Correct for overall brightness</b><small>A cloud passing shifts every tile equally; that shift is subtracted so lighting changes do not read as motion.</small></li>
+          <li class="step"><b>Compare to a fixed threshold</b><small>Above it, switch the sensor to full quality and save. Below it, log the check and save nothing.</small></li>
+          <li class="step"><b>Settle, then re-baseline</b><small>After a full capture the sensor re-adjusts, so two frames are discarded before the next comparison.</small></li>
+        </ol>
+      </div>
+      <div>
+        <div class="note"><b>Every check is logged either way.</b> A skipped frame still writes a row with its score, so the record is complete and the threshold can be reviewed after the fact &mdash; the data never quietly disappears.</div>
+        <div class="note warm" style="margin-top:1rem"><b>Still experimental.</b> Retaining every frame remains the default; motion mode is opt-in until it has been through physical acceptance testing.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">05 &middot; Functionality</p>
+    <h2>The dashboard travels on the card</h2>
+    <div class="cols">
+      <div>
+        <p class="lede">The card carries its own viewer. Put it in any Windows or Mac laptop, double-click <code>dashboard.html</code>, and it opens straight from the card.</p>
+        <dl class="specs">
+          <div class="spec"><dt>Welcome</dt><dd>Picture count, gallery, tap any image to enlarge</dd></div>
+          <div class="spec"><dt>Movie maker</dt><dd>Encodes a 60&nbsp;fps MP4 time-lapse in the browser itself</dd></div>
+          <div class="spec"><dt>Motion watch</dt><dd>Plots when the camera decided something moved</dd></div>
+          <div class="spec"><dt>Camera settings</dt><dd>Writes a new <code>config.json</code> back for the next run</dd></div>
+          <div class="spec"><dt>Adult details</dt><dd>Frame search and per-capture records, deliberately tucked away</dd></div>
+        </dl>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-top:.3rem">How it loads without a server</p>
+        <p class="sub">A browser opening a local file cannot fetch other files freely. So the firmware writes its data as small JavaScript chunk files that the page simply includes &mdash; 100 records each, closed and promoted atomically as they fill.</p>
+        <div class="note"><b>One damaged chunk cannot take the page down.</b> Each loads independently; the rest still display. The raw CSV remains the authoritative record behind them.</div>
+        <div class="note" style="margin-top:1rem"><b>Nothing is uploaded, ever.</b> No network calls, no CDN, no telemetry &mdash; the page works with the machine offline.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 ................................................. -->
+  <section class="slide">
+    <p class="eyebrow">06 &middot; Functionality</p>
+    <h2>Asking the computer to look</h2>
+    <div class="cols">
+      <div>
+        <p class="lede">After a session, an adult can start a local search through the pictures. It runs entirely in the browser, one image at a time, with progress and a stop control.</p>
+        <dl class="specs">
+          <div class="spec"><dt>AntAI &ndash; Beta</dt><dd>A small detector trained here on our own enclosure images. One pass per picture</dd></div>
+          <div class="spec"><dt>FlatBug &mdash; quick</dt><dd>Open-source general insect detector, one pass per picture</dd></div>
+          <div class="spec"><dt>FlatBug &mdash; close</dt><dd>Same model over 12 overlapping tiles &mdash; slower, better on small insects</dd></div>
+        </dl>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-top:.3rem">Two deliberate constraints</p>
+        <div class="note"><b>It runs on the laptop, not the camera.</b> These models need far more memory than the board has. Keeping the device model-free protects capture reliability &mdash; the camera's job is to capture, nothing else.</div>
+        <div class="note" style="margin-top:1rem"><b>The language is held firmly.</b> Results are described to children as <i>possible-insect clues</i>. No species claims and no validated-detection language until the evidence supports it &mdash; the wording is a design decision, not a caveat.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 ................................................. -->
+  <section class="slide schematic-slide">
+    <p class="eyebrow">07 &middot; Architecture</p>
+    <h2>How the whole thing fits together</h2>
+    <div class="diagram-wrap">
+      <figure style="width:100%">
+        <svg viewBox="0 0 1120 400" role="img" aria-label="The camera writes images and a CSV log to the SD card; the card is physically carried to a computer, where the dashboard on that same card reads the data and offers a gallery, a movie maker, an AI helper and a settings writer.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A69A"/>
+            </marker>
+            <marker id="ar-moss" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#8CBF6B"/>
+            </marker>
+            <marker id="ar-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#E9A542"/>
+            </marker>
+          </defs>
+
+          <line x1="372" y1="52" x2="372" y2="368" stroke="#38443C" stroke-dasharray="3 5"/>
+          <line x1="600" y1="52" x2="600" y2="368" stroke="#38443C" stroke-dasharray="3 5"/>
+          <text class="zone-label" x="24"  y="44">In the field</text>
+          <text class="zone-label" x="392" y="44">On the card</text>
+          <text class="zone-label" x="620" y="44">On any computer</text>
+
+          <rect x="24" y="96" width="200" height="86" rx="6" fill="#1C2521" stroke="#38443C"/>
+          <text class="node-title" x="40" y="126">Camera board</text>
+          <text class="node-sub"   x="40" y="146">XIAO ESP32-S3</text>
+          <text class="node-sub"   x="40" y="163">OV3660 &middot; battery</text>
+
+          <rect x="24" y="222" width="200" height="86" rx="6" fill="#1C2521" stroke="#38443C"/>
+          <text class="node-title" x="40" y="252">Capture loop</text>
+          <text class="node-sub"   x="40" y="272">1 frame / second</text>
+          <text class="node-sub"   x="40" y="289">optional motion check</text>
+
+          <line x1="124" y1="182" x2="124" y2="216" stroke="#94A69A" marker-end="url(#ar)"/>
+          <text class="edge-label" x="134" y="204">boots</text>
+
+          <line x1="224" y1="200" x2="392" y2="150" stroke="#8CBF6B" marker-end="url(#ar-moss)"/>
+          <text class="edge-label" x="240" y="164" fill="#8CBF6B">writes JPEG</text>
+          <line x1="224" y1="262" x2="392" y2="262" stroke="#8CBF6B" marker-end="url(#ar-moss)"/>
+          <text class="edge-label" x="248" y="253" fill="#8CBF6B">appends 1 row</text>
+
+          <rect x="396" y="112" width="184" height="76" rx="6" fill="#232E28" stroke="#38443C"/>
+          <text class="node-title" x="412" y="140">Images</text>
+          <text class="node-sub"   x="412" y="160">sharded, 100/folder</text>
+          <text class="node-sub"   x="412" y="176">atomic rename</text>
+
+          <rect x="396" y="228" width="184" height="76" rx="6" fill="#232E28" stroke="#8CBF6B" stroke-width="1.5"/>
+          <text class="node-title" x="412" y="256">captures.csv</text>
+          <text class="node-sub"   x="412" y="276">every frame, flushed</text>
+          <text class="node-sub"   x="412" y="292" fill="#8CBF6B">source of truth</text>
+
+          <rect x="396" y="330" width="184" height="46" rx="6" fill="#1C2521" stroke="#38443C"/>
+          <text class="node-title" x="412" y="352">dashboard.html</text>
+          <text class="node-sub"   x="412" y="368">ships on the card</text>
+
+          <line x1="580" y1="200" x2="700" y2="200" stroke="#E9A542" stroke-dasharray="5 4" marker-end="url(#ar-amber)"/>
+          <text class="edge-label" x="590" y="190" fill="#E9A542">power off,</text>
+          <text class="edge-label" x="590" y="176" fill="#E9A542">carry the card</text>
+
+          <rect x="704" y="150" width="200" height="100" rx="6" fill="#1C2521" stroke="#8CBF6B" stroke-width="1.5"/>
+          <text class="node-title" x="720" y="180">Dashboard</text>
+          <text class="node-sub"   x="720" y="200">opened from file://</text>
+          <text class="node-sub"   x="720" y="217">no server, offline</text>
+          <text class="node-sub"   x="720" y="234" fill="#8CBF6B">reads its own card</text>
+
+          <rect x="936" y="86"  width="160" height="52" rx="5" fill="#232E28" stroke="#38443C"/>
+          <text class="node-title" x="950" y="110">Gallery</text>
+          <text class="node-sub"   x="950" y="127">browse &amp; zoom</text>
+
+          <rect x="936" y="152" width="160" height="52" rx="5" fill="#232E28" stroke="#38443C"/>
+          <text class="node-title" x="950" y="176">Movie maker</text>
+          <text class="node-sub"   x="950" y="193">60 fps MP4</text>
+
+          <rect x="936" y="218" width="160" height="52" rx="5" fill="#232E28" stroke="#38443C"/>
+          <text class="node-title" x="950" y="242">AI helper</text>
+          <text class="node-sub"   x="950" y="259">runs locally</text>
+
+          <rect x="936" y="284" width="160" height="52" rx="5" fill="#232E28" stroke="#E9A542"/>
+          <text class="node-title" x="950" y="308">Settings</text>
+          <text class="node-sub"   x="950" y="325">writes config</text>
+
+          <line x1="904" y1="182" x2="930" y2="120" stroke="#94A69A" marker-end="url(#ar)"/>
+          <line x1="904" y1="192" x2="930" y2="180" stroke="#94A69A" marker-end="url(#ar)"/>
+          <line x1="904" y1="214" x2="930" y2="242" stroke="#94A69A" marker-end="url(#ar)"/>
+          <line x1="904" y1="228" x2="930" y2="302" stroke="#E9A542" marker-end="url(#ar-amber)"/>
+
+          <path d="M 936 330 L 660 330 L 660 300 L 584 300" fill="none" stroke="#E9A542" stroke-dasharray="5 4" marker-end="url(#ar-amber)"/>
+          <text class="edge-label" x="666" y="322" fill="#E9A542">new config.json &rarr; next run</text>
+        </svg>
+        <figcaption>The card is the whole product. It carries the pictures, the authoritative log, and the software that reads them &mdash; so the only thing that ever moves between field and desk is the card itself.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+</div>
+
+<div class="rail"><span id="rail-fill"></span></div>
+<p class="deck-label">Insect camera &middot; build review</p>
+<div class="chrome">
+  <button id="prev" aria-label="Previous slide">&larr;</button>
+  <span class="counter"><span id="cur">1</span> / <span id="tot">8</span></span>
+  <button id="next" aria-label="Next slide">&rarr;</button>
+</div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const railFill = document.getElementById('rail-fill');
+const curEl = document.getElementById('cur');
+let i = 0;
+
+document.getElementById('tot').textContent = slides.length;
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, k) => s.classList.toggle('is-active', k === i));
+  railFill.style.width = ((i + 1) / slides.length * 100) + '%';
+  curEl.textContent = i + 1;
+  slides[i].scrollTop = 0;
+}
+
+document.getElementById('next').addEventListener('click', () => show(i + 1));
+document.getElementById('prev').addEventListener('click', () => show(i - 1));
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(i + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+  else if (e.key === 'Home') show(0);
+  else if (e.key === 'End') show(slides.length - 1);
+});
+
+show(0);
+</script>
