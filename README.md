@@ -16,6 +16,8 @@ The next development path has two strands: child-friendly dashboard/model work a
 
 ## Documentation
 
+**New to this project and setting up a camera? Start with the [setup guide](docs/setup-guide.md)** — a complete step-by-step walkthrough written for a non-specialist audience, from installing software to viewing pictures.
+
 [Documentation guide](docs/README.md) is the entry point for operators, developers, browser-model work, and engineering evidence. The detailed [project brief](docs/project-brief.md) remains the implementation-scope contract; [next-session.md](docs/next-session.md) is the current development hand-off.
 
 ## Toolchain
