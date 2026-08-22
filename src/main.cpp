@@ -44,6 +44,16 @@ struct CaptureTiming {
 
 String performance_path;
 
+float motion_history[ControlStatus::kMotionHistoryCapacity] = {};
+uint8_t motion_history_count = 0;
+uint8_t motion_history_next = 0;
+
+void recordMotionScore(float score) {
+  motion_history[motion_history_next] = score;
+  motion_history_next = (motion_history_next + 1) % ControlStatus::kMotionHistoryCapacity;
+  if (motion_history_count < ControlStatus::kMotionHistoryCapacity) ++motion_history_count;
+}
+
 void report(const String& message) { Serial.println("[insect-logger] " + message); }
 
 String imageDirectoryFor(uint32_t sequence) {
@@ -132,6 +142,7 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
                         ((motion_score = motionLocalScore(previous_motion_preview, current_motion_preview)) >= config.motion_threshold);
     previous_motion_preview = current_motion_preview;
     motion_baseline_ready = true;
+    if (motion_score >= 0.0F) recordMotionScore(motion_score);
     if (!retain) {
       CaptureRecord record;
       record.capture_id = capture_id;
@@ -204,6 +215,7 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   const uint32_t image_write_started = millis();
   const bool image_saved = storage.writeBinaryAtomicCreate(record.image_path, frame->buf, frame->len, diagnostic);
   timing.image_write_ms = millis() - image_write_started;
+  control_server.updatePeek(frame->buf, frame->len);
   camera.release(frame);
   if (config.motion_trigger_enabled) {
     String restore_diagnostic;
@@ -265,6 +277,15 @@ void setup() {
   if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); fatal_error = "No SD card found: " + diagnostic; return; }
   config = ConfigLoader::defaults();
   if (!ConfigLoader::load(storage.fs(), config, diagnostic)) { report("fatal configuration failure: " + diagnostic); fatal_error = "Bad configuration: " + diagnostic; return; }
+  control_server.setEffectiveConfig(
+      "{\"schema_version\":1,\"capture_fps\":" + String(config.capture_fps) +
+      ",\"capture_interval_ms\":" + String(config.capture_interval_ms) +
+      ",\"max_session_seconds\":" + String(config.max_session_seconds) +
+      ",\"capture_mode\":\"" + config.capture_mode + "\",\"camera_preset\":\"" + config.camera_preset +
+      "\",\"motion_trigger_enabled\":" + String(config.motion_trigger_enabled ? "true" : "false") +
+      ",\"motion_threshold\":" + String(config.motion_threshold) +
+      ",\"frame_size\":\"" + config.frame_size + "\",\"jpeg_quality\":" + String(config.jpeg_quality) +
+      ",\"model_id\":\"" + config.model_id + "\",\"log_level\":\"" + config.log_level + "\"}");
   report(diagnostic);
   if (!camera.begin(config, diagnostic)) { report("fatal camera failure: " + diagnostic); fatal_error = "Camera failure: " + diagnostic; return; }
   report(diagnostic);
@@ -285,6 +306,14 @@ void loop() {
   control_server.handleClient();
   // Only acted on here, between captures, so a stop can never land mid-write.
   if (ready && !finished && control_server.consumeStopRequest()) finishSession();
+  // config.json is only ever read once at boot, so writing it mid-session
+  // has no effect on the current run - safe any time the card is mounted.
+  String pending_config_json;
+  if (!finished && fatal_error.isEmpty() && control_server.consumePendingConfigWrite(pending_config_json)) {
+    String diagnostic;
+    if (!storage.writeTextAtomic("/config.json", pending_config_json, diagnostic)) report("config write failed: " + diagnostic);
+    else report("camera settings updated; takes effect after the board is restarted");
+  }
 
   ControlStatus status;
   status.run_id = logger.runId();
@@ -294,6 +323,12 @@ void loop() {
   status.error = fatal_error;
   status.elapsed_ms = ready ? (millis() - session_started_ms) : 0;
   status.state = !fatal_error.isEmpty() ? "error" : (!ready ? "warming_up" : (finished ? "safe_to_remove" : "capturing"));
+  status.motion_recent_count = motion_history_count;
+  const uint8_t oldest_offset = (motion_history_next + ControlStatus::kMotionHistoryCapacity - motion_history_count) %
+                                 ControlStatus::kMotionHistoryCapacity;
+  for (uint8_t index = 0; index < motion_history_count; ++index) {
+    status.motion_recent[index] = motion_history[(oldest_offset + index) % ControlStatus::kMotionHistoryCapacity];
+  }
   control_server.update(status);
 
   if (!ready || finished) { delay(100); return; }

@@ -154,23 +154,58 @@ Implemented: a `volatile bool` flag set by the `POST /api/stop` handler and cons
 
 **Known blocker carried from Phase 1:** motion-triggered capture cannot currently run at the same time as Wi-Fi (see Phase 1 above). Phase 2's safe-stop mechanism itself is unaffected by that finding and works correctly in both motion and retain-every-frame sessions; it's specifically motion *scoring accuracy* that breaks when Wi-Fi is active.
 
-### Phase 3 — Peek and live motion
+**Follow-up (22 August 2026): daylight retest, not yet a full control test.** A daylight session with Wi-Fi on (`run_000006`, 586 checks, safe-stopped via the phone) showed normal-looking motion discrimination — ~10% save rate, wide score spread 0.39–16.8 — unlike the two dark-scene 100%-trigger runs from the night before. This points toward the interaction being light/gain-dependent rather than a fixed effect of Wi-Fi, which would make it a more attackable problem. Not yet confirmed: there is no daylight run with Wi-Fi *off* to complete the comparison, so daylight-has-less-to-trigger-on hasn't been ruled out as an alternative explanation. Owner has accepted Phases 1–2 as complete for now regardless, treating the remaining controlled test as a nice-to-have rather than blocking further work.
 
-PSRAM double-buffered last frame, `GET /api/peek`, `motionRecent` in status, queued fresh capture.
+### Phase 3 — Peek and live motion — BUILT (22 August 2026)
 
-**Gate:** peeks during an active session cause no cadence disruption, no storage errors, and no false motion triggers; motion meter matches the values later found in `captures.csv`.
+PSRAM double-buffered last frame, `GET /api/peek`, `motionRecent` in status. Implemented in the same files as Phases 1–2. The "fresh photo" queued command (forcing an out-of-band capture rather than showing the last one taken) was **not** built this pass — peek currently only ever shows the most recently *actually* captured frame, which in motion mode can go stale between motion events. Documented in the UI copy rather than solved.
 
-### Phase 4 — Configuration
+Tested live: both peek and the motion meter work. One finding, not a blocker: the motion meter's updates are visibly uneven — a delay, then several bars appear to update at once. Root cause: `WebServer::handleClient()` and capture share one task, so the device can't respond to a status poll while it's mid-capture — and a real motion *save* (the moments the meter is most interesting) includes an SD write that can take several hundred ms, right when the client is most likely to be polling for a fresh value. The poll catches up afterward with several new ring-buffer entries at once. Mitigated for now with a CSS transition on the bar heights so a multi-step catch-up animates smoothly instead of snapping; the underlying cause (HTTP blocked during capture/SD-write) is unfixed and would need real concurrency to address properly — out of scope for this phase.
 
-`GET`/`POST /api/config`, `POST /api/start`, arm/idle state.
+**Gate:** peeks during an active session cause no cadence disruption, no storage errors, and no false motion triggers — observed clean. Motion meter matches values later found in `captures.csv` — not yet cross-checked. "No cadence disruption" specifically needs re-confirming given the blocking behaviour just described; nothing observed so far suggests it affects capture timing itself, only HTTP responsiveness.
 
-**Gate:** every offered preset round-trips and survives a reboot; invalid configurations are rejected by firmware; the manifest records effective settings.
+### Phase 4 — Configuration — DONE for `GET`/`POST /api/config` (22 August 2026)
 
-### Phase 5 — Access and enclosure integration
+`GET`/`POST /api/config` implemented and confirmed live on hardware, including surviving a real power cycle (saved setting via phone, restarted the board, new setting was in effect). `POST /api/start` (arm/idle state, starting a new run without a physical reboot) **deferred, not built** — see below.
 
-QR code, captive portal, device-specific password, printed fallback IP.
+Implementation note: the plan originally said to reject config writes "while capturing." On reflection that was overcautious and has been relaxed. `config.json` is read exactly once, at boot; nothing else touches it during a session, and the SD storage layer's atomic-write pattern already makes concurrent-ish writes safe. The actual constraint is simply **the card being mounted** — writes are accepted throughout a normal capturing session and rejected only once a safe stop has unmounted the card (`sd_mounted: false`), which matches the existing SD-dashboard settings tool's "takes effect after restart" model. The handler validates and queues; the main loop performs the actual `writeTextAtomic()` between captures, same pattern as the stop command.
 
-**Gate:** a person who has not seen the device before gets from QR scan to a working control app on both a named Android and a named iPhone, without being told an IP address.
+The phone UI offers the same four fixed combinations as the SD-card dashboard's settings tool (1/2/30/60 s interval; high/low quality; 1/5/30/60 min or infinite duration; motion toggle), tucked into a collapsible "Grown-up helper" section so it doesn't clutter the child-facing screen.
+
+**`POST /api/start` deferred, but the design is now settled (22 August 2026) and should be cheap to build next time.** Originally scoped as re-running the SD/camera/logger bring-up sequence at runtime from the main loop — rejected on reflection as needlessly risky: `AppConfig`, `SessionLogger` (which itself owns a `DashboardWriter` with its own chunk-tracking state), `CameraService`, the motion-baseline pair, the motion-history ring buffer, and several more globals in `main.cpp` would all need correctly resetting by hand, in a second code path that has never been exercised, duplicating logic that `setup()` already gets right.
+
+**Simpler, safer alternative, implemented same day: `POST /api/start` just calls `ESP.restart()`** after flushing the HTTP response, when `state` is anything except `capturing`/`warming_up` (`409` while those, so an accidental tap can't interrupt a live session — the phone should hit Finish first). Reuses the exact boot sequence already proven for weeks instead of a fresh, untested one. Added a "Start another adventure" button to the safe screen, and fixed a real gap this exposed while building it: `poll()` had no path back to the main screen once the device restarted (it would sit on "safe to unplug" forever) — added an `awaitingRestart` flag so the first successful poll after the reboot returns the UI to the main screen automatically.
+
+**Follow-up (22 August 2026, first live test): saving a setting had no reachable way to apply it.** `POST /api/start` existed but only "Start another adventure" on the post-finish safe screen could call it — there was no path from the settings panel itself, so a saved setting had nowhere to go without a physical power cycle. Fixed: a "Restart now to use this setting" button appears in the settings panel after a successful save. If the device is idle/finished, it calls `/api/start` directly. If a session is actively running, it first asks for confirmation (this ends the current session early), then chains `POST /api/stop` → wait for `safe_to_remove` → `POST /api/start` automatically, client-side — reusing the two already-proven endpoints rather than adding a new "restart while capturing" path in firmware. `handleStart()`'s own validation is unchanged and still rejects a raw restart attempt during `capturing`/`warming_up`.
+
+Built and flashed without a phone to test against — logic reuses already-proven pieces (the stop/start endpoints, the existing `awaitingRestart` recovery path), but the live chained flow itself needs confirming on hardware.
+
+**Bug found on first live test of the restart-now flow (22 August 2026): saved settings were not taking effect after restart.** `GET /api/config` after the reboot showed the old value, not the saved one. Found one real, concrete bug: `main.cpp`'s config-write consumption called `storage.writeTextAtomic("config.json", ...)` — missing the leading slash that `ConfigLoader::load()`'s read path (`"/config.json"`) and every other atomic write in the codebase uses. Fixed and reflashed.
+
+**Confirmed fixed on retest (22 August 2026).** The missing leading slash genuinely was the bug — settings now correctly take effect via the "Restart now" software-restart path. Resolves the earlier open question: the ESP32 SD library does not silently normalize a relative path to root here, so this was a real correctness bug, not a red herring. Worth remembering as a general lesson for this codebase: `fs::FS` paths need the leading slash to match `SD.open()`'s behaviour, and it can fail in a way that's easy to miss (no crash, no fatal error — it silently writes to a location boot-time loading never reads).
+
+**Gate: met, confirmed live.** Config writes round-trip via `GET /api/config`, survive the software-restart (`POST /api/start`) path, and take effect on the next boot as intended. Invalid combinations rejected with `400`; writes rejected with `409` once the card is unmounted. `POST /api/start` and the restart-now flow are built and confirmed working end to end.
+
+### Phase 5 — Access and enclosure integration — FIRMWARE HALF BUILT (22 August 2026)
+
+**Decision (22 August 2026, owner call): fixed, shared Wi-Fi credentials across every device, not per-device.** Originally built as MAC-derived per-device SSID/password; revised same day. Rationale: this ships in quantity to schools, the SD card's contents are not sensitive, and unique-per-device credentials add real manufacturing/support cost (a distinct QR sticker per unit) for no meaningful security benefit in this context. The password is kept — not for confidentiality, but so a teacher can control who joins the network. One shared QR design now works for the entire product line.
+
+- **Network**: SSID `InsectCam`, password `antcamera` (reusing the original Phase 1 placeholder as the permanent value — already exercised through every phase's testing so far). Fixed constants in `control_server.cpp`, no longer derived from the MAC.
+- **Known, accepted trade-off**: multiple kits running in the same room broadcast an identical network name. A phone may need to pick the right access point manually if more than one is nearby (they'll differ by signal strength/BSSID even with the same SSID, but iOS/Android don't always surface that clearly). Not mitigated; acceptable for now.
+- **Captive-portal DNS redirect**: `DNSServer` (bundled with the Arduino-ESP32 core, no new dependency) answers every DNS query with the device's own IP, and any unrecognised HTTP path also lands on the control app (`server_.onNotFound`). This is what should make a phone's own connectivity-check request (`connectivitycheck.gstatic.com`, `captive.apple.com`) resolve back to the device and trigger an automatic captive-portal pop-up, instead of the phone reporting "no internet" and going no further.
+- **QR payload logged at boot**: `WIFI:S:InsectCam;T:WPA;P:antcamera;;`, printed to serial alongside the existing SSID/IP diagnostic.
+- **A real QR code has been generated** (`qrcode` Python library, error-correction level M, encoding the exact payload above) and sent to the owner to scan-test directly, ahead of any physical sticker.
+
+**Confirmed working on Android (22 August 2026):** scanning the QR joined the network, and the captive-portal redirect worked — Android showed its standard "Sign in" notification, and tapping it opened the control app without anyone typing an IP address. Note this is Android's normal captive-portal behaviour (notification rather than an automatic browser pop-up); the goal of "never needs to know the IP" is met.
+
+**iPhone/Safari: blocked, no device available.** The project owner does not have an iPhone, so this cannot be tested in-house. iOS handles captive portals differently from Android (it typically auto-opens a restricted mini-browser rather than posting a notification), and that mini-browser has known limitations — it is not full Safari, and can behave differently around JavaScript, `fetch`, and page lifecycle. **This is an untested platform, not a working one**, and needs either borrowed hardware or an external tester before any claim of iOS support. Until then, treat the browser matrix for the control app as Android-only.
+
+**Not yet done, and not attempted without a phone/enclosure:**
+- Printing the QR code onto the physical enclosure.
+- Confirming the captive-portal auto-open behaviour actually fires on real Android and iPhone hardware — this varies a lot by OS/browser and is exactly the kind of thing that looks correct in code and still doesn't work in practice.
+- The printed fallback-IP label for when captive-portal detection doesn't fire.
+
+**Gate: half met.** The Android half is satisfied — QR scan to working control app, no IP address needed. The iPhone half is **blocked on hardware availability**, not on implementation, and must not be assumed to pass by analogy with Android. The physical sticker is also still outstanding.
 
 ## Risks
 

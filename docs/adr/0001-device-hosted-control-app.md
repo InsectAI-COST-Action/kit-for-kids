@@ -66,7 +66,7 @@ The control app is **additive**. The SD-card dashboard remains fully functional,
 - This is a documented departure from the brief's **Won't** list. The brief must be updated to record that a device-hosted *control* interface is now in scope while remote viewing and streaming remain excluded.
 - New firmware complexity: an HTTP server, a command queue, and a Wi-Fi radio all sharing a device whose capture cadence is already budgeted.
 - Power and thermal cost of an active radio in a sealed enclosure, currently unmeasured.
-- A new attack surface. The AP must be WPA2-protected; an open AP would let any nearby device stop a run.
+- A new attack surface. The AP must be WPA2-protected; an open AP would let any nearby device stop a run. **Amended 22 August 2026:** the password is fixed and shared across every device (`InsectCam` / `antcamera`), not unique per device. Deliberate owner decision: this ships in quantity to schools, the SD card's contents are not sensitive, and per-device credentials would add manufacturing/support cost for no meaningful security benefit here — the password exists so a teacher can gate who joins, not for confidentiality. Accepted trade-off: multiple kits in one room broadcast an identical network name.
 - Risk of the pilot's critical path slipping. The one-hour endurance test, cross-browser verification, and battery smoke test remain the route to a working pilot and must not be displaced by this track.
 
 **Neutral**
