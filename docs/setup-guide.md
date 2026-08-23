@@ -78,28 +78,33 @@ On Windows 10/11 and macOS, the XIAO board normally works with no driver install
 
 ## Part 2 — Get the project code
 
-<!-- TODO: replace with the real repository URL once the GitHub repository is confirmed. -->
-> **⚠️ Placeholder:** the GitHub repository address is not yet confirmed. Replace `<REPOSITORY-URL>` below with the real address, and delete this note.
+The camera software lives inside the wider Kit-for-Kids project, in the folder `software/TomA-insect-ESP32-software`. You download the whole project, then work inside that one folder.
 
 **Option A — download a ZIP (simplest)**
 
-1. Go to `<REPOSITORY-URL>`.
+1. Go to [github.com/InsectAI-COST-Action/kit-for-kids](https://github.com/InsectAI-COST-Action/kit-for-kids).
 2. Click the green **Code** button, then **Download ZIP**.
-3. Unzip it somewhere memorable, e.g. `Documents\insect-camera`.
+3. Unzip it somewhere memorable, e.g. `Documents\kit-for-kids`.
 
 **Option B — use Git (better if you want updates later)**
 
 ```powershell
-git clone <REPOSITORY-URL>
+git clone https://github.com/InsectAI-COST-Action/kit-for-kids
 ```
 
-Either way, from now on **all commands are run from inside that project folder.** To get there in the terminal:
+Either way, from now on **all commands are run from inside the camera-software folder**, not the top of the download. To get there in the terminal:
 
 ```powershell
-cd "C:\Users\YourName\Documents\insect-camera"
+cd "C:\Users\YourName\Documents\kit-for-kids\software\TomA-insect-ESP32-software"
 ```
 
-> **Tip:** in File Explorer, right-click the folder while holding <kbd>Shift</kbd> and choose *"Open PowerShell window here"* to skip typing the path.
+You are in the right place if you can see files named `platformio.ini` and `config.example.json`:
+
+```powershell
+dir
+```
+
+> **Tip:** in File Explorer, navigate to that folder, then right-click while holding <kbd>Shift</kbd> and choose *"Open PowerShell window here"* to skip typing the path.
 
 ---
 

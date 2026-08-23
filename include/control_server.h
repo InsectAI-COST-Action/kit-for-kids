@@ -32,9 +32,9 @@ class ControlServer {
   void update(const ControlStatus& status);
   void handleClient();
   const String& apSsid() const;
-  // The WPA2 password for this device's AP, derived from its MAC address at
-  // begin(). Printed to serial at boot; the same value is what the QR-code
-  // sticker on the enclosure needs to encode (Phase 5, not yet printed).
+  // The WPA2 password for the AP. Fixed and shared across every device by
+  // deliberate decision (see ADR 0001) - not a per-device secret. Printed to
+  // serial at boot; the same value the enclosure's QR-code sticker encodes.
   const String& apPassword() const;
 
   // The HTTP handler only sets a flag and returns; it never touches the SD

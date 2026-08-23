@@ -1,5 +1,7 @@
 # Insect camera logger
 
+> Part of the [InsectAI COST Action Kit-for-Kids](https://github.com/InsectAI-COST-Action/kit-for-kids) project, published at `software/TomA-insect-ESP32-software`. Licensed under the MIT licence of that repository; see its root `LICENSE`. Third-party components carry their own licences — Mediabunny is MPL-2.0 (`dashboard/vendor/mediabunny-LICENSE.txt`) and FlatBug is MIT.
+
 Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV3660 camera. The settled pilot captures and stores every QXGA (2048?1536), JPEG-quality-12 frame at 1 FPS for no more than one hour (3,600 images). Computer vision is deliberately a null adapter on the camera while an offline, browser-side inference path is evaluated.
 
 ## Development status
