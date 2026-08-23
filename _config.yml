@@ -1,24 +1,28 @@
 # GitHub Pages configuration for the InsectAI kit-for-kids site.
 #
-# Design note: all navigation lives here rather than in YAML front matter
-# inside the Markdown files. GitHub renders front matter as a table when you
-# browse a .md file on github.com, so putting it in the documents themselves
-# would clutter every page for anyone reading the repository directly. Using
-# Jekyll's `defaults` keeps the Markdown clean while still giving the site a
-# fully ordered navigation tree.
+# Two design notes:
+#
+# 1. All navigation lives here rather than in YAML front matter inside the
+#    Markdown files. GitHub renders front matter as a table when you browse a
+#    .md file on github.com, so embedding it would clutter every document for
+#    anyone reading the repository directly.
+#
+# 2. Pages are pinned with explicit `permalink` values. Relying on
+#    jekyll-readme-index to place nested README pages put them one directory
+#    level too high, so their locations are stated outright instead.
 
 title: InsectAI kit-for-kids
 description: An open, DIY insect-camera kit helping children aged 8-12 explore insects, ecology, and computer vision.
 
-# Pinned deliberately: v0.10.x is the Just the Docs line that is compatible
-# with the Jekyll 3.9 build GitHub Pages uses for branch-based publishing.
+# Pinned deliberately: v0.10.x is the Just the Docs line compatible with the
+# Jekyll 3.9 build GitHub Pages uses for branch-based publishing.
 remote_theme: just-the-docs/just-the-docs@v0.10.2
 
 plugins:
   - jekyll-remote-theme
   - jekyll-relative-links      # turns [foo](foo.md) cross-links into working site links
   - jekyll-optional-front-matter
-  - jekyll-readme-index        # a folder's README.md becomes that folder's page
+  - jekyll-readme-index        # makes the root README the site index
   - jekyll-titles-from-headings
   - jekyll-default-layout
   - jekyll-seo-tag
@@ -53,9 +57,8 @@ footer_content: >-
   Part of the <a href="https://www.cost.eu/actions/CA22129/">InsectAI COST Action</a>.
   Released under the MIT Licence.
 
-# Source code, vendored libraries, datasets and experiments are browsed on
-# GitHub rather than published as site pages. Excluding them keeps the built
-# site small and the navigation focused on documentation.
+# Source code, vendored runtimes, datasets and large model assets are browsed
+# on GitHub rather than published as site pages.
 exclude:
   - Gemfile
   - Gemfile.lock
@@ -67,13 +70,13 @@ exclude:
   - software/TomA-insect-ESP32-software/tests/
   - software/TomA-insect-ESP32-software/dashboard/
   - software/TomA-insect-ESP32-software/datasets/
-  # The spike folders keep their README (documentation links to them) but not
-  # their vendored runtimes and model assets, which are tens of megabytes.
-  - software/TomA-insect-ESP32-software/spikes/flatbug-browser/vendor/
-  - software/TomA-insect-ESP32-software/spikes/flatbug-browser/assets/
   - software/TomA-insect-ESP32-software/platformio.ini
   - software/TomA-insect-ESP32-software/partitions.csv
   - software/TomA-insect-ESP32-software/config.example.json
+  # Spike write-ups keep their README (documentation links to them) but not
+  # their vendored runtimes and model assets, which are tens of megabytes.
+  - software/TomA-insect-ESP32-software/spikes/flatbug-browser/vendor/
+  - software/TomA-insect-ESP32-software/spikes/flatbug-browser/assets/
 
 defaults:
   # ---- Site-wide -----------------------------------------------------------
@@ -82,7 +85,7 @@ defaults:
     values:
       layout: default
 
-  # ---- Top-level pages -----------------------------------------------------
+  # ---- Top-level navigation ------------------------------------------------
   - scope:
       path: "README.md"
     values:
@@ -93,6 +96,7 @@ defaults:
       path: "software/TomA-insect-ESP32-software/README.md"
     values:
       title: "Camera software"
+      permalink: /camera-software/
       nav_order: 2
       has_children: true
 
@@ -100,112 +104,123 @@ defaults:
       path: "models/README.md"
     values:
       title: "Detection models"
+      permalink: /models/
       nav_order: 3
 
-  # Spike write-ups stay reachable (the documentation map links to them) but
-  # are kept out of the navigation tree, where they would sit oddly alongside
-  # the main documents.
-  - scope:
-      path: "software/TomA-insect-ESP32-software/spikes"
-    values:
-      nav_exclude: true
-
-  # ---- Everything under the camera-software docs folder --------------------
-  # Applies to docs/ and docs/adr/ alike; per-file entries below add the
-  # display title and ordering.
+  # ---- Camera-software documents -------------------------------------------
+  # Everything under docs/ belongs to the Camera software section. Only the
+  # documents useful to someone outside day-to-day development appear in the
+  # navigation; the rest stay published (documents cross-link to them) but are
+  # kept out of the nav tree by the `nav_exclude` entries further down.
   - scope:
       path: "software/TomA-insect-ESP32-software/docs"
     values:
       parent: "Camera software"
 
-  # Start here
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/setup-guide.md"
     values:
       title: "Setup guide"
+      permalink: /camera-software/setup-guide/
       nav_order: 1
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/operations.md"
     values:
       title: "Operations guide"
+      permalink: /camera-software/operations/
       nav_order: 2
-  - scope:
-      path: "software/TomA-insect-ESP32-software/docs/README.md"
-    values:
-      title: "Documentation map"
-      nav_order: 3
-
-  # Design and specification
-  - scope:
-      path: "software/TomA-insect-ESP32-software/docs/project-brief.md"
-    values:
-      title: "Project brief"
-      nav_order: 4
-  - scope:
-      path: "software/TomA-insect-ESP32-software/docs/architecture.md"
-    values:
-      title: "Architecture"
-      nav_order: 5
-  - scope:
-      path: "software/TomA-insect-ESP32-software/docs/data-schema.md"
-    values:
-      title: "Data schema"
-      nav_order: 6
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/camera-spec.md"
     values:
       title: "Camera specification"
-      nav_order: 7
-
-  # Device control app
+      permalink: /camera-software/camera-specification/
+      nav_order: 3
   - scope:
-      path: "software/TomA-insect-ESP32-software/docs/device-control-app-plan.md"
+      path: "software/TomA-insect-ESP32-software/docs/architecture.md"
     values:
-      title: "Device control app plan"
-      nav_order: 8
+      title: "Architecture"
+      permalink: /camera-software/architecture/
+      nav_order: 4
   - scope:
-      path: "software/TomA-insect-ESP32-software/docs/adr/0001-device-hosted-control-app.md"
+      path: "software/TomA-insect-ESP32-software/docs/data-schema.md"
     values:
-      title: "ADR 0001: Device-hosted control app"
-      nav_order: 9
-
-  # AI and models
-  - scope:
-      path: "software/TomA-insect-ESP32-software/docs/browser-inference-plan.md"
-    values:
-      title: "Browser inference plan"
-      nav_order: 10
+      title: "Data schema"
+      permalink: /camera-software/data-schema/
+      nav_order: 5
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/model-card.md"
     values:
       title: "Model card"
-      nav_order: 11
+      permalink: /camera-software/model-card/
+      nav_order: 6
 
-  # Evidence and trials
+  # ---- Working documents: published, but not in the navigation -------------
+  # These are development records rather than material for people building or
+  # using a camera. They remain reachable so that links from the documents
+  # above continue to resolve.
+  - scope:
+      path: "software/TomA-insect-ESP32-software/docs/README.md"
+    values:
+      title: "Documentation map"
+      permalink: /camera-software/notes/documentation-map/
+      nav_exclude: true
+  - scope:
+      path: "software/TomA-insect-ESP32-software/docs/project-brief.md"
+    values:
+      title: "Project brief"
+      permalink: /camera-software/notes/project-brief/
+      nav_exclude: true
+  - scope:
+      path: "software/TomA-insect-ESP32-software/docs/device-control-app-plan.md"
+    values:
+      title: "Device control app plan"
+      permalink: /camera-software/notes/device-control-app-plan/
+      nav_exclude: true
+  - scope:
+      path: "software/TomA-insect-ESP32-software/docs/adr/0001-device-hosted-control-app.md"
+    values:
+      title: "ADR 0001: Device-hosted control app"
+      permalink: /camera-software/notes/adr-0001-device-hosted-control-app/
+      nav_exclude: true
+  - scope:
+      path: "software/TomA-insect-ESP32-software/docs/browser-inference-plan.md"
+    values:
+      title: "Browser inference plan"
+      permalink: /camera-software/notes/browser-inference-plan/
+      nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/hardware-validation.md"
     values:
       title: "Hardware validation"
-      nav_order: 12
+      permalink: /camera-software/notes/hardware-validation/
+      nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/camera-quality-trial.md"
     values:
       title: "Camera quality trial"
-      nav_order: 13
+      permalink: /camera-software/notes/camera-quality-trial/
+      nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/performance-experiment.md"
     values:
       title: "Performance experiment"
-      nav_order: 14
+      permalink: /camera-software/notes/performance-experiment/
+      nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/reconciliation-policy.md"
     values:
       title: "Reconciliation policy"
-      nav_order: 15
-
-  # Working state
+      permalink: /camera-software/notes/reconciliation-policy/
+      nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/next-session.md"
     values:
       title: "Next session checklist"
-      nav_order: 16
+      permalink: /camera-software/notes/next-session/
+      nav_exclude: true
+
+  # Spike write-ups: reachable, but out of the navigation tree.
+  - scope:
+      path: "software/TomA-insect-ESP32-software/spikes"
+    values:
+      nav_exclude: true
