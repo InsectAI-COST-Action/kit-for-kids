@@ -7,9 +7,10 @@
 #    .md file on github.com, so embedding it would clutter every document for
 #    anyone reading the repository directly.
 #
-# 2. Pages are pinned with explicit `permalink` values. Relying on
-#    jekyll-readme-index to place nested README pages put them one directory
-#    level too high, so their locations are stated outright instead.
+# 2. Ordinary documents are pinned with explicit `permalink` values, giving
+#    them tidy /camera-software/... URLs. README-backed pages cannot be pinned
+#    this way (see the readme_index note below) and keep the URLs that plugin
+#    assigns; the navigation is built from titles, so it is unaffected.
 
 title: InsectAI kit-for-kids
 description: An open, DIY insect-camera kit helping children aged 8-12 explore insects, ecology, and computer vision.
@@ -22,6 +23,7 @@ plugins:
   - jekyll-remote-theme
   - jekyll-relative-links      # turns [foo](foo.md) cross-links into working site links
   - jekyll-optional-front-matter
+  - jekyll-readme-index        # required: turns each README.md into a page
   - jekyll-titles-from-headings
   - jekyll-default-layout
   - jekyll-seo-tag
@@ -31,12 +33,15 @@ relative_links:
   enabled: true
   collections: false
 
-# jekyll-readme-index is deliberately disabled. It claims README pages before
-# `permalink` is applied, which put nested READMEs one directory level too
-# high and made their URLs impossible to pin. Every README below states its
-# own permalink instead, including the root one that serves as the site index.
+# This plugin is what turns each README.md into a page; without it the site
+# root and section landing pages simply do not exist. It does claim README
+# pages before `permalink` is applied, so README URLs cannot be pinned and are
+# left at whatever it chooses. Ordinary documents do honour their permalinks,
+# which is where the tidy /camera-software/... URLs below come from.
 readme_index:
-  enabled: false
+  enabled: true
+  remove_originals: true
+  with_frontmatter: true
 
 # Theme behaviour
 search_enabled: true
@@ -91,14 +96,12 @@ defaults:
       path: "README.md"
     values:
       title: "Home"
-      permalink: /
       nav_order: 1
 
   - scope:
       path: "software/TomA-insect-ESP32-software/README.md"
     values:
       title: "Camera software"
-      permalink: /camera-software/
       nav_order: 2
       has_children: true
 
@@ -106,7 +109,6 @@ defaults:
       path: "models/README.md"
     values:
       title: "Detection models"
-      permalink: /models/
       nav_order: 3
 
   # ---- Camera-software documents -------------------------------------------
@@ -164,7 +166,6 @@ defaults:
       path: "software/TomA-insect-ESP32-software/docs/README.md"
     values:
       title: "Documentation map"
-      permalink: /camera-software/notes/documentation-map/
       nav_exclude: true
   - scope:
       path: "software/TomA-insect-ESP32-software/docs/project-brief.md"
