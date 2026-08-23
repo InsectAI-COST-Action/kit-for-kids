@@ -5,3 +5,16 @@ Detection models are currently provided in three formats for testing, [YOLO26](h
 ## Usage
 
 ### YOLO26
+
+```bash
+yolo predict model=AntTest.pt source="path/to/video.mp4"
+```
+
+### ONNX
+
+```bash
+yolo predict model=AntTest.onnx source="path/to/video.mp4"
+```
+
+### ESPDet-Pico
+
