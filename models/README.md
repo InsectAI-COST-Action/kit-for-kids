@@ -18,3 +18,27 @@ yolo predict model=AntTest.onnx source="path/to/video.mp4"
 
 ### ESPDet-Pico
 
+Clone repository.
+
+```bash
+git clone https://github.com/InsectAI-COST-Action/kit-for-kids.git
+```
+
+Create and activate virtual environment.
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate
+```
+
+Install required packages.
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Run script to flash model to ESP32-S3.
+
+```bash
+python flash.py
+```
