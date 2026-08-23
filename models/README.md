@@ -4,4 +4,4 @@ Detection models are currently provided in three formats for testing, [YOLO26](h
 
 ## Usage
 
-# YOLO26
+### YOLO26
