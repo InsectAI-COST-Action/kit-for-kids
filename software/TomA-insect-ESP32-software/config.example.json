@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "capture_fps": 2,
-  "max_session_seconds": 3600,
-  "frame_size": "VGA",
-  "jpeg_quality": 12,
-  "model_id": "none",
-  "log_level": "info"
-}
