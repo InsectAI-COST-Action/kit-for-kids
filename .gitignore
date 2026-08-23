@@ -1,0 +1,10 @@
+# Jekyll / GitHub Pages build output
+_site/
+.jekyll-cache/
+.jekyll-metadata
+Gemfile.lock
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+desktop.ini
