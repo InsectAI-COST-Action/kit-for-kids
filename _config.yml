@@ -22,7 +22,6 @@ plugins:
   - jekyll-remote-theme
   - jekyll-relative-links      # turns [foo](foo.md) cross-links into working site links
   - jekyll-optional-front-matter
-  - jekyll-readme-index        # makes the root README the site index
   - jekyll-titles-from-headings
   - jekyll-default-layout
   - jekyll-seo-tag
@@ -32,10 +31,12 @@ relative_links:
   enabled: true
   collections: false
 
+# jekyll-readme-index is deliberately disabled. It claims README pages before
+# `permalink` is applied, which put nested READMEs one directory level too
+# high and made their URLs impossible to pin. Every README below states its
+# own permalink instead, including the root one that serves as the site index.
 readme_index:
-  enabled: true
-  remove_originals: true
-  with_frontmatter: true
+  enabled: false
 
 # Theme behaviour
 search_enabled: true
@@ -90,6 +91,7 @@ defaults:
       path: "README.md"
     values:
       title: "Home"
+      permalink: /
       nav_order: 1
 
   - scope:
