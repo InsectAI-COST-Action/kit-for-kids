@@ -4,7 +4,7 @@ Detection models are currently provided in three formats for testing, [YOLO26](h
 
 ## Installation
 
-For simplicity, the YOLO26 and ONNX models can be tested through the standard Ultralytics CLI, however the ESPDet-Pico model must be deployed to an ESP32-S3 via the [deploy]() pipeline.
+For simplicity, the YOLO26 and ONNX models can be tested through the standard Ultralytics CLI, however the ESPDet-Pico model must be deployed to an ESP32-S3 via the [deploy](/models/deploy) pipeline.
 
 ## Usage
 
