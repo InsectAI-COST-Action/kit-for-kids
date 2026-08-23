@@ -1,0 +1,15 @@
+{
+  "source_zip": "C:\\Users\\tomaug\\Downloads\\Ant Detector.coco (1).zip",
+  "class_mapping": {
+    "ant": "ant",
+    "ants": "ant"
+  },
+  "splits": {
+    "train_images": 34,
+    "train_annotations": 468,
+    "valid_images": 10,
+    "valid_annotations": 147,
+    "test_images": 5,
+    "test_annotations": 58
+  }
+}

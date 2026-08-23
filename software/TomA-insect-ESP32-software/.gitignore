@@ -1,0 +1,62 @@
+# Operating-system files
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# PlatformIO / embedded build output
+.pio/
+.clangd/
+*.bin
+*.elf
+*.map
+
+# Editor-local state
+.vscode/.browse.c_cpp.db*
+.vscode/ipch/
+
+# Credentials and machine-local configuration
+.env
+.env.*
+secrets.*
+
+# Device-generated SD-card data (repository root only)
+/images/
+/thumbs/
+/raw/
+/data/
+/system/
+/captures.csv
+/detections.csv
+/manifest.js
+/summary.js
+/config.json
+/performance_*.csv
+*.tmp
+*.part
+
+# Local test evidence, backups, and model artifacts
+/card-backups/
+/test-runs/
+/artifacts/
+/firmware-builds/
+/models/
+# Locally exported FlatBug artefacts for the browser compatibility spike.
+/spikes/flatbug-browser/assets/*.onnx
+/spikes/flatbug-browser/assets/*.pt
+/spikes/flatbug-browser/vendor/onnxruntime/*
+!/spikes/flatbug-browser/vendor/onnxruntime/ort.min.js
+!/spikes/flatbug-browser/vendor/onnxruntime/ort.wasm.bundle.min.mjs
+!/spikes/flatbug-browser/vendor/onnxruntime/ort-wasm-simd-threaded.wasm
+*.img
+*.log
+__pycache__/
+# Local computer-vision training images (metadata and annotation labels remain tracked)
+/datasets/*/images/
+# Images staged from the RF-DETR Roboflow export; normalized annotations remain tracked.
+/datasets/ant-detector-rfdetr-v2/train/*
+/datasets/ant-detector-rfdetr-v2/valid/*
+/datasets/ant-detector-rfdetr-v2/test/*
+!/datasets/ant-detector-rfdetr-v2/train/_annotations.coco.json
+!/datasets/ant-detector-rfdetr-v2/valid/_annotations.coco.json
+!/datasets/ant-detector-rfdetr-v2/test/_annotations.coco.json
+/secrets.roboflow.env
