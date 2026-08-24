@@ -10,9 +10,13 @@ For simplicity, the YOLO26 and ONNX models can be tested through the standard Ul
 
 ### YOLO26
 
+Install Ultralytics.
+
 ```bash
 python -m pip install ultralytics
 ```
+
+Run inference on the test video.
 
 ```bash
 yolo predict model=AntTest.pt source="path/to/video.mp4"
@@ -20,9 +24,13 @@ yolo predict model=AntTest.pt source="path/to/video.mp4"
 
 ### ONNX
 
+Install Ultralytics.
+
 ```bash
 python -m pip install ultralytics
 ```
+
+Run inference on the test video.
 
 ```bash
 yolo predict model=AntTest.onnx source="path/to/video.mp4"
