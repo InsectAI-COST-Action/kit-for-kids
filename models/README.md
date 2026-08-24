@@ -4,7 +4,7 @@ Detection models are currently provided in three formats for testing, [YOLO26](h
 
 ## Installation
 
-For simplicity, the YOLO26 and ONNX models can be tested through the standard Ultralytics CLI, however the ESPDet-Pico model must be deployed to an ESP32-S3 via the [deploy](/models/deploy) pipeline. These frameworks are provided for testing rather than integration, and thus should primarily be used for model evaluation.
+For simplicity, the YOLO26 and ONNX models can be tested through the standard Ultralytics CLI, however the ESPDet-Pico model must be deployed to an ESP32-S3 via the [deploy](/models/deploy) pipeline. These frameworks are provided for testing rather than integration, and thus should primarily be used for model evaluation. A [test video](/models/test) is provided for this purpose, however additional videos can be uploaded for further validation.
 
 ## Usage
 
@@ -19,7 +19,7 @@ python -m pip install ultralytics
 Run inference on the test video.
 
 ```bash
-yolo predict model=AntTest.pt source="path/to/video.mp4"
+yolo predict model=AntTest.pt source="/models/test/AntTest.mp4"
 ```
 
 ### ONNX
@@ -33,7 +33,7 @@ python -m pip install ultralytics
 Run inference on the test video.
 
 ```bash
-yolo predict model=AntTest.onnx source="path/to/video.mp4"
+yolo predict model=AntTest.onnx source="/models/test/AntTest.mp4"
 ```
 
 ### ESPDet-Pico
