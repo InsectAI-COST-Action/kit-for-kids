@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['Ant']
+
+roboflow:
+  workspace: thomas-osheawheller
+  project: ant-test-project
+  version: 18
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/thomas-osheawheller/ant-test-project/dataset/18
