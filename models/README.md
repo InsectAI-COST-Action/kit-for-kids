@@ -58,8 +58,8 @@ Install required packages.
 python -m pip install -r requirements.txt
 ```
 
-Run script to flash model to ESP32-S3.
+Run script to flash model to ESP32-S3, specifying the port via the `--port` argument.
 
 ```bash
-python flash.py
+python flash.py --port COM4
 ```
