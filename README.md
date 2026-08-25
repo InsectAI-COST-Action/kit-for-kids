@@ -28,7 +28,8 @@ This repository is at the co-design and prototyping stage. Future work will deve
 ## Prototype software
 
 - [`software/TomA-insect-ESP32-software`](software/TomA-insect-ESP32-software/): ESP32-S3/OV3660 pilot firmware, SD-card logger, offline dashboard, and accompanying test and operating documentation.
-- [`models`](models/): Initial detection models in YOLO26, ONNX, and ESPDet-Pico formats.
+- [`models`](models/): Initial detection models in YOLO26, ONNX, and ESPDet-Pico formats, along with scripts for deploying to ESP32-S3 devices.
+- [`datasets`](datasets/): Full training datasets for detection models, with annotations in YOLO format.
 
 ## Contributing
 
