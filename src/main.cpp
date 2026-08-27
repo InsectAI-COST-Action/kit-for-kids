@@ -4,6 +4,7 @@
 #include "app_config.h"
 #include "camera_service.h"
 #include "control_server.h"
+#include "dev_bridge.h"
 #include "inference.h"
 #include "motion_detector.h"
 #include "sd_storage.h"
@@ -16,6 +17,7 @@ CameraService camera;
 NullInferenceEngine inference;
 SessionLogger logger;
 ControlServer control_server;
+DevBridge dev_bridge;
 
 bool ready = false;
 bool finished = false;
@@ -315,6 +317,15 @@ void loop() {
     if (!storage.writeTextAtomic("/config.json", pending_config_json, diagnostic)) report("config write failed: " + diagnostic);
     else report("camera settings updated; takes effect after the board is restarted");
   }
+
+  // Serial development bridge: only touches the card when capture is not
+  // about to run this cycle (ready && !finished mirrors exactly the
+  // condition that gates captureOnce() below), so it can never race a write.
+  DevBridgeContext dev_context;
+  dev_context.storage = &storage;
+  dev_context.capturing = ready && !finished;
+  dev_context.stop_session = []() { finishSession(); };
+  dev_bridge.poll(dev_context);
 
   ControlStatus status;
   status.run_id = logger.runId();
