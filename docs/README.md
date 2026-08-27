@@ -10,6 +10,7 @@ This directory separates everyday operation from technical design and historical
 | Preparing, running, or collecting from the camera | [Operations guide](operations.md) | SD-card preparation, normal operation, browser dashboard, AI prototype, recovery, and cleanup. |
 | Returning to development | [Next session checklist](next-session.md) | Current hand-off state and the prioritised next tasks. |
 | Looking for the project overview | [Repository README](../README.md) | What exists, current status, basic commands, and project map. |
+| Publishing local commits to GitHub | [CLAUDE.md](../CLAUDE.md) | This repo has no git remote by design — it publishes into the `kit-for-kids` monorepo via `git subtree` from a separate clone. Read this before assuming a commit here is visible upstream. |
 
 ## System reference
 
