@@ -40,6 +40,8 @@ secrets.*
 /artifacts/
 /firmware-builds/
 /models/
+# Local-only chat transcript from the agent session that produced the original brief.
+/archive/
 # Locally exported FlatBug artefacts for the browser compatibility spike.
 /spikes/flatbug-browser/assets/*.onnx
 /spikes/flatbug-browser/assets/*.pt
@@ -52,6 +54,8 @@ secrets.*
 __pycache__/
 # Local computer-vision training images (metadata and annotation labels remain tracked)
 /datasets/*/images/
+# Sample JPEGs pulled from a card run for local reference; regenerable from the SD card.
+/datasets/ant-example-images/
 # Images staged from the RF-DETR Roboflow export; normalized annotations remain tracked.
 /datasets/ant-detector-rfdetr-v2/train/*
 /datasets/ant-detector-rfdetr-v2/valid/*

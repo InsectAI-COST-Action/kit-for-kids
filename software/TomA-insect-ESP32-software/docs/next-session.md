@@ -6,6 +6,8 @@ The owner is away for a while, with the board left powered over USB and the SD c
 
 In short: `py tools\dev_bridge_client.py --port COM4 stop` before any file command, `mount` to remount afterward, `reboot` to apply a config change or start a fresh run. File commands are refused outright while a session is capturing, so there is no way to race a write by mistake.
 
+Remember commits made in this repo are **not** automatically visible on GitHub — see [CLAUDE.md](../CLAUDE.md) for the subtree publish step, which needs to be run separately from `C:\k4k\kit-for-kids`.
+
 Status at hand-off (18 August 2026): image-quality trials are concluded. The settled pilot setting is QXGA (2048?1536), JPEG quality 12, 1 FPS, with a maximum 3,600-second session. The firmware and `config.example.json` enforce this normal `pilot` setting; the mounted deployment card must be prepared with `py tools\configure_camera_trial.py <card-root> --install-pilot-default`. Earlier trial captures are retained as evidence and must not be deleted automatically.
 
 ## First: one-hour QXGA pilot acceptance
