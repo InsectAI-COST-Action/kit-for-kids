@@ -47,6 +47,18 @@ The implementation is complete in firmware and the Camera settings dashboard. Th
 3. Confirm repeated JPEG/grayscale sensor switching does not cause camera faults, frame-buffer leaks, cadence backlogs, corrupt images, or SD recovery failures.
 4. Record the result in [hardware-validation.md](hardware-validation.md). Do not present motion mode as a validated data-reduction method until this passes.
 
+## SD write performance (in progress, 27 August 2026)
+
+The SD SPI clock now steps 25 → 20 → 10 → 4 MHz and keeps the first that mounts; the card in use accepts 25 MHz. Image write time roughly halved (758–777 ms → 382–405 ms). Full measurements and reasoning in [performance-experiment.md](performance-experiment.md).
+
+**Resume here:**
+
+1. `kPerformanceSampleInterval` (100, `src/main.cpp`) collides with `DashboardWriter::kChunkSize` (100), so every performance sample lands on a chunk promotion and reports worst-case timings. Change to a prime such as 97 and re-measure before trusting any steady-state figure.
+2. Then reduce the write path. Metadata now costs more per frame than the JPEG: chunk promotion does four file operations at once; each frame opens, flushes and closes three separate files; and the atomic write does `remove` → `open` → `write` → `flush` → `close` → `rename`.
+3. exFAT was suggested by a collaborator for write throughput. The reasoning is sound but it is unavailable in our toolchain (`FF_FS_EXFAT 0` in the shipped ESP-IDF), and adopting it means rebuilding ESP-IDF or replacing `SD.h` with SdFat. Revisit only if metadata still dominates after step 2.
+
+Note `total_ms` sits at 983–1030 ms against the 1,000 ms budget at 1 FPS, so cadence headroom is currently thin on promotion frames.
+
 ## Device control app over Wi-Fi (new track, 21 August 2026)
 
 A device-hosted control app has been accepted for prototyping in [ADR 0001](adr/0001-device-hosted-control-app.md), with a phased plan and acceptance gates in [device-control-app-plan.md](device-control-app-plan.md). It is scoped to the control plane only — status, safe stop, configuration, and single-frame preview. The SD-card dashboard remains the data plane and stays fully offline and independent.

@@ -93,7 +93,7 @@ void ensurePerformanceLog() {
   String diagnostic;
   const String header =
       "capture_id,scheduled_ms,start_lag_ms,capture_ms,image_write_ms,raw_csv_ms,dashboard_ms,logger_ms,total_ms,jpeg_bytes," \
-      "outcome,free_heap,largest_free_heap,min_free_heap,free_psram,largest_free_psram";
+      "outcome,free_heap,largest_free_heap,min_free_heap,free_psram,largest_free_psram,sd_clock_hz";
   if (!storage.appendLine(performance_path, header, diagnostic)) report("performance log unavailable: " + diagnostic);
 }
 
@@ -110,7 +110,8 @@ void writePerformanceSample(const String& capture_id, const CaptureTiming& timin
       String(timing.dashboard_ms) + "," + String(timing.logger_ms) + "," +
       String(timing.total_ms) + "," + String(static_cast<unsigned long>(timing.jpeg_bytes)) + "," +
       timing.outcome + "," + String(free_heap) + "," + String(largest_free_heap) + "," +
-      String(min_free_heap) + "," + String(free_psram) + "," + String(largest_free_psram);
+      String(min_free_heap) + "," + String(free_psram) + "," + String(largest_free_psram) + "," +
+      String(storage.clockHz());
   String diagnostic;
   if (!storage.appendLine(performance_path, line, diagnostic)) report("performance sample write failed: " + diagnostic);
   report("performance sample " + line);

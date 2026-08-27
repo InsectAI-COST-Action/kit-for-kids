@@ -4,21 +4,43 @@
 
 namespace {
 constexpr int kSdChipSelectPin = 21;
+
+// SD.begin() defaults to 4 MHz, which measured around 129 KB/s in practice -
+// roughly a quarter of what even that conservative clock allows, and slow
+// enough that a QXGA frame costs about 1,000 ms to capture and store. The SD
+// specification permits 25 MHz for default-speed SPI, so try that first and
+// step down if the card will not mount. A kit shipped to schools will meet
+// cards of unknown age and quality, so failing over is safer than assuming
+// every card tolerates the fastest clock.
+constexpr uint32_t kSdClockCandidatesHz[] = {25000000, 20000000, 10000000, 4000000};
+uint32_t active_sd_clock_hz = 0;
 }
 
 bool SdStorage::begin(String& diagnostic) {
-  if (!SD.begin(kSdChipSelectPin)) {
-    diagnostic = "SD mount failed on GPIO21";
+  bool mounted = false;
+  for (uint32_t frequency : kSdClockCandidatesHz) {
+    if (SD.begin(kSdChipSelectPin, SPI, frequency)) {
+      active_sd_clock_hz = frequency;
+      mounted = true;
+      break;
+    }
+    // Release any half-initialised state before trying a slower clock.
+    SD.end();
+  }
+  if (!mounted) {
+    diagnostic = "SD mount failed on GPIO21 at every supported clock speed";
     return false;
   }
   if (SD.cardType() == CARD_NONE) {
     diagnostic = "no microSD card present";
     return false;
   }
-  diagnostic = "SD mounted";
+  diagnostic = "SD mounted at " + String(active_sd_clock_hz / 1000000) + " MHz";
   return ensureDirectory("/system", diagnostic) && ensureDirectory("/raw", diagnostic) &&
          ensureDirectory("/images", diagnostic) && ensureDirectory("/data", diagnostic);
 }
+
+uint32_t SdStorage::clockHz() const { return active_sd_clock_hz; }
 
 void SdStorage::end() { SD.end(); }
 

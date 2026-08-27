@@ -10,6 +10,10 @@ class SdStorage {
   // state before power is removed. Safe to call only once capture has
   // stopped; nothing else in this class may be called afterwards.
   void end();
+  // SPI clock the card actually mounted at, in Hz. begin() steps down through
+  // candidate speeds, so this reports what the card accepted rather than what
+  // was requested. Zero before a successful begin().
+  uint32_t clockHz() const;
   bool ensureDirectory(const String& path, String& diagnostic);
   bool exists(const String& path) const;
   bool writeTextAtomic(const String& path, const String& content, String& diagnostic);

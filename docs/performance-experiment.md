@@ -2,6 +2,48 @@
 
 > Historical record: the 2-FPS/VGA experiments below led to the current directory-sharding implementation. On 17 August 2026 the pilot setting was changed to QXGA/JPEG-quality-12/1-FPS after the dedicated quality trials: QXGA at 1 FPS completed cleanly, while QXGA at 2 FPS captured only 171 of 240 expected images. The active acceptance protocol is now in [camera-quality-trial.md](camera-quality-trial.md).
 
+## SD clock speed raised to 25 MHz (27 August 2026)
+
+Prompted by a collaborator suggesting exFAT for write throughput. Investigating that surfaced a cheaper lever first: `SD.begin(pin)` uses the arduino-esp32 default of **4 MHz SPI**, which we had never overridden.
+
+`SdStorage::begin()` now tries **25 → 20 → 10 → 4 MHz** and keeps the first clock the card mounts at. The ladder matters because a kit shipped to schools meets cards of unknown age; a card that will not take 25 MHz still works, only slower, rather than failing to mount. The achieved clock is reported in the boot diagnostic and recorded in a new `sd_clock_hz` column in the performance CSV, so runs document their own conditions.
+
+**Measured effect** — `run_000032`, QXGA/quality-12/1-FPS, retain every frame, ~98 KB frames. Baseline is runs 000001–000003 at the 4 MHz default:
+
+| | 4 MHz (baseline) | 25 MHz (`run_000032`) |
+| --- | --- | --- |
+| `image_write_ms` | 758–777 | **382–405** |
+| Effective throughput | ~129 KB/s | **~244 KB/s** |
+
+Image write time roughly halved. The card accepted the top rung, so no fallback occurred.
+
+### The bottleneck has moved from the bus to metadata
+
+244 KB/s against a 25 MHz bus is roughly 8% utilisation, so further clock increases have little left to give. Per-frame cost at the sampled frames:
+
+- image write **405 ms**
+- raw CSV append **112 ms**
+- dashboard chunk **447 ms**
+- **total 983–1030 ms** against a 1,000 ms budget at 1 FPS
+
+Metadata logging now costs more than writing the JPEG itself: a ~250-byte text line is more expensive than a 99 KB image, because every append is a separate open/write/flush/close and FAT must update the directory entry, the FAT, and the data cluster each time.
+
+**On exFAT:** the original suggestion has merit — exFAT's allocation bitmap and single FAT would reduce exactly this metadata cost. It is not available in our toolchain, though: the arduino-esp32 prebuilt ESP-IDF ships with `FF_FS_EXFAT 0` and no exFAT symbols in `libfatfs.a`, so an exFAT card would not mount. Adopting it means either rebuilding ESP-IDF (an ADR-level change per the project brief) or replacing `SD.h` with SdFat. Worth revisiting only after the leaner write path, since the measurements say our own write pattern is the larger share.
+
+### Measurement artifact: sampling aligns with chunk promotion
+
+`kPerformanceSampleInterval` is 100 and `DashboardWriter::kChunkSize` is also 100, so **every performance sample lands exactly on a chunk promotion** — a rename plus `saveState`, `writeManifest` and `writeSummary`. The `dashboard_ms` figures above are therefore worst-case, not typical, and we have never sampled an ordinary frame. Change the sample interval to a prime such as 97 to decorrelate the two before drawing further conclusions.
+
+### Also observed
+
+`capture_ms` fell from ~224 ms to **1 ms**. Retain-every-frame mode leaves the camera streaming, whereas motion mode reinitialises the sensor at each grayscale/JPEG switch. That ~224 ms is a previously unisolated cost of motion mode.
+
+### Next steps
+
+1. Decorrelate the performance sampling interval from the chunk size, then re-measure to get honest steady-state figures.
+2. Reduce the write path, in likely order of payoff: chunk promotion performing four file operations at once; three separate files opened and closed per frame; and the atomic write's `remove` → `open` → `write` → `flush` → `close` → `rename`.
+3. Reconsider exFAT only if metadata cost still dominates afterwards.
+
 ## Purpose
 
 The first one-hour run completed safely but slowed from roughly 0.9 seconds per frame at the beginning to roughly 5.5 seconds per frame at the end. This experiment identifies whether the growth comes from camera capture, image writes, raw/dashboard logging, or heap fragmentation.
