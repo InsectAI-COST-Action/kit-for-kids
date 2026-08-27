@@ -45,6 +45,7 @@ py tools\dev_bridge_client.py --port COM4 ping
 py tools\dev_bridge_client.py --port COM4 ls /
 py tools\dev_bridge_client.py --port COM4 cat /config.json
 py tools\dev_bridge_client.py --port COM4 get /raw/captures.csv captures.local.csv
+py tools\dev_bridge_client.py --port COM4 get /images/run_000040/shard_0001/run_000040_img_1.jpg sample.jpg
 py tools\dev_bridge_client.py --port COM4 put config.local.json /config.json
 py tools\dev_bridge_client.py --port COM4 stop
 py tools\dev_bridge_client.py --port COM4 mount
@@ -58,13 +59,17 @@ Each invocation opens a fresh connection and closes it afterward - there is no p
 
 **Bulk writes silently dropped bytes.** `PUT` originally sent the whole hex payload in a handful of ~1 KB bursts. The ESP32-S3's native USB-CDC has a small receive ring buffer and no hardware flow control, so bytes were lost between bursts with no error on either side - the firmware just waited out its full timeout for a payload that would never complete, and the transfer failed silently rather than loudly. Fixed by pacing the client to 64-byte writes with a 10 ms gap. This is empirical, tuned against one 3 KB test file, not derived from a documented buffer size - if `PUT` ever fails on a larger file, this pacing is the first thing to revisit.
 
-## Scope: small files only
+## Scope: small uploads, occasional single-image downloads
 
-`kMaxWriteBytes` caps writes at 256 KB in firmware, and the paced send makes anything near that slow (at 64 bytes/10 ms, roughly a minute for 256 KB). This is sized for `config.json`, run manifests, `captures.csv` excerpts, and performance logs - not for pulling JPEGs or bulk image sets off the card. Images stay on the card; use the normal card-in-a-reader workflow for those.
+The two directions are not symmetric, because only one of them hit the USB-CDC buffer problem above.
+
+**Uploads (`PUT`) stay small.** `kMaxWriteBytes` caps writes at 256 KB in firmware, and the pacing needed to avoid dropping bytes makes anything near that slow (64 bytes/10 ms, roughly a minute for 256 KB). Sized for `config.json`, run manifests, `captures.csv` excerpts, and performance logs.
+
+**Downloads (`GET`/`CAT`) are not paced and are fast in practice.** An 86,728-byte QXGA JPEG (`run_000040_img_1.jpg`) transferred in 1.4 s and decoded and rendered correctly, confirmed by eye as well as by checking the JPEG start/end markers. Pulling a single frame off the card for diagnostics - "what is the camera actually seeing right now" without moving the card to a reader - is a legitimate, verified use of this bridge. What it is still not for is bulk retrieval: pulling many images this way would be pointless when the normal card-in-a-reader workflow exists and is dramatically faster for that.
 
 ## Verified 27 August 2026
 
-Live against real hardware, card in the board throughout: `ping`, session-active refusal on `ls`, `stop` (observed ~12 s, matching the dashboard-chunk-promotion cost already measured in [performance-experiment.md](performance-experiment.md)), `mount`, `ls /` against the real card contents, `cat /config.json` against the real file, `df`, and a `put`/`get` round trip verified byte-for-byte via SHA-256. Not yet exercised: `rm` on anything but the round-trip test file, `reboot` (see risk below), and behaviour if a command arrives while `poll()` is mid-transfer on a previous one.
+Live against real hardware, card in the board throughout: `ping`, session-active refusal on `ls`, `stop` (observed ~12 s, matching the dashboard-chunk-promotion cost already measured in [performance-experiment.md](performance-experiment.md)), `mount`, `ls /` against the real card contents, `cat /config.json` against the real file, `df`, a `put`/`get` round trip verified byte-for-byte via SHA-256, and a single real JPEG pulled from `/images/` and confirmed to render correctly. Not yet exercised: `rm` on anything but the round-trip test file, `reboot` (see risk below), and behaviour if a command arrives while `poll()` is mid-transfer on a previous one.
 
 ## Known risks, left deliberately as risks rather than papered over
 
