@@ -4,7 +4,7 @@
 
 The owner is away for a while, with the board left powered over USB and the SD card inside it (not in a reader). A serial development bridge (`include/dev_bridge.h`, `src/dev_bridge.cpp`, `tools/dev_bridge_client.py`) was built and verified live for exactly this: inspecting and changing the card without physical access. Full protocol, safety model, and the two real bugs found while building it (a silent reboot-on-connect, and silently dropped bytes on bulk writes) are in [dev-bridge.md](dev-bridge.md) - read that before using it.
 
-In short: `py tools\dev_bridge_client.py --port COM4 stop` before any file command, `mount` to remount afterward, `reboot` to apply a config change or start a fresh run. File commands are refused outright while a session is capturing, so there is no way to race a write by mistake.
+In short: `py tools\dev_bridge_client.py --port COM4 stop` before any file command, `mount` to remount afterward, `reboot` to apply a config change or start a fresh run. File commands are refused outright while a session is capturing, so there is no way to race a write by mistake. For remote audit specifically, use `runs` (all run states in one call) and `audit <run_id>` (per-run image/shard/timing stats computed on-device, ~2 minutes) rather than pulling `raw/captures.csv` directly - that reliably fails past a certain size, see dev-bridge.md.
 
 Remember commits made in this repo are **not** automatically visible on GitHub — see [CLAUDE.md](../CLAUDE.md) for the subtree publish step, which needs to be run separately from `C:\k4k\kit-for-kids`.
 
@@ -12,10 +12,16 @@ Status at hand-off (18 August 2026): image-quality trials are concluded. The set
 
 ## First: one-hour QXGA pilot acceptance
 
-1. Confirm the card uses the pilot default, safely eject it, and collect for just over one hour. Disconnect power only after the session has completed normally.
-2. Mount the card and run `py tools\audit_card.py <card-root>` and `py tools\camera_trial_report.py <card-root>`. Require 3,600 completed 2048?1536 JPEGs, matching raw/dashboard/image counts, no uncontrolled reboot/storage error, and a documented power-removal recovery result.
-3. Record card capacity/free space, USB battery pack/cable, enclosure state, temperature observations, browser/OS, and firmware commit/build with the result in [hardware-validation.md](hardware-validation.md).
-4. Review representative source images in the dashboard for focus, lighting, exposure, colour, and small-insect detail.
+**Partially done, 28 August 2026, over the dev bridge while unattended** - see the finding in [hardware-validation.md](hardware-validation.md). Reliability/endurance side: run, no reboot, no storage error, clean self-finish - but only 3,589/3,600 images (a real shortfall, likely cadence drift from larger dark-scene JPEGs, not yet confirmed at the per-frame level). Image-quality review below is **not done** - the room was dark, so it's meaningless from this run. Still needed:
+
+1. ~~Confirm the card uses the pilot default~~ done (corrected a stale config found on the card). A **daylight repeat** is needed: to complete the image-quality review, and to see whether the 3,589/3,600 shortfall reproduces under normal (smaller-JPEG) conditions - if not, that supports the dark-scene theory.
+2. Mount the card and run `py tools\audit_card.py <card-root>` and `py tools\camera_trial_report.py <card-root>` - not yet run against this card (both need a mounted local path; the dev-bridge audit used `ls`/`cat` on the manifest and shard tree instead, which cannot check manifest/chunk consistency or orphaned temp files the way the real scripts do). Do this properly next time the card is in a reader.
+3. Record card capacity/free space, USB battery pack/cable, enclosure state, temperature observations, browser/OS, and firmware commit/build with the result in [hardware-validation.md](hardware-validation.md) - partially recorded (card capacity/usage yes; battery pack/cable, enclosure, temperature not observed remotely).
+4. Review representative source images in the dashboard for focus, lighting, exposure, colour, and small-insect detail - **blocked until the daylight repeat**.
+
+**Also found while running this, and investigated further 28 August 2026:** `CAT`/`GET` of a large file (`/raw/captures.csv`, 2.29 MB) reproducibly fails partway through in the dev-bridge firmware. Wi-Fi/SoftAP has been ruled out as the cause (tested with it genuinely disabled via a diagnostic build - stalled again at almost the same point). A periodic `yield()` was added as a plausible mitigation but didn't fix it; new evidence (a comparably heavy `AUDIT` scan of the same file slows similarly but recovers instead of failing) points at the USB-CDC TX path under sustained output, same class of issue as the already-known `PUT`-direction bug. Full history in [dev-bridge.md](dev-bridge.md) Known risks. **Not blocking any current work**: new `AUDIT <run_id>`/`RUNS` dev-bridge commands compute the same underlying statistics on-device and were used successfully for the cadence-drift question above - remote audit no longer needs the large `CAT` to work. Root-causing the `CAT` bug itself would need live heap/timing instrumentation (physical access, or a further remote session).
+
+**Minor finding from `RUNS`:** `run_000027` is stuck at `state: "running"` with zero images and zero `captures.csv` rows - an empty run interrupted before its first capture, never reconciled to `interrupted_power_removed` on a later boot. No data loss; worth a look at the reconciliation path's handling of this specific case, low priority.
 
 ## Then: browser-model evidence
 

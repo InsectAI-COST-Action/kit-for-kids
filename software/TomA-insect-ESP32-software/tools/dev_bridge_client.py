@@ -19,6 +19,8 @@ Usage:
   py tools\dev_bridge_client.py --port COM4 put config.local.json /config.json
   py tools\dev_bridge_client.py --port COM4 rm /images/run_000001/shard_0001/stale.jpg.tmp
   py tools\dev_bridge_client.py --port COM4 df
+  py tools\dev_bridge_client.py --port COM4 runs
+  py tools\dev_bridge_client.py --port COM4 audit run_000041
   py tools\dev_bridge_client.py --port COM4 stop
   py tools\dev_bridge_client.py --port COM4 reboot
   py tools\dev_bridge_client.py --port COM4 ping
@@ -80,11 +82,23 @@ class Bridge:
         raise BridgeError(f"timed out waiting for a response ({overall_timeout:.0f}s)")
 
     def _expect_frame(self, overall_timeout: float = 5.0) -> str:
-        """Reads until a <DEV ...> frame line, skipping ordinary log output."""
+        """Reads until a <DEV ...> frame line, skipping ordinary log output.
+
+        A <DEV PROGRESS ...> frame resets the deadline rather than counting
+        towards it - it's the firmware actively confirming it's still
+        working, not part of the actual reply. This is what makes a long,
+        genuinely-working command distinguishable from a stalled one: see
+        the AUDIT/CAT investigation in docs/dev-bridge.md, where the only
+        way to tell the difference used to be guessing.
+        """
         deadline = time.monotonic() + overall_timeout
         while True:
             remaining = max(0.5, deadline - time.monotonic())
             line = self._readline(overall_timeout=remaining)
+            if line.startswith("<DEV PROGRESS ") and line.endswith(">"):
+                print(f"  (progress) {line[14:-1].strip()}", file=sys.stderr)
+                deadline = time.monotonic() + overall_timeout
+                continue
             if line.startswith("<DEV ") and line.endswith(">"):
                 return line[5:-1]
             # Non-frame lines are normal firmware logging; surface them so
@@ -97,9 +111,17 @@ class Bridge:
         return self._expect_frame(overall_timeout=timeout)
 
     def read_lines_until_end(self, timeout: float = 10.0) -> list[str]:
+        """Reads payload lines until <DEV END>, treating <DEV PROGRESS ...>
+        the same way _expect_frame does - see its docstring."""
         lines: list[str] = []
+        deadline = time.monotonic() + timeout
         while True:
-            raw = self._readline(overall_timeout=timeout)
+            remaining = max(0.5, deadline - time.monotonic())
+            raw = self._readline(overall_timeout=remaining)
+            if raw.startswith("<DEV PROGRESS ") and raw.endswith(">"):
+                print(f"  (progress) {raw[14:-1].strip()}", file=sys.stderr)
+                deadline = time.monotonic() + timeout
+                continue
             if raw.startswith("<DEV END>"):
                 return lines
             if raw.startswith("<DEV ERR"):
@@ -199,6 +221,27 @@ def cmd_rm(bridge: Bridge, args: argparse.Namespace) -> None:
     print(f"removed {args.path}")
 
 
+def cmd_audit(bridge: Bridge, args: argparse.Namespace) -> None:
+    # captures.csv can be multi-MB by now; the firmware scans it locally and
+    # replies with one summary line, which has been observed taking anywhere
+    # from a few seconds to multiple minutes, or stalling outright (see
+    # docs/dev-bridge.md - not yet root-caused). The firmware emits a
+    # <DEV PROGRESS> heartbeat every 64 items (image-tree entries, then CSV
+    # rows), which resets this timeout (see Bridge._expect_frame) - so this
+    # only needs to cover the gap *between* heartbeats, not the whole scan,
+    # and prints progress instead of sitting silent either way.
+    print(require_ok(bridge.command(f"AUDIT {args.run_id}", timeout=60.0)))
+
+
+def cmd_runs(bridge: Bridge, args: argparse.Namespace) -> None:
+    frame = bridge.command("RUNS")
+    payload = require_ok(frame)
+    count = int(payload.split()[0]) if payload else 0
+    lines = bridge.read_lines_until_end()
+    for line in lines[:count]:
+        print(line)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", required=True, help="Serial port, e.g. COM4")
@@ -232,6 +275,12 @@ def main() -> int:
     rm_parser = subparsers.add_parser("rm")
     rm_parser.add_argument("path")
     rm_parser.set_defaults(func=cmd_rm)
+
+    audit_parser = subparsers.add_parser("audit")
+    audit_parser.add_argument("run_id", help="e.g. run_000041")
+    audit_parser.set_defaults(func=cmd_audit)
+
+    subparsers.add_parser("runs").set_defaults(func=cmd_runs)
 
     args = parser.parse_args()
     bridge = Bridge(args.port, args.baud)

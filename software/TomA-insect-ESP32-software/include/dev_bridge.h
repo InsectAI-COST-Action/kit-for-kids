@@ -45,6 +45,12 @@ class DevBridge {
   void commandWrite(const String& path, uint32_t byte_count, const DevBridgeContext& context);
   void commandRemove(const String& path, const DevBridgeContext& context);
   void commandFree(const DevBridgeContext& context);
+  // Computed on-device so a remote audit never needs to pull captures.csv or
+  // the image tree itself over serial - only a small summary crosses the
+  // wire. Sized for the checks audit_card.py/camera_trial_report.py make
+  // from a mounted card; see docs/dev-bridge.md for exact scope/parity.
+  void commandAudit(const String& run_id, const DevBridgeContext& context);
+  void commandRuns(const DevBridgeContext& context);
 
   String buffer_;
 };
