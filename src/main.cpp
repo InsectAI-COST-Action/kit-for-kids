@@ -28,8 +28,23 @@ String fatal_error;
 MotionPreview previous_motion_preview;
 MotionPreview current_motion_preview;
 bool motion_baseline_ready = false;
-constexpr uint32_t kPerformanceSampleInterval = 100;
-constexpr uint32_t kCameraWarmupMs = 5000;
+// Deliberately prime and not 100: DashboardWriter::kChunkSize is 100, and an
+// equal interval meant every performance sample landed exactly on a chunk
+// promotion (a rename plus saveState/writeManifest/writeSummary), so every
+// figure ever recorded was worst-case rather than typical. See
+// docs/performance-experiment.md.
+constexpr uint32_t kPerformanceSampleInterval = 97;
+// Was 5000 and a bare delay(). A green colour cast persisting for the first
+// ~30 minutes of a session (28 August 2026, see docs/hardware-validation.md)
+// is consistent with auto white balance/exposure never actually converging
+// during warm-up, because a bare delay() gives them no captured frames to
+// iterate on - AWB/AEC adjust per-frame, not per elapsed millisecond. Now an
+// active frame-pump (see setup()) rather than an idle wait, so lengthening
+// it buys real AWB iterations instead of just a longer pause; extended
+// accordingly. Costs nothing against the 3,600 s capture budget - it runs
+// before session_started_ms is set. Unverified until the 29 August 2026
+// daylight trial confirms it actually shortens or removes the cast.
+constexpr uint32_t kCameraWarmupMs = 15000;
 
 struct CaptureTiming {
   uint32_t scheduled_ms = 0;
@@ -278,6 +293,13 @@ void setup() {
   report("control app disabled for this build: motion-detection control test");
 #endif
   if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); fatal_error = "No SD card found: " + diagnostic; return; }
+  // storage.begin()'s own diagnostic (mount clock) was previously silently
+  // discarded here - the next report() below overwrote it before it was
+  // ever printed. Surfacing it now while investigating a totalBytes()
+  // discrepancy between this boot-time mount and a later dev-bridge MOUNT
+  // (29 August 2026, see docs/hardware-validation.md).
+  report(diagnostic + " total=" + String(static_cast<unsigned long long>(storage.totalBytes())) +
+         " used=" + String(static_cast<unsigned long long>(storage.usedBytes())));
   config = ConfigLoader::defaults();
   if (!ConfigLoader::load(storage.fs(), config, diagnostic)) { report("fatal configuration failure: " + diagnostic); fatal_error = "Bad configuration: " + diagnostic; return; }
   control_server.setEffectiveConfig(
@@ -298,8 +320,23 @@ void setup() {
   report(diagnostic);
   performance_path = "/system/performance_" + logger.runId() + ".csv";
   ensurePerformanceLog();
-  report("camera warm-up: waiting 5 seconds before first capture");
-  delay(kCameraWarmupMs);
+  report("camera warm-up: " + camera.whiteBalanceStatus() + ", pumping frames for " +
+         String(kCameraWarmupMs / 1000) + "s so AWB/AEC converge before the first retained frame");
+  {
+    const uint32_t warmup_deadline = millis() + kCameraWarmupMs;
+    uint32_t warmup_frames = 0;
+    while (static_cast<int32_t>(millis() - warmup_deadline) < 0) {
+      String warmup_diagnostic;
+      camera_fb_t* warmup_frame = camera.capture(warmup_diagnostic);
+      if (warmup_frame != nullptr) {
+        camera.release(warmup_frame);
+        ++warmup_frames;
+      } else {
+        delay(50);  // avoid a tight spin if a frame is briefly unavailable
+      }
+    }
+    report("camera warm-up complete: " + String(warmup_frames) + " frames pumped, " + camera.whiteBalanceStatus());
+  }
   session_started_ms = millis();
   next_capture_due_ms = session_started_ms;
   ready = true;

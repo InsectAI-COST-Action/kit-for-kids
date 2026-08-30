@@ -79,6 +79,17 @@ bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame
   }
   sensor_id_ = sensor_->id.PID == OV3660_PID ? "OV3660" : "unexpected_pid_" + String(sensor_->id.PID);
   motion_preview_mode_ = pixel_format == PIXFORMAT_GRAYSCALE;
+  // Explicit rather than trusting the driver's defaults: a green colour
+  // cast that persists for the first ~30 minutes of a session (28 August
+  // 2026, see docs/hardware-validation.md) is consistent with auto white
+  // balance either not actually running or converging very slowly. This
+  // doesn't change AWB's behaviour if the defaults were already correct -
+  // it just makes the intended state explicit and gives setup() a known
+  // state to warm up from. wb_mode 0 is auto (not a fixed sunny/cloudy/
+  // office/home preset).
+  if (sensor_->set_whitebal) sensor_->set_whitebal(sensor_, 1);
+  if (sensor_->set_awb_gain) sensor_->set_awb_gain(sensor_, 1);
+  if (sensor_->set_wb_mode) sensor_->set_wb_mode(sensor_, 0);
   return true;
 }
 
@@ -145,3 +156,9 @@ void CameraService::release(camera_fb_t* frame) {
 }
 
 const String& CameraService::sensorId() const { return sensor_id_; }
+
+String CameraService::whiteBalanceStatus() const {
+  if (sensor_ == nullptr) return "no sensor";
+  return "awb=" + String(sensor_->status.awb) + " awb_gain=" + String(sensor_->status.awb_gain) +
+         " wb_mode=" + String(sensor_->status.wb_mode);
+}

@@ -42,6 +42,28 @@ bool SdStorage::begin(String& diagnostic) {
 
 uint32_t SdStorage::clockHz() const { return active_sd_clock_hz; }
 
+// KNOWN BROKEN on the very first mount after power-on, 29 August 2026:
+// SD.totalBytes() reproducibly reports a wrong value (roughly doubled on
+// the test card), stable for the whole session, only correcting itself on
+// a later SEPARATE SD.begin() call (e.g. the dev-bridge's MOUNT command).
+// Ruled out: SPI clock (both mounts used the same 25 MHz); a throwaway
+// pre-mount cycle inside begin() (no effect); SD.cardSize(), a completely
+// different code path (sdcard_num_sectors() vs FATFS's f_getfree()) - also
+// wrong, by the same margin, which points at the underlying SD driver's own
+// card-geometry detection rather than anything at the Arduino API level.
+// SD.usedBytes() (same f_getfree() call as totalBytes()) is NOT affected.
+// Every normal deployment reads this value from a cold boot - nobody
+// naturally triggers a second SD.begin() before looking at the dashboard -
+// so this is wrong in every real use case, not just an edge case. Left
+// unresolved; see docs/hardware-validation.md. totalBytes() is kept
+// (matches SD.totalBytes() elsewhere, e.g. the dev-bridge's DF command) so
+// it is correct wherever it CAN be called safely (after a real remount) -
+// callers reading it from a fresh boot must not trust it. The dashboard
+// summary write deliberately does not use it until this is fixed - see
+// DashboardWriter::writeSummary().
+uint64_t SdStorage::totalBytes() const { return SD.totalBytes(); }
+uint64_t SdStorage::usedBytes() const { return SD.usedBytes(); }
+
 void SdStorage::end() { SD.end(); }
 
 bool SdStorage::ensureDirectory(const String& path, String& diagnostic) {
