@@ -14,6 +14,12 @@ class SdStorage {
   // candidate speeds, so this reports what the card accepted rather than what
   // was requested. Zero before a successful begin().
   uint32_t clockHz() const;
+  // Unlike clockHz(), these are live reads each call rather than cached at
+  // begin() - card usage changes throughout a session. Added 29 August 2026
+  // so the dashboard can show storage remaining without needing the serial
+  // dev-bridge's DF command.
+  uint64_t totalBytes() const;
+  uint64_t usedBytes() const;
   bool ensureDirectory(const String& path, String& diagnostic);
   bool exists(const String& path) const;
   bool writeTextAtomic(const String& path, const String& content, String& diagnostic);

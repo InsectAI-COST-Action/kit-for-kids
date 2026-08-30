@@ -251,7 +251,8 @@
     pauseButton.disabled = false;
     stopButton.disabled = false;
     startButton.disabled = true;
-    document.querySelector('#inference-status').textContent = 'Looking...';
+    const startMetric = document.querySelector('#inference-status');
+    if (startMetric) startMetric.textContent = 'Looking...';
     updateProgress();
     if (missingPictures) say(`Looking at ${available.length} available pictures. ${missingPictures} older record${missingPictures === 1 ? '' : 's'} without image files will be skipped.`);
     else say(mode === 'close' ? 'Looking closely in 12 picture pieces for tiny possible insects...' : 'Taking a quick look through each whole picture...');

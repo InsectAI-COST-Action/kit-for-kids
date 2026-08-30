@@ -69,6 +69,23 @@
   });
 
   const relativeTime = (milliseconds) => `${((Number(milliseconds) || 0) / 1000).toFixed(1)} seconds`;
+  const formatDuration = (totalSeconds) => {
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '-';
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  };
+  // Newest session's own captures - reused by the front-page duration metric
+  // and the motion panel, so both agree on what "last session" means.
+  const lastSessionCaptures = () => {
+    const runIds = [...new Set(data.captures.map((capture) => capture.runId).filter(Boolean))]
+      .sort((first, second) => second.localeCompare(first, undefined, { numeric: true }));
+    const lastRunId = runIds[0];
+    return lastRunId ? data.captures.filter((capture) => capture.runId === lastRunId) : [];
+  };
   const filteredCaptures = () => {
     const query = search.value.trim().toLowerCase();
     return data.captures.filter((capture) => !query ||
@@ -288,11 +305,7 @@
 
   const renderMotionPanel = () => {
     if (!motionPanel || !motionCount || !motionChart) return;
-    const runIds = [...new Set(data.captures.map((capture) => capture.runId).filter(Boolean))]
-      .sort((first, second) => second.localeCompare(first, undefined, { numeric: true }));
-    const lastRunId = runIds[0];
-    const runCaptures = lastRunId ? data.captures.filter((capture) => capture.runId === lastRunId) : [];
-    const motionCaptures = runCaptures.filter((capture) => Number(capture.motionThreshold) > 0)
+    const motionCaptures = lastSessionCaptures().filter((capture) => Number(capture.motionThreshold) > 0)
       .slice().sort((first, second) => (Number(first.uptimeMs) || 0) - (Number(second.uptimeMs) || 0));
     if (motionCaptures.length < 2) { motionPanel.hidden = true; return; }
 
@@ -375,20 +388,40 @@
     const captures = filteredCaptures();
     const allImages = data.captures.filter((capture) => capture.imagePath);
     const images = captures.filter((capture) => capture.imagePath);
-    const averageCaptureMs = captures.length
-      ? Math.round(captures.reduce((total, capture) => total + (Number(capture.captureMs) || 0), 0) / captures.length) : 0;
-    const averageCaptureSeconds = (averageCaptureMs / 1000).toFixed(2);
     const inferenceOutcomes = new Set(data.captures.map((capture) => capture.inferenceOutcome).filter(Boolean));
-    const inferenceText = !data.captures.length ? 'No data'
-      : inferenceOutcomes.size === 1 && inferenceOutcomes.has('model_unavailable') ? 'Coming soon'
-      : [...inferenceOutcomes].join(', ') || 'Ready';
 
     document.querySelector('#welcome-count').textContent = String(data.captures.length);
-    document.querySelector('#capture-count').textContent = String(data.captures.length);
     document.querySelector('#image-count').textContent = String(allImages.length);
     document.querySelector('#gallery-count').textContent = `${allImages.length} picture${allImages.length === 1 ? '' : 's'}`;
-    document.querySelector('#capture-time').textContent = captures.length ? `${averageCaptureSeconds} seconds` : '-';
-    document.querySelector('#inference-status').textContent = inferenceText;
+
+    // Last adventure: how long the newest session actually ran for, from its
+    // first captured frame to its last - not the configured session limit,
+    // which may not have been reached (a short test, or a stopped session).
+    const lastCaptures = lastSessionCaptures();
+    const lastTimes = lastCaptures.map((capture) => Number(capture.uptimeMs) || 0);
+    document.querySelector('#session-duration').textContent = lastTimes.length >= 2
+      ? formatDuration((Math.max(...lastTimes) - Math.min(...lastTimes)) / 1000) : '-';
+
+    // Picture size: dimensions from the most recent capture that has them.
+    // Reads newest-first since older cards may mix presets between runs.
+    const withDimensions = data.captures.filter((capture) => Number(capture.width) > 0 && Number(capture.height) > 0);
+    const latestDimensioned = withDimensions[withDimensions.length - 1];
+    document.querySelector('#image-resolution').textContent = latestDimensioned
+      ? `${latestDimensioned.width} x ${latestDimensioned.height}` : '-';
+
+    // Memory card: reads summary.js's sdTotalBytes/sdUsedBytes, when
+    // present and sane. The firmware does not currently write them -
+    // SdStorage::totalBytes() was found 29 August 2026 to report a
+    // reproducibly wrong value on every normal (cold) boot, so the
+    // dashboard-facing write was deliberately held back rather than ship a
+    // number known to be wrong (see src/dashboard_writer.cpp). This stays
+    // ready to activate the moment a fixed firmware starts writing correct
+    // values - no dashboard change needed then.
+    const summary = data.summary;
+    const totalBytes = Number(summary?.sdTotalBytes);
+    const usedBytes = Number(summary?.sdUsedBytes);
+    document.querySelector('#storage-remaining').textContent = totalBytes > 0 && usedBytes >= 0
+      ? `${Math.max(0, Math.min(100, Math.round((1 - usedBytes / totalBytes) * 100)))}%` : 'Soon';
 
     const visibleCaptures = (showAllFrames ? captures : captures.slice(-initialLimit)).slice().reverse();
     rows.replaceChildren();
@@ -429,9 +462,15 @@
     galleryToggle.hidden = images.length <= initialLimit;
     galleryToggle.textContent = showAllImages ? 'Show fewer images' : 'Show all images';
     renderMotionPanel();
+    // The camera itself never runs AI - that is deliberate, not missing (see
+    // docs/next-session.md). model_unavailable on every capture just means
+    // no on-device results are baked in yet; it does not mean AI is
+    // unavailable - the interactive helper below genuinely works. Fixed 29
+    // August 2026: the previous wording here wrongly implied no AI existed
+    // at all.
     document.querySelector('#model-note').textContent = inferenceOutcomes.has('model_unavailable')
-      ? 'The AI model is not connected yet. Your pictures are safe and ready for the next step.'
-      : 'AI results are ready to explore.';
+      ? 'Your camera does not run AI on its own, but you can ask this computer to look for possible insects any time - choose an AI helper below.'
+      : 'This card already has AI results saved on it, ready to explore.';
     document.title = `Camera adventure - ${data.captures.length} pictures`;
   };
 

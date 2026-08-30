@@ -117,6 +117,13 @@ bool DashboardWriter::writeManifest(String& diagnostic) {
 }
 
 bool DashboardWriter::writeSummary(String& diagnostic) {
+  // sdTotalBytes/sdUsedBytes were added 29 August 2026 for the dashboard's
+  // storage-remaining metric, then deliberately removed the same day:
+  // SdStorage::totalBytes() is known wrong on every normal boot (see its
+  // doc comment) - shipping it would show a wrong number on every card, not
+  // just an edge case. The dashboard side (dashboard.js) already reads
+  // these fields defensively (falls back to "-" when absent) and needs no
+  // change to pick this back up once the underlying bug is fixed.
   const String content =
       "window.InsectData=window.InsectData||{};window.InsectData.summary={\"schemaVersion\":1,"
       "\"committedCaptures\":" + String(closed_capture_count_) +

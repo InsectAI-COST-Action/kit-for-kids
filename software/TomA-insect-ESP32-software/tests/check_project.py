@@ -94,6 +94,9 @@ def check_dashboard_contract() -> None:
     starter_manifest = text("dashboard/manifest.js")
     starter_summary = text("dashboard/summary.js")
     require("manifest.js" in html and "summary.js" in html, "Dashboard bootstrap files are missing")
+    require("session-duration" in html and "image-resolution" in html and "storage-remaining" in html, "Dashboard front page must show session duration, picture size, and storage remaining")
+    require("not connected yet" not in javascript, "The AI note must not imply AI is unavailable when interactive browser analysis exists")
+    require("sdTotalBytes" in javascript and "sdUsedBytes" in javascript, "Dashboard must read the storage fields the firmware writes")
     require("favicon.svg" in html and "site.webmanifest" in html and (ROOT / "dashboard" / "favicon.svg").is_file(), "Dashboard must provide a browser-tab icon")
     require("manifestCandidates" in starter_manifest, "Blank-card manifest starter is missing")
     require("summaryCandidates" in starter_summary, "Blank-card summary starter is missing")
@@ -144,7 +147,7 @@ def check_dashboard_contract() -> None:
     require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
     scheduler = text("src/main.cpp")
     require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
-    require("kCameraWarmupMs = 5000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
+    require("kCameraWarmupMs = 15000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
     require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
 
 

@@ -15,6 +15,10 @@ class CameraService {
   bool restoreMotionPreview(String& diagnostic);
   void release(camera_fb_t* frame);
   const String& sensorId() const;
+  // Current AWB-related register state, for the boot diagnostic - added
+  // alongside the 28 August 2026 white-balance fix so the trial run can
+  // confirm what was actually applied, not just what was intended.
+  String whiteBalanceStatus() const;
 
  private:
   bool initialiseCamera(pixformat_t pixel_format, framesize_t frame_size, String& diagnostic);

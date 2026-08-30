@@ -30,9 +30,18 @@ Metadata logging now costs more than writing the JPEG itself: a ~250-byte text l
 
 **On exFAT:** the original suggestion has merit — exFAT's allocation bitmap and single FAT would reduce exactly this metadata cost. It is not available in our toolchain, though: the arduino-esp32 prebuilt ESP-IDF ships with `FF_FS_EXFAT 0` and no exFAT symbols in `libfatfs.a`, so an exFAT card would not mount. Adopting it means either rebuilding ESP-IDF (an ADR-level change per the project brief) or replacing `SD.h` with SdFat. Worth revisiting only after the leaner write path, since the measurements say our own write pattern is the larger share.
 
-### Measurement artifact: sampling aligns with chunk promotion
+### Measurement artifact: sampling aligns with chunk promotion (fixed 28 August 2026)
 
-`kPerformanceSampleInterval` is 100 and `DashboardWriter::kChunkSize` is also 100, so **every performance sample lands exactly on a chunk promotion** — a rename plus `saveState`, `writeManifest` and `writeSummary`. The `dashboard_ms` figures above are therefore worst-case, not typical, and we have never sampled an ordinary frame. Change the sample interval to a prime such as 97 to decorrelate the two before drawing further conclusions.
+`kPerformanceSampleInterval` was 100 and `DashboardWriter::kChunkSize` is also 100, so **every performance sample landed exactly on a chunk promotion** — a rename plus `saveState`, `writeManifest` and `writeSummary`. The `dashboard_ms` figures above were therefore worst-case, not typical, and no ordinary frame had ever been sampled.
+
+**Fixed:** `kPerformanceSampleInterval` changed to **97** (a prime, so it can never land on a multiple of the 100-frame chunk cycle) in `src/main.cpp`. Verified live: rebooted, let a short test session run past capture 97, then read its performance log directly over the [dev bridge](dev-bridge.md) (`cat /system/performance_run_000049.csv`) rather than guessing the fix worked:
+
+```
+capture_id,...,image_write_ms,raw_csv_ms,dashboard_ms,logger_ms,total_ms,jpeg_bytes,...
+run_000049_img_97,...,393,291,26,318,732,85910,...
+```
+
+Sample landed on capture 97 as intended, and `dashboard_ms` is **26 ms** - not the 447 ms chunk-promotion figure above. `total_ms` is 732 ms, comfortably under the 1,000 ms budget. This is the first genuinely typical-frame measurement on record; the 983–1,030 ms figures above remain accurate as the *chunk-promotion* cost, just not as the steady-state cost, which was the actual point of this fix.
 
 ### Also observed
 
@@ -40,7 +49,7 @@ Metadata logging now costs more than writing the JPEG itself: a ~250-byte text l
 
 ### Next steps
 
-1. Decorrelate the performance sampling interval from the chunk size, then re-measure to get honest steady-state figures.
+1. ~~Decorrelate the performance sampling interval from the chunk size, then re-measure to get honest steady-state figures.~~ Done 28 August 2026, see above. One sample confirmed the fix works; a longer run would give a proper distribution rather than a single data point.
 2. Reduce the write path, in likely order of payoff: chunk promotion performing four file operations at once; three separate files opened and closed per frame; and the atomic write's `remove` → `open` → `write` → `flush` → `close` → `rename`.
 3. Reconsider exFAT only if metadata cost still dominates afterwards.
 
