@@ -1,17 +1,33 @@
 r"""Copy the dashboard starter files to an already formatted SD-card directory.
 
 Usage: py tools\prepare_sd.py E:\
+
+For a full new-device walkthrough (flash the board, then prepare the card in one
+step), use ``py tools\setup_device.py`` instead; it calls ``prepare_card`` below.
 """
 
 from __future__ import annotations
 
 import argparse
 import shutil
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIRECTORY = ROOT / "dashboard"
+
+STATIC_DASHBOARD_FILES = (
+    "dashboard.html",
+    "dashboard.css",
+    "dashboard.js",
+    "settings.js",
+    "analysis.js",
+    "card-access.js",
+    "favicon.svg",
+    "site.webmanifest",
+)
+VENDOR_FILES = ("mediabunny.min.cjs", "mediabunny-LICENSE.txt", "README.md")
+RUNTIME_FILES = ("manifest.js", "summary.js")
+CARD_DIRECTORIES = ("images", "raw", "data", "system")
 
 
 def copy_file(source: Path, destination: Path, dry_run: bool) -> None:
@@ -19,6 +35,35 @@ def copy_file(source: Path, destination: Path, dry_run: bool) -> None:
     if not dry_run:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+
+
+def prepare_card(destination: Path, dry_run: bool = False) -> None:
+    """Install the dashboard, folders and default config on a mounted card root.
+
+    Existing pictures, ``config.json`` and the runtime ``manifest.js`` /
+    ``summary.js`` are left untouched, so this is safe to re-run on a card that
+    already holds a session.
+    """
+    for filename in STATIC_DASHBOARD_FILES:
+        copy_file(ASSET_DIRECTORY / filename, destination / filename, dry_run)
+    for filename in VENDOR_FILES:
+        copy_file(ASSET_DIRECTORY / "vendor" / filename, destination / "vendor" / filename, dry_run)
+    for filename in RUNTIME_FILES:
+        runtime_file = destination / filename
+        if runtime_file.exists():
+            print(f"Leaving existing runtime {filename} unchanged")
+        else:
+            copy_file(ASSET_DIRECTORY / filename, runtime_file, dry_run)
+    if not (destination / "config.json").exists():
+        copy_file(ROOT / "config.example.json", destination / "config.json", dry_run)
+    else:
+        print("Leaving existing config.json unchanged")
+    for directory in CARD_DIRECTORIES:
+        target = destination / directory
+        print(f"{'Would create' if dry_run else 'Ensuring'} {target}")
+        if not dry_run:
+            target.mkdir(exist_ok=True)
+    print("SD-card preparation complete. Eject the card safely before inserting it in the camera.")
 
 
 def main() -> int:
@@ -29,27 +74,7 @@ def main() -> int:
     destination = args.destination.resolve()
     if not destination.is_dir():
         parser.error(f"destination is not an existing directory: {destination}")
-
-    for filename in ("dashboard.html", "dashboard.css", "dashboard.js", "settings.js", "analysis.js", "card-access.js", "favicon.svg", "site.webmanifest"):
-        copy_file(ASSET_DIRECTORY / filename, destination / filename, args.dry_run)
-    for filename in ("mediabunny.min.cjs", "mediabunny-LICENSE.txt", "README.md"):
-        copy_file(ASSET_DIRECTORY / "vendor" / filename, destination / "vendor" / filename, args.dry_run)
-    for filename in ("manifest.js", "summary.js"):
-        runtime_file = destination / filename
-        if runtime_file.exists():
-            print(f"Leaving existing runtime {filename} unchanged")
-        else:
-            copy_file(ASSET_DIRECTORY / filename, runtime_file, args.dry_run)
-    if not (destination / "config.json").exists():
-        copy_file(ROOT / "config.example.json", destination / "config.json", args.dry_run)
-    else:
-        print("Leaving existing config.json unchanged")
-    for directory in ("images", "raw", "data", "system"):
-        target = destination / directory
-        print(f"{'Would create' if args.dry_run else 'Ensuring'} {target}")
-        if not args.dry_run:
-            target.mkdir(exist_ok=True)
-    print("SD-card preparation complete. Eject the card safely before inserting it in the camera.")
+    prepare_card(destination, args.dry_run)
     return 0
 
 
