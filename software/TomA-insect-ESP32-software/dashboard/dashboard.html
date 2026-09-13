@@ -51,7 +51,17 @@
         <article class="metric-card metric-purple"><span>Pictures</span><strong id="image-count">-</strong><small>saved by your camera</small></article>
         <article class="metric-card metric-teal"><span>Last adventure</span><strong id="session-duration">-</strong><small>how long your camera ran</small></article>
         <article class="metric-card metric-yellow"><span>Picture size</span><strong id="image-resolution">-</strong><small>how big each picture is</small></article>
-        <article class="metric-card metric-coral"><span>Memory card</span><strong id="storage-remaining">-</strong><small>space left for more pictures</small></article>
+        <article class="metric-card metric-coral"><span>Total time recorded</span><strong id="total-recorded">-</strong><small>all your sessions added up</small></article>
+      </section>
+
+      <section id="card-check" class="card-check" aria-labelledby="card-check-title">
+        <div>
+          <p class="eyebrow warm">Picture check</p>
+          <h2 id="card-check-title">Is everything still on the card?</h2>
+          <p id="card-check-note" role="status">These counts come from the camera&rsquo;s own record. If pictures were tidied off the card afterwards, the numbers above can be too high.</p>
+          <div id="card-check-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="card-check-progress"></span></div>
+        </div>
+        <button id="card-check-button" class="secondary-button" type="button">Check the card <span aria-hidden="true">&rarr;</span></button>
       </section>
 
       <section class="adventure-grid" aria-label="Explore and discover">
@@ -165,6 +175,7 @@
           <p id="movie-info">Getting your pictures ready for a time-lapse.</p>
           <p class="movie-note">This makes an MP4 video from your saved pictures at 60 pictures per second. Nothing is uploaded or changed on the camera card.</p>
           <button id="movie-load-card" class="secondary-button" type="button">Load camera card <span aria-hidden="true">&rarr;</span></button>
+          <div id="movie-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="movie-card-progress"></span></div>
           <p id="movie-card-status" class="analysis-note" role="status">Press Load camera card, then choose the INSECT-AI drive in the next window.</p>
           <label id="movie-session-label" class="movie-session-label" for="movie-session" hidden>Choose a session<select id="movie-session"></select></label>
           <button id="movie-start" class="primary-button" type="button" disabled>Make movie <span aria-hidden="true">&rarr;</span></button>
@@ -244,8 +255,9 @@
           <p id="analysis-choice-note" class="analysis-note">AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.</p>
           <label id="analysis-session-label" class="movie-session-label" for="analysis-session" hidden>Choose a session<select id="analysis-session"></select></label>
           <p id="analysis-session-note" class="analysis-note">Choose the newest available session to begin.</p>
-          <button id="analysis-load-card" class="primary-button" type="button">Load images and AI <span aria-hidden="true">&rarr;</span></button>
-          <p id="analysis-card-status" class="analysis-note" role="status">Press Load images and AI, then choose the INSECT-AI drive in the next window. The browser can read the pictures and AI helper, but never change them.</p>
+          <button id="analysis-load-card" class="primary-button" type="button">Load camera card <span aria-hidden="true">&rarr;</span></button>
+          <div id="analysis-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="analysis-card-progress"></span></div>
+          <p id="analysis-card-status" class="analysis-note" role="status">Press Load camera card, then choose the INSECT-AI drive in the next window. The browser can read the pictures and AI helper, but never change them.</p>
           <button id="analysis-start" class="primary-button" type="button" disabled>Start looking <span aria-hidden="true">&rarr;</span></button>
         </section>
         <section id="analysis-scanner" class="analysis-scanner" hidden aria-live="polite">

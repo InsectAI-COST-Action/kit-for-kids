@@ -34,17 +34,35 @@ bool motion_baseline_ready = false;
 // figure ever recorded was worst-case rather than typical. See
 // docs/performance-experiment.md.
 constexpr uint32_t kPerformanceSampleInterval = 97;
-// Was 5000 and a bare delay(). A green colour cast persisting for the first
-// ~30 minutes of a session (28 August 2026, see docs/hardware-validation.md)
-// is consistent with auto white balance/exposure never actually converging
-// during warm-up, because a bare delay() gives them no captured frames to
-// iterate on - AWB/AEC adjust per-frame, not per elapsed millisecond. Now an
-// active frame-pump (see setup()) rather than an idle wait, so lengthening
-// it buys real AWB iterations instead of just a longer pause; extended
-// accordingly. Costs nothing against the 3,600 s capture budget - it runs
-// before session_started_ms is set. Unverified until the 29 August 2026
-// daylight trial confirms it actually shortens or removes the cast.
-constexpr uint32_t kCameraWarmupMs = 15000;
+// History: was a bare delay(5000), which gave AWB/AEC no captured frames
+// to iterate on. Two active-pump designs followed (see
+// docs/hardware-validation.md "Fix attempted"/"Seeded white balance" for
+// the full trail) before landing here. 31 August 2026: seed AWB directly
+// via CameraService::seedWhiteBalance() (real OV3660 register writes,
+// confirmed from driver source, not guessed) with a value measured from
+// this room's actual lighting, then pump briefly in the real capture mode
+// so AWB walks from that seed to whatever's optimal right now, rather than
+// racing cold auto-convergence from the hardware's 1024/1024/1024 default.
+// No sensor-mode switch happens in this design (a real bug in the prior
+// attempt: every esp_camera_init() call resets manual gain to
+// 1024/1024/1024, so warming up in a different mode and switching back
+// threw the whole thing away) - the seed is written directly onto the
+// already-configured capture sensor. Measured convergence with no reset in
+// the way plateaus within ~10 s (57 frames); kept some margin above that.
+constexpr uint32_t kCameraWarmupMs = 12000;
+// Measured 31 August 2026 (run_000078, this room, daylight): AWB converges
+// to approximately this gain and produces a visually neutral image within
+// ~10 s of continuous pumping with no sensor reset. Used as a starting
+// point, not a locked value - seedWhiteBalance() hands control straight
+// back to auto AWB, which keeps adjusting for whatever the light actually
+// is when the device boots. If the camera moves to a different location or
+// lighting, expect the *speed* of settling to matter less than usual (it's
+// already close) but the seed itself may need remeasuring for a very
+// different environment - see docs/hardware-validation.md "Seeded white
+// balance" for how these were found and how to redo it.
+constexpr uint16_t kWhiteBalanceSeedRedGain = 1055;
+constexpr uint16_t kWhiteBalanceSeedGreenGain = 1024;
+constexpr uint16_t kWhiteBalanceSeedBlueGain = 2100;
 
 struct CaptureTiming {
   uint32_t scheduled_ms = 0;
@@ -320,9 +338,17 @@ void setup() {
   report(diagnostic);
   performance_path = "/system/performance_" + logger.runId() + ".csv";
   ensurePerformanceLog();
-  report("camera warm-up: " + camera.whiteBalanceStatus() + ", pumping frames for " +
-         String(kCameraWarmupMs / 1000) + "s so AWB/AEC converge before the first retained frame");
   {
+    const uint32_t warmup_wall_start_ms = millis();
+    String seed_diagnostic;
+    if (!camera.seedWhiteBalance(kWhiteBalanceSeedRedGain, kWhiteBalanceSeedGreenGain, kWhiteBalanceSeedBlueGain,
+                                  seed_diagnostic)) {
+      report("white-balance seed failed (" + seed_diagnostic + "), starting from AWB default instead");
+    } else {
+      report("camera warm-up: " + seed_diagnostic);
+    }
+    report("camera warm-up: pumping frames for " + String(kCameraWarmupMs / 1000) +
+           "s so AWB walks from the seed to the actual current light");
     const uint32_t warmup_deadline = millis() + kCameraWarmupMs;
     uint32_t warmup_frames = 0;
     while (static_cast<int32_t>(millis() - warmup_deadline) < 0) {
@@ -335,7 +361,9 @@ void setup() {
         delay(50);  // avoid a tight spin if a frame is briefly unavailable
       }
     }
-    report("camera warm-up complete: " + String(warmup_frames) + " frames pumped, " + camera.whiteBalanceStatus());
+    report("camera warm-up complete: " + String(warmup_frames) + " frames in " + String(kCameraWarmupMs / 1000) +
+           "s (" + String(warmup_frames * 1000.0f / kCameraWarmupMs, 1) + " fps), " + camera.manualGainStatus());
+    report("camera warm-up total wall time: " + String(millis() - warmup_wall_start_ms) + " ms");
   }
   session_started_ms = millis();
   next_capture_due_ms = session_started_ms;

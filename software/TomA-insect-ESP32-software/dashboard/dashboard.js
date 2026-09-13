@@ -38,6 +38,8 @@
   const movieProgress = document.querySelector('#movie-progress');
   const movieInfo = document.querySelector('#movie-info');
   const movieLoadCard = document.querySelector('#movie-load-card');
+  const movieCardTrack = document.querySelector('#movie-card-track');
+  const movieCardProgress = document.querySelector('#movie-card-progress');
   const movieCardStatus = document.querySelector('#movie-card-status');
   const movieSessionLabel = document.querySelector('#movie-session-label');
   const movieSession = document.querySelector('#movie-session');
@@ -49,6 +51,11 @@
   const movieProgressText = document.querySelector('#movie-progress-text');
   const movieMessage = document.querySelector('#movie-message');
   const movieDownload = document.querySelector('#movie-download');
+  const cardCheck = document.querySelector('#card-check');
+  const cardCheckNote = document.querySelector('#card-check-note');
+  const cardCheckButton = document.querySelector('#card-check-button');
+  const cardCheckTrack = document.querySelector('#card-check-track');
+  const cardCheckProgress = document.querySelector('#card-check-progress');
   const movie = { active: false, cancelled: false, downloadUrl: undefined, output: undefined };
   const MOVIE_FPS = 60;
   const MOVIE_WIDTH = 1024;
@@ -77,6 +84,36 @@
     if (hours > 0) return `${hours}h ${minutes}m`;
     if (minutes > 0) return `${minutes}m ${seconds}s`;
     return `${seconds}s`;
+  };
+  // Picture availability. The camera's own record is the authority for what it
+  // observed, but a person can tidy JPEGs off the card afterwards and the
+  // record cannot know (reported 12 September 2026: the front page claimed far
+  // more pictures than the card actually held). Until the card has been
+  // checked, every record with an image path is assumed present - exactly the
+  // old behaviour. Once checked, the page shows what is really there. Nothing
+  // on the card is rewritten; see docs/reconciliation-policy.md.
+  const cardState = { checked: false, mismatch: false, referenced: 0, present: 0 };
+  const hasImage = (capture) => Boolean(capture.imagePath) && (!cardState.checked || capture.imageOnCard === true);
+  // Total time recorded: first-to-last image within each session, added up
+  // across every session on the card. Sessions are independent uptime clocks,
+  // so they can only be summed per session, never compared to each other.
+  const totalRecordedSeconds = () => {
+    const spans = new Map();
+    for (const capture of data.captures) {
+      if (!hasImage(capture)) continue;
+      const runId = capture.runId || 'unknown_session';
+      const uptime = Number(capture.uptimeMs);
+      if (!Number.isFinite(uptime)) continue;
+      const span = spans.get(runId) || { first: uptime, last: uptime, count: 0 };
+      span.first = Math.min(span.first, uptime);
+      span.last = Math.max(span.last, uptime);
+      span.count += 1;
+      spans.set(runId, span);
+    }
+    let total = 0;
+    // A single-image session has no measurable span, not a zero-length one.
+    for (const span of spans.values()) if (span.count >= 2) total += (span.last - span.first) / 1000;
+    return total;
   };
   // Newest session's own captures - reused by the front-page duration metric
   // and the motion panel, so both agree on what "last session" means.
@@ -121,19 +158,23 @@
   };
 
   const card = window.InsectCard;
-  const movieCaptures = () => data.captures.filter((capture) => capture.imagePath).map((capture) => ({ capture, file: card.fileFor(capture.imagePath) }));
-  const availableMovieCaptures = () => movieCaptures().filter((entry) => entry.file);
-  const movieSessions = () => {
-    const sessions = new Map();
-    for (const entry of availableMovieCaptures()) {
-      const runId = entry.capture.runId || String(entry.capture.imagePath).split('/')[2] || 'unknown_session';
-      const group = sessions.get(runId) || [];
-      group.push(entry);
-      sessions.set(runId, group);
-    }
-    return [...sessions.entries()].sort(([first], [second]) => second.localeCompare(first, undefined, { numeric: true }));
-  };
-  const selectedMovieCaptures = () => movieSessions().find(([runId]) => runId === movieSession.value)?.[1] || [];
+  const runIdOf = (capture) => capture.runId || String(capture.imagePath).split('/')[2] || 'unknown_session';
+  // Session names and counts come straight from card.sessionCounts() - the
+  // file listing the picker already gave us - not from walking every capture
+  // record. Reported 13 September 2026, after fixing fileFor's per-lookup
+  // cost: listing sessions still touched every one of 28,717 capture records
+  // on the real card just to populate a dropdown, when the file list alone
+  // (1,576 entries) already answers "which sessions exist and how many
+  // pictures does each have."
+  const movieSessions = () => [...card.sessionCounts()].sort(([first], [second]) => second.localeCompare(first, undefined, { numeric: true }));
+  // The capture-to-file match only actually needs doing for the one session
+  // in use - the movie itself needs each frame's real file, but no other
+  // session's records are touched to get there.
+  const movieCapturesFor = (runId) => data.captures
+    .filter((capture) => capture.imagePath && runIdOf(capture) === runId)
+    .map((capture) => ({ capture, file: card.fileFor(capture.imagePath) }))
+    .filter((entry) => entry.file);
+  const selectedMovieCaptures = () => movieCapturesFor(movieSession.value);
   const movieDuration = (count) => `${Math.max(1, Math.round(count / MOVIE_FPS))} seconds`;
   const movieEncoderReady = () => Boolean(
     window.Mediabunny && window.VideoEncoder &&
@@ -261,26 +302,32 @@
     }
   };
   const updateMovieCardStatus = () => {
-    const allCaptures = movieCaptures();
-    const captures = allCaptures.filter((entry) => entry.file);
-    const missing = allCaptures.length - captures.length;
+    // sessions is [runId, fileCount] pairs, read from the card's file listing
+    // (see movieSessions() above) - no per-capture lookups here at all. The
+    // one remaining full-card pass is a plain length count (referenced vs.
+    // actually present), not a lookup, so it stays cheap even at tens of
+    // thousands of records.
     const sessions = movieSessions();
+    const totalFiles = sessions.reduce((sum, [, count]) => sum + count, 0);
+    const totalReferenced = data.captures.filter((capture) => capture.imagePath).length;
+    const missing = Math.max(0, totalReferenced - totalFiles);
     const previous = movieSession.value;
     movieSession.replaceChildren();
-    sessions.forEach(([runId, entries], index) => {
+    sessions.forEach(([runId, count], index) => {
       const option = document.createElement('option');
       option.value = runId;
-      option.textContent = `${index === 0 ? 'Newest session ? ' : ''}${runId} (${entries.length} pictures)`;
+      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${count} pictures)`;
       movieSession.append(option);
     });
     if (sessions.some(([runId]) => runId === previous)) movieSession.value = previous;
     movieSessionLabel.hidden = !sessions.length;
     movieSession.disabled = !sessions.length;
-    const chosen = selectedMovieCaptures();
-    movieInfo.textContent = chosen.length ? `${movieSession.selectedOptions[0].textContent} is selected. At 60 pictures each second, your movie will be about ${movieDuration(chosen.length)} long.` : 'There are no saved pictures to turn into a movie yet.';
-    movieCardStatus.textContent = card.loaded ? `Camera card ready! I found ${captures.length} saved picture${captures.length === 1 ? '' : 's'} in ${sessions.length} session${sessions.length === 1 ? '' : 's'}.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''}` : 'Press Load camera card, then choose the INSECT-AI drive in the next window.';
-    movieLoadCard.hidden = card.loaded && captures.length > 0;
-    movieStart.disabled = !chosen.length || !movieEncoderReady();
+    const chosenCount = sessions.find(([runId]) => runId === movieSession.value)?.[1] || 0;
+    movieInfo.textContent = chosenCount ? `${movieSession.selectedOptions[0].textContent} is selected. At 60 pictures each second, your movie will be about ${movieDuration(chosenCount)} long.` : 'There are no saved pictures to turn into a movie yet.';
+    // While the card is being read, the shared progress message owns this line.
+    if (!card.busy) movieCardStatus.textContent = card.loaded ? `Camera card ready! I found ${totalFiles} saved picture${totalFiles === 1 ? '' : 's'} in ${sessions.length} session${sessions.length === 1 ? '' : 's'}.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''}` : 'Press Load camera card, then choose the INSECT-AI drive in the next window.';
+    movieLoadCard.hidden = card.loaded && totalFiles > 0;
+    movieStart.disabled = !chosenCount || !movieEncoderReady();
   };
   const openMovie = () => {
     lastFocus = document.activeElement;
@@ -384,20 +431,94 @@
     }
   };
 
+  const setCardProgress = (percent, message) => {
+    for (const [track, bar] of [[cardCheckTrack, cardCheckProgress], [movieCardTrack, movieCardProgress]]) {
+      if (!track || !bar) continue;
+      track.hidden = percent <= 0 || percent >= 100;
+      bar.style.width = `${Math.max(4, Math.min(100, percent))}%`;
+    }
+    if (!message) return;
+    if (cardCheckNote) cardCheckNote.textContent = message;
+    if (movieCardStatus && movieModal && !movieModal.hidden) movieCardStatus.textContent = message;
+  };
+
+  const renderCardCheck = () => {
+    if (!cardCheck || !cardCheckNote || !cardCheckButton) return;
+    const referenced = data.captures.filter((capture) => capture.imagePath).length;
+    if (!referenced) { cardCheck.hidden = true; return; }
+    cardCheck.hidden = false;
+    if (cardState.mismatch) {
+      cardCheck.className = 'card-check card-check-drift';
+      cardCheckButton.hidden = false;
+      cardCheckButton.textContent = 'Try another folder';
+      return;
+    }
+    if (!cardState.checked) {
+      cardCheck.className = 'card-check';
+      cardCheckButton.hidden = false;
+      cardCheckButton.textContent = 'Check the card';
+      cardCheckNote.textContent = "These counts come from the camera's own record. If pictures were tidied off the card afterwards, the numbers above can be too high.";
+      return;
+    }
+    const missing = cardState.referenced - cardState.present;
+    cardCheckButton.hidden = true;
+    cardCheck.className = missing ? 'card-check card-check-drift' : 'card-check card-check-clean';
+    cardCheckNote.textContent = missing
+      ? `Checked the card: ${cardState.present} of ${cardState.referenced} pictures are still here. ${missing} picture${missing === 1 ? ' is' : 's are'} in the camera's record but no longer on the card, so ${missing === 1 ? 'it is' : 'they are'} not counted above. Nothing on the card was changed.`
+      : `Checked the card: all ${cardState.present} picture${cardState.present === 1 ? '' : 's'} in the camera's record ${cardState.present === 1 ? 'is' : 'are'} still here.`;
+  };
+
+  // Compares the camera's record against the files actually in the chosen
+  // folder and adjusts only what this page displays. The card is never written
+  // to: rebuilding the on-card record belongs in a host-side tool with a
+  // backup, a dry run and a log (docs/reconciliation-policy.md).
+  const checkCard = () => {
+    if (!card.loaded) return;
+    const referenced = data.captures.filter((capture) => capture.imagePath);
+    if (!referenced.length) { cardState.mismatch = false; renderCardCheck(); return; }
+    // Worked out in full before anything is applied, so a folder that turns out
+    // to be the wrong one cannot damage an earlier good result.
+    const presence = data.captures.map((capture) => Boolean(capture.imagePath) && Boolean(card.fileFor(capture.imagePath)));
+    const present = presence.filter(Boolean).length;
+    // None of this card's pictures in the chosen folder almost always means the
+    // wrong folder was picked, not that every picture vanished. Saying so is
+    // far more useful than showing a page reporting zero pictures.
+    if (!present) {
+      cardState.mismatch = true;
+      renderCardCheck();
+      cardCheckNote.textContent = "That folder does not hold any of this card's pictures. Choose the top camera-card folder - the one holding dashboard.html - and try again.";
+      return;
+    }
+    data.captures.forEach((capture, index) => { capture.imageOnCard = presence[index]; });
+    cardState.mismatch = false;
+    cardState.checked = true;
+    cardState.referenced = referenced.length;
+    cardState.present = present;
+    render();
+  };
+
   const render = () => {
     const captures = filteredCaptures();
-    const allImages = data.captures.filter((capture) => capture.imagePath);
-    const images = captures.filter((capture) => capture.imagePath);
+    const allImages = data.captures.filter(hasImage);
+    const images = captures.filter(hasImage);
     const inferenceOutcomes = new Set(data.captures.map((capture) => capture.inferenceOutcome).filter(Boolean));
 
-    document.querySelector('#welcome-count').textContent = String(data.captures.length);
+    // Counts the pictures, not the capture attempts. In motion mode most rows
+    // are "nothing moved" checks that never produced an image, and after a card
+    // check the rows whose JPEG is gone are excluded too.
+    if (!status.classList.contains('status-warning')) {
+      status.textContent = data.captures.length
+        ? `Ready! Your camera saved ${allImages.length} picture${allImages.length === 1 ? '' : 's'}.`
+        : 'No pictures are on this card yet. Try another camera card or run.';
+    }
+    document.querySelector('#welcome-count').textContent = String(allImages.length);
     document.querySelector('#image-count').textContent = String(allImages.length);
     document.querySelector('#gallery-count').textContent = `${allImages.length} picture${allImages.length === 1 ? '' : 's'}`;
 
     // Last adventure: how long the newest session actually ran for, from its
     // first captured frame to its last - not the configured session limit,
     // which may not have been reached (a short test, or a stopped session).
-    const lastCaptures = lastSessionCaptures();
+    const lastCaptures = lastSessionCaptures().filter(hasImage);
     const lastTimes = lastCaptures.map((capture) => Number(capture.uptimeMs) || 0);
     document.querySelector('#session-duration').textContent = lastTimes.length >= 2
       ? formatDuration((Math.max(...lastTimes) - Math.min(...lastTimes)) / 1000) : '-';
@@ -409,19 +530,15 @@
     document.querySelector('#image-resolution').textContent = latestDimensioned
       ? `${latestDimensioned.width} x ${latestDimensioned.height}` : '-';
 
-    // Memory card: reads summary.js's sdTotalBytes/sdUsedBytes, when
-    // present and sane. The firmware does not currently write them -
-    // SdStorage::totalBytes() was found 29 August 2026 to report a
-    // reproducibly wrong value on every normal (cold) boot, so the
-    // dashboard-facing write was deliberately held back rather than ship a
-    // number known to be wrong (see src/dashboard_writer.cpp). This stays
-    // ready to activate the moment a fixed firmware starts writing correct
-    // values - no dashboard change needed then.
-    const summary = data.summary;
-    const totalBytes = Number(summary?.sdTotalBytes);
-    const usedBytes = Number(summary?.sdUsedBytes);
-    document.querySelector('#storage-remaining').textContent = totalBytes > 0 && usedBytes >= 0
-      ? `${Math.max(0, Math.min(100, Math.round((1 - usedBytes / totalBytes) * 100)))}%` : 'Soon';
+    // Total time recorded replaced a "Memory card" space-remaining tile on 12
+    // September 2026. That tile could only ever read "Soon": the firmware never
+    // writes the storage fields, because SdStorage::totalBytes() was found 29
+    // August 2026 to report a reproducibly wrong value on every normal (cold)
+    // boot (see src/dashboard_writer.cpp). A permanent placeholder was worse
+    // than a real number, so the tile now reports something the capture record
+    // already knows for certain.
+    const recorded = totalRecordedSeconds();
+    document.querySelector('#total-recorded').textContent = recorded > 0 ? formatDuration(recorded) : '-';
 
     const visibleCaptures = (showAllFrames ? captures : captures.slice(-initialLimit)).slice().reverse();
     rows.replaceChildren();
@@ -431,14 +548,15 @@
       cell(row, relativeTime(capture.uptimeMs));
       cell(row, capture.outcome || 'Unknown');
       const imageCell = document.createElement('td');
-      if (capture.imagePath) {
+      if (hasImage(capture)) {
         const link = document.createElement('button');
         link.className = 'inline-button';
         link.type = 'button';
         link.textContent = 'Open image';
         link.addEventListener('click', () => openImage(capture.imagePath, `Frame ${capture.captureId}`));
         imageCell.append(link);
-      } else imageCell.textContent = 'Unavailable';
+      } else if (capture.imagePath) imageCell.textContent = 'No longer on the card';
+      else imageCell.textContent = 'Unavailable';
       row.append(imageCell);
       rows.append(row);
     });
@@ -471,7 +589,8 @@
     document.querySelector('#model-note').textContent = inferenceOutcomes.has('model_unavailable')
       ? 'Your camera does not run AI on its own, but you can ask this computer to look for possible insects any time - choose an AI helper below.'
       : 'This card already has AI results saved on it, ready to explore.';
-    document.title = `Camera adventure - ${data.captures.length} pictures`;
+    document.title = `Camera adventure - ${allImages.length} pictures`;
+    renderCardCheck();
   };
 
   const finishLoading = () => {
@@ -514,11 +633,9 @@
         loadingError.hidden = false;
         return;
       }
-    } else if (data.captures.length) {
-      status.textContent = `Ready! Your camera saved ${data.captures.length} picture${data.captures.length === 1 ? '' : 's'}.`;
-    } else {
-      status.textContent = 'No pictures are on this card yet. Try another camera card or run.';
     }
+    // The "Ready!" line is written by render() so that it keeps agreeing with
+    // the tiles after a card check changes the picture count.
     render();
     finishLoading();
   };
@@ -536,9 +653,23 @@
     movieModal.addEventListener('click', (event) => { if (event.target === movieModal && !movie.active) closeMovie(); });
     movieLoadCard.addEventListener('click', () => card.request());
     movieSession.addEventListener('change', updateMovieCardStatus);
-    window.addEventListener('insect-card-loaded', () => { if (!movieModal.hidden) updateMovieCardStatus(); });
     movieStart.addEventListener('click', makeMovie);
   }
+  // One camera card, one choice. Whichever part of the page asked for it, every
+  // other part picks the same folder up without asking again.
+  window.addEventListener('insect-card-progress', (event) => setCardProgress(event.detail.percent, event.detail.message));
+  window.addEventListener('insect-card-cancelled', () => {
+    setCardProgress(0, '');
+    renderCardCheck();
+    if (movieModal && movieSession) updateMovieCardStatus();
+  });
+  window.addEventListener('insect-card-loaded', () => {
+    setCardProgress(0, '');
+    checkCard();
+    renderCardCheck();
+    if (movieModal && movieSession) updateMovieCardStatus();
+  });
+  if (cardCheckButton) cardCheckButton.addEventListener('click', () => card.request());
   modelModalClose.addEventListener('click', closeModelMessage);
   modelModalOk.addEventListener('click', closeModelMessage);
   modelModal.addEventListener('click', (event) => { if (event.target === modelModal) closeModelMessage(); });

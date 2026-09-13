@@ -37,7 +37,7 @@ The current offline package contains ONNX Runtime Web WebAssembly with one threa
 - **FlatBug - Quick look**: FlatBug Nano, one 640x640 whole-picture pass for larger or clearer insects.
 - **FlatBug - Look closely**: FlatBug Nano, 12 overlapping native-scale 640x640 tiles for a normal QXGA image, 4 across by 3 down, for tiny insects.
 
-The FlatBug output is a segmentation tensor with four box channels, one insect-confidence channel, and 32 mask-coefficient channels. The browser must read only the insect-confidence channel; interpreting the coefficients as scores caused an August 2026 false-positive/over-100-percent display defect and is now covered by a regression check. All three paths merge duplicate boxes, retain small candidates, and remain experimental. The selected top camera-card folder must contain `ai/flatbug-n.onnx`, the runtime files, and, for AntAI, `ai/antai-beta.onnx`. `py tools\install_ai_pack.py <card-root> --include-antai-beta` installs both models. Chrome/Edge folder-picker evidence exists; Firefox/Safari, redistribution, representative-image validation, batch performance, persistence/export, and the 3,600-image feasibility gate remain open.
+The FlatBug output is a segmentation tensor with four box channels, one insect-confidence channel, and 32 mask-coefficient channels. The browser must read only the insect-confidence channel; interpreting the coefficients as scores caused an August 2026 false-positive/over-100-percent display defect and is now covered by a regression check. All three paths merge duplicate boxes, retain small candidates, and remain experimental. The selected top camera-card folder must contain `ai/flatbug-n.onnx`, the runtime files, and `ai/antai-beta.onnx`. As of 13 September 2026 all three ship by default with `py tools\prepare_sd.py <card-root>` (see the redistribution decision in `docs/model-card.md`); `py tools\install_ai_pack.py <card-root>` adds them to an older card. Chrome/Edge folder-picker evidence exists; Firefox/Safari, the FlatBug redistribution review itself, representative-image validation, batch performance, persistence/export, and the 3,600-image feasibility gate remain open.
 
 
 ## Technical hypothesis
@@ -107,10 +107,10 @@ The direct-import route remains a regression diagnostic, but it is no longer the
 
 AntAI - Beta is a one-class, locally trained YOLO26 Nano ant detector, separate from FlatBug Nano. It is trained from the updated 49-image Roboflow COCO export (34 train, 10 validation, 5 held-out test images), with the source labels `ant` and `ants` deliberately merged into one `ant` class. It must be described as experimental until it has a substantially larger independent evaluation set.
 
-When `artifacts/antai-beta-round-1/runs/train/weights/best.onnx` exists, install it alongside the existing runtime and FlatBug assets with:
+As of 13 September 2026 the canonical copy lives at `dashboard/ai/antai-beta.onnx` and ships automatically with every prepared card. To add it to an older card that predates that change:
 
 ```powershell
-py tools\install_ai_pack.py D:\ --include-antai-beta
+py tools\install_ai_pack.py D:\
 ```
 
 The dashboard presents AntAI - Beta as an ant-only choice and uses model-provided ONNX input/output names so it can coexist with FlatBug's 640px format. The card remains read-only in the browser.

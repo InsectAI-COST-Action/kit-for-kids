@@ -9,6 +9,7 @@ This directory separates everyday operation from technical design and historical
 | Setting a camera up for the first time | [Setup guide](setup-guide.md) | Complete step-by-step from installing software to viewing pictures, written for a non-specialist (teacher-level) audience. |
 | Preparing, running, or collecting from the camera | [Operations guide](operations.md) | SD-card preparation, normal operation, browser dashboard, AI prototype, recovery, and cleanup. |
 | Returning to development | [Next session checklist](next-session.md) | Current hand-off state and the prioritised next tasks. |
+| Preparing the Barcelona show-and-tell | [Barcelona demo runbook](barcelona-demo.md) | Working source for the printable demo-day guide; what's built, what's missing, outstanding blockers. |
 | Looking for the project overview | [Repository README](../README.md) | What exists, current status, basic commands, and project map. |
 | Publishing local commits to GitHub | [CLAUDE.md](../CLAUDE.md) | This repo has no git remote by design — it publishes into the `kit-for-kids` monorepo via `git subtree` from a separate clone. Read this before assuming a commit here is visible upstream. |
 

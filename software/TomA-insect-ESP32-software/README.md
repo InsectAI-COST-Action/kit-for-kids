@@ -1,6 +1,6 @@
 # Insect camera logger
 
-> Part of the [InsectAI COST Action Kit-for-Kids](https://github.com/InsectAI-COST-Action/kit-for-kids) project, published at `software/TomA-insect-ESP32-software`. Licensed under the MIT licence of that repository; see its root `LICENSE`. Third-party components carry their own licences — Mediabunny is MPL-2.0 (`dashboard/vendor/mediabunny-LICENSE.txt`) and FlatBug is MIT.
+> Part of the [InsectAI COST Action Kit-for-Kids](https://github.com/InsectAI-COST-Action/kit-for-kids) project, published at `software/TomA-insect-ESP32-software`. Licensed under the MIT licence of that repository; see its root `LICENSE`. Third-party components carry their own licences — Mediabunny is MPL-2.0 (`dashboard/vendor/mediabunny-LICENSE.txt`) and ONNX Runtime Web is MIT (`dashboard/ai/LICENSE-onnxruntime.txt`). FlatBug's own software is MIT, but its bundled model weights (`dashboard/ai/flatbug-n.onnx`) carry an accepted, not resolved, redistribution risk — see the decision recorded in `docs/model-card.md` before assuming this clears them for further redistribution.
 
 Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV3660 camera. The settled pilot captures and stores every QXGA (2048?1536), JPEG-quality-12 frame at 1 FPS for no more than one hour (3,600 images). Computer vision is deliberately a null adapter on the camera while an offline, browser-side inference path is evaluated.
 
@@ -56,12 +56,13 @@ Do not remove the SD card while the camera is powered. Previous committed record
 
 - `src/` and `include/`: firmware modules.
 - `dashboard/`: self-contained HTML/CSS/JavaScript installed on the SD card.
+- `dashboard/ai/`: FlatBug Nano, AntAI - Beta, and their ONNX Runtime Web runtime; installed by default (see `tools/prepare_sd.py`). Redistribution decision recorded in `docs/model-card.md`.
 - `dashboard/fixtures/`: synthetic local-file data for dashboard testing.
 - `tools/setup_device.py`: one-command new-device setup — flash firmware, then prepare the SD card.
 - `tools/prepare_sd.py`: install/update the dashboard, folders and default config on a mounted card.
 - `tests/check_project.py`: dependency-free contract/static test harness.
 - `tools/audit_card.py`: read-only SD-card integrity audit.
-- `tools/install_ai_pack.py`: install the local FlatBug/WASM package and optionally the locally trained AntAI - Beta model on a card.
+- `tools/install_ai_pack.py`: add `dashboard/ai/`'s FlatBug and AntAI - Beta package to an older card that predates the default install.
 - `tools/train_antai_beta.py`: reproducibly train/evaluate AntAI - Beta from the normalised Roboflow COCO export; weights remain ignored.
 - `datasets/ant-detector-rfdetr-v2/`: normalised one-class COCO annotations and provenance for the 49-image AntAI training export; images remain ignored.
 - `tools/install_dashboard_demo.py`: install a separate synthetic presentation demo (not real capture data).

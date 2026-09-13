@@ -105,6 +105,14 @@ bool CameraService::configurePreviewSensor(String& diagnostic) {
   return true;
 }
 
+// A fast, low-res, still-colour warm-up mode (configureWarmupSensor()) that
+// switched back to the real capture mode afterwards (restoreOperatingMode())
+// was tried and removed 31 August 2026: every initialiseCamera() call resets
+// manual AWB gain to 1024/1024/1024, so the switch back threw away whatever
+// the warm-up had converged to. See docs/hardware-validation.md "Seeded
+// white balance" for the full investigation - main.cpp now seeds the real
+// capture sensor directly via seedWhiteBalance() instead, no mode switch.
+
 bool CameraService::begin(const AppConfig& config, String& diagnostic) {
   if (!psramFound()) {
     diagnostic = "PSRAM unavailable; camera capture is disabled";
@@ -161,4 +169,52 @@ String CameraService::whiteBalanceStatus() const {
   if (sensor_ == nullptr) return "no sensor";
   return "awb=" + String(sensor_->status.awb) + " awb_gain=" + String(sensor_->status.awb_gain) +
          " wb_mode=" + String(sensor_->status.wb_mode);
+}
+
+namespace {
+// Confirmed from sensors/ov3660.c in espressif/esp32-camera (31 August
+// 2026) - not guessed. 0x3400/0x3402/0x3404 are 16-bit R/G/B manual gain
+// registers; set_wb_mode()'s fixed presets (sunny/cloudy/office/home)
+// write these same three. 0x3406 is the manual/auto latch: bit 0 set
+// means "use the manual values below", clear means auto AWB drives them.
+constexpr int kRedGainReg = 0x3400;
+constexpr int kGreenGainReg = 0x3402;
+constexpr int kBlueGainReg = 0x3404;
+constexpr int kManualLatchReg = 0x3406;
+// mask > 0xFF routes CameraService's get_reg/set_reg calls through the
+// driver's 16-bit register path (write_reg16/read_reg16) rather than an
+// 8-bit single-register access - see set_reg's own mask-width branching
+// in ov3660.c.
+constexpr int kGain16Mask = 0xFFFF;
+}  // namespace
+
+String CameraService::manualGainStatus() const {
+  if (sensor_ == nullptr || sensor_->get_reg == nullptr) return "no register access";
+  const int r = sensor_->get_reg(sensor_, kRedGainReg, kGain16Mask);
+  const int g = sensor_->get_reg(sensor_, kGreenGainReg, kGain16Mask);
+  const int b = sensor_->get_reg(sensor_, kBlueGainReg, kGain16Mask);
+  return "gain r=" + String(r) + " g=" + String(g) + " b=" + String(b);
+}
+
+bool CameraService::seedWhiteBalance(uint16_t r_gain, uint16_t g_gain, uint16_t b_gain, String& diagnostic) {
+  if (sensor_ == nullptr || sensor_->set_reg == nullptr) {
+    diagnostic = "no register access available to seed white balance";
+    return false;
+  }
+  // Manual mode just long enough to latch the seed values - mirrors
+  // exactly what set_wb_mode()'s own presets do internally, confirmed
+  // from source rather than assumed.
+  sensor_->set_reg(sensor_, kManualLatchReg, 0xFF, 1);
+  sensor_->set_reg(sensor_, kRedGainReg, kGain16Mask, r_gain);
+  sensor_->set_reg(sensor_, kGreenGainReg, kGain16Mask, g_gain);
+  sensor_->set_reg(sensor_, kBlueGainReg, kGain16Mask, b_gain);
+  // Straight back to auto: the seed is a starting point for AWB to adjust
+  // from, not a locked value - the point is to walk from here to whatever
+  // is actually correct for the current light, not to fix a single gain
+  // forever regardless of conditions.
+  if (sensor_->set_wb_mode) sensor_->set_wb_mode(sensor_, 0);
+  if (sensor_->set_whitebal) sensor_->set_whitebal(sensor_, 1);
+  if (sensor_->set_awb_gain) sensor_->set_awb_gain(sensor_, 1);
+  diagnostic = "seeded " + manualGainStatus();
+  return true;
 }

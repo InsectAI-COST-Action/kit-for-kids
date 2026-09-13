@@ -285,19 +285,17 @@ Delete the `images`, `raw`, `data`, and `system` folders using File Explorer, th
 
 ---
 
-## Part 8 — The AI helper (experimental, optional)
+## Part 8 — The AI helper (experimental)
 
 The dashboard can look through pictures for possible insects, entirely on your own computer. Nothing is uploaded.
 
-> **⚠️ The AI models are not included in the code download.** They are large files kept out of the repository. Without them, the AI button will not work. Ask the project team for the model files if you want to try this — everything else in this guide works without them.
-
-If you have the model files in place:
+As of 13 September 2026 the AI models ship as part of the normal repository and are installed automatically by `py tools\prepare_sd.py D:\` in Part 3 — there is no separate download or step. If you are adding this to an older card that was prepared before that date, run:
 
 ```powershell
 py tools\install_ai_pack.py D:\
 ```
 
-Then in the dashboard, choose **Find insects with AI**, pick a mode, select the card folder when asked, and press **Start looking**.
+In the dashboard, choose **Find insects with AI**, pick a mode, select the card folder when asked, and press **Start looking** — the chosen model loads at that point, not before.
 
 > **Please read this before showing results to children.** These are **possible-insect guesses**, not identifications. The models are experimental, trained on very little data, and get things wrong in both directions — missing real insects and flagging things that are not insects. They cannot tell you a species. Treat every result as a prompt to go and look more closely, which is a good scientific habit anyway.
 
@@ -356,7 +354,7 @@ py tools\prepare_sd.py D:\
 # Check a card is healthy (read-only, safe)
 py tools\audit_card.py D:\
 
-# Install AI models, if you have them
+# Add AI models to an older card (new cards get them automatically, see Part 3)
 py tools\install_ai_pack.py D:\
 
 # Try the demo without a real camera
