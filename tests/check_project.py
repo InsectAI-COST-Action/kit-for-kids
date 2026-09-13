@@ -94,9 +94,12 @@ def check_dashboard_contract() -> None:
     starter_manifest = text("dashboard/manifest.js")
     starter_summary = text("dashboard/summary.js")
     require("manifest.js" in html and "summary.js" in html, "Dashboard bootstrap files are missing")
-    require("session-duration" in html and "image-resolution" in html and "storage-remaining" in html, "Dashboard front page must show session duration, picture size, and storage remaining")
+    require("session-duration" in html and "image-resolution" in html and "total-recorded" in html, "Dashboard front page must show session duration, picture size, and total recorded time")
     require("not connected yet" not in javascript, "The AI note must not imply AI is unavailable when interactive browser analysis exists")
-    require("sdTotalBytes" in javascript and "sdUsedBytes" in javascript, "Dashboard must read the storage fields the firmware writes")
+    # The "Memory card" tile it replaced could only ever read "Soon": the firmware
+    # never writes sdTotalBytes/sdUsedBytes because SdStorage::totalBytes() is
+    # known wrong on a cold boot (src/dashboard_writer.cpp, 29 August 2026).
+    require("storage-remaining" not in html and "totalRecordedSeconds" in javascript and "span.count >= 2" in javascript, "Total recorded time must sum each session's own first-to-last image span, not a placeholder storage tile")
     require("favicon.svg" in html and "site.webmanifest" in html and (ROOT / "dashboard" / "favicon.svg").is_file(), "Dashboard must provide a browser-tab icon")
     require("manifestCandidates" in starter_manifest, "Blank-card manifest starter is missing")
     require("summaryCandidates" in starter_summary, "Blank-card summary starter is missing")
@@ -136,7 +139,34 @@ def check_dashboard_contract() -> None:
     require((ROOT / "tests" / "mediabunny_spike.html").is_file(), "Local MP4 writer spike is missing")
     require("card-picker" in html and "card-access.js" in html and (ROOT / "dashboard" / "card-access.js").is_file(), "Dashboard must provide one shared camera-card picker")
     require("analysis-load-card" in html and "movie-load-card" in html and "InsectCard" in analysis, "AI and movie workflows must reuse the shared camera-card selection")
-    require("loadCardButton.hidden = true" in analysis and "movieLoadCard.hidden" in javascript, "Loaded-card actions must not look like a required repeated step")
+    require("loadCardButton.hidden = card.loaded" in analysis and "movieLoadCard.hidden" in javascript, "Loaded-card actions must not look like a required repeated step")
+    # One card choice serves the whole page. Both sections listen for the shared
+    # load event unconditionally, not only while their own panel is open.
+    require("insect-card-progress" in card_access and "insect-card-cancelled" in card_access and "card.busy" in card_access, "The shared card picker must broadcast its own loading progress and cancellation")
+    require("insect-card-progress" in javascript and "insect-card-progress" in analysis and "setCardProgress" in javascript and "setCardProgress" in analysis, "Both the movie and AI journeys must show progress while the card is read")
+    require("movie-card-track" in html and "analysis-card-track" in html and "card-check-track" in html, "Card loading must have a visible progress bar wherever it can be started")
+    require(">Load camera card <" in html and html.count(">Load camera card <") >= 2 and "Load images and AI" not in html, "Both card-loading buttons must carry the same name")
+    require("refreshAnalysisSessions();\n    if (!analysisSessions().length)" in analysis, "AI sessions must be listed from the pictures alone, before the model is touched")
+    # Display-side reconciliation only. Rebuilding the on-card record belongs in
+    # a host-side tool with a backup, a dry run and a log - see
+    # docs/reconciliation-policy.md.
+    require("card-check" in html and "checkCard" in javascript and "imageOnCard" in javascript and "hasImage" in javascript, "Dashboard must be able to reconcile its counts against the pictures actually on the card")
+    require("const presence = data.captures.map" in javascript and "if (!present)" in javascript, "A folder holding none of this card's pictures must be reported, not applied")
+    # Both found 13 September 2026 on the real pilot card (28,717 records, only
+    # 1,036 surviving images): fileFor's scan fallback made every "file no
+    # longer on the card" lookup an O(files) scan, and the AI panel used to
+    # fetch a model on every radio-button change instead of on Start looking.
+    require("Deliberately does NOT fall through to fileByName's scan" in card_access and "key.slice(key.lastIndexOf" in card_access, "Capture-image lookups must not fall back to a full scan for files that are genuinely missing")
+    require("cardReadyStatus" in analysis and "loadedModelFile !== selectedModel().file" in analysis, "The AI model must load only when Start looking is pressed, not on every choice change")
+    # Also found 13 September 2026, prompted directly by the owner asking why
+    # listing sessions needed to touch capture records at all rather than just
+    # reading directory names from the file listing already in hand. Session
+    # names/counts must come from the files on the card, not from walking
+    # every capture record - the two scale very differently on a reconciled
+    # card (28,717 records, 1,036 files, on the real pilot card).
+    require("card.sessionCounts" in card_access, "The shared card picker must derive session names/counts from its own file listing")
+    require("movieSessions = () => [...card.sessionCounts()]" in javascript and "movieCapturesFor" in javascript, "The movie panel must list sessions from the file listing, resolving capture-to-file matches only for the chosen session")
+    require("analysisSessions = () => [...card.sessionCounts()]" in analysis and "entriesForSession" in analysis, "The AI panel must list sessions from the file listing, resolving capture-to-file matches only for the chosen session")
     require(".primary-button[hidden]" in text("dashboard/dashboard.css"), "Hidden dashboard buttons must override their visible button styling")
     require("movie-session" in html and "selectedMovieCaptures" in javascript and "Newest session" in javascript, "Movie export must default to an available newest session")
     require("analysis-session" in html and "selectedAnalysisEntries" in analysis and "refreshAnalysisSessions" in analysis and "Newest session" in analysis, "AI analysis must let users select one available camera session")
@@ -147,7 +177,7 @@ def check_dashboard_contract() -> None:
     require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
     scheduler = text("src/main.cpp")
     require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
-    require("kCameraWarmupMs = 15000" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
+    require("kCameraWarmupMs = 12000" in scheduler and "seedWhiteBalance" in scheduler and "kWhiteBalanceSeedRedGain" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
     require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
 
 
@@ -170,6 +200,15 @@ def check_development_path_docs() -> None:
     require("3,600" in plan, "Browser feasibility must cover the maximum session")
     require("pause/cancel" in plan, "Long-running browser inference must remain controllable")
     require("AntAI - Beta" in plan and "AntAI - Beta" in model_card, "Experimental AntAI Beta evidence must be documented")
+    # AI models ship by default as of 13 September 2026 (previously a separate
+    # opt-in tools/install_ai_pack.py step) - the redistribution risk this
+    # accepts for FlatBug's third-party weights must stay a recorded decision,
+    # not a silent one.
+    require("Redistribution decision" in model_card and "13 September 2026" in model_card, "The FlatBug weight-redistribution risk acceptance must be recorded, not silent")
+    ai_dir = ROOT / "dashboard" / "ai"
+    for filename in ("flatbug-n.onnx", "antai-beta.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt"):
+        require((ai_dir / filename).is_file(), f"Canonical AI asset is missing: dashboard/ai/{filename}")
+    require('"flatbug-n.onnx"' in text("tools/prepare_sd.py") and '"antai-beta.onnx"' in text("tools/prepare_sd.py") and 'ASSET_DIRECTORY / "ai"' in text("tools/prepare_sd.py"), "SD preparation must install the AI pack by default")
 
 
 def main() -> int:

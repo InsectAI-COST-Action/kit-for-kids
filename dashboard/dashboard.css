@@ -54,6 +54,13 @@ p { line-height: 1.55; }
 .metric-teal { background: var(--teal); }
 .metric-yellow { background: #d18f14; }
 .metric-coral { background: var(--coral); }
+.card-check { align-items: center; background: #fff6e6; border: 2px dashed #d18f14; border-radius: 1.35rem; display: flex; gap: 1rem; justify-content: space-between; margin: 0 0 1.5rem; padding: 1.1rem clamp(1.1rem, 3vw, 1.6rem); }
+.card-check[hidden] { display: none; }
+.card-check h2 { font-size: 1.15rem; margin: 0 0 .35rem; }
+.card-check p:not(.eyebrow) { color: var(--muted); margin: 0; max-width: 58ch; }
+.card-check .analysis-progress-track { margin-left: 0; }
+.card-check.card-check-clean { background: #e3f7f3; border-color: var(--teal); }
+.card-check.card-check-drift { background: #fdeceb; border-color: var(--coral); }
 .adventure-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, 1fr); margin-bottom: 1.5rem; }
 .adventure-card { border-radius: 1.4rem; box-shadow: var(--shadow); min-height: 16rem; padding: 1.6rem; }
 .adventure-card p:not(.eyebrow) { color: var(--muted); max-width: 31ch; }
@@ -119,7 +126,7 @@ th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
 .modal-close { align-items: center; background: var(--paper); border: 2px solid var(--ink); border-radius: 50%; color: var(--ink); cursor: pointer; display: flex; font-size: 1.35rem; height: 2.25rem; justify-content: center; line-height: 1; padding: 0; position: absolute; right: .7rem; top: .7rem; width: 2.25rem; z-index: 1; }
 :focus-visible { outline: 4px solid #f0a928; outline-offset: 3px; }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-8px) rotate(5deg); } }
-@media (max-width: 760px) { .hero { min-height: 14rem; } .hero-badge { font-size: 3.5rem; height: 7rem; width: 7rem; } .metrics { grid-template-columns: repeat(2, 1fr); } .welcome-card, .adventure-grid { grid-template-columns: 1fr; } .welcome-card { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 760px) { .card-check { align-items: flex-start; flex-direction: column; } .hero { min-height: 14rem; } .hero-badge { font-size: 3.5rem; height: 7rem; width: 7rem; } .metrics { grid-template-columns: repeat(2, 1fr); } .welcome-card, .adventure-grid { grid-template-columns: 1fr; } .welcome-card { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 520px) { main { padding-left: .85rem; padding-right: .85rem; } .hero { align-items: flex-start; } .hero-badge { font-size: 2.6rem; height: 5.5rem; width: 5.5rem; } .metrics { gap: .6rem; } .metric-card { min-height: 7.4rem; padding: .85rem; } .metric-card strong { font-size: 1.35rem; } .section-heading { align-items: flex-start; flex-direction: column; gap: .3rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
 

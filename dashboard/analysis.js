@@ -9,6 +9,8 @@
   const analysisSession = document.querySelector('#analysis-session');
   const analysisSessionNote = document.querySelector('#analysis-session-note');
   const cardStatus = document.querySelector('#analysis-card-status');
+  const cardTrack = document.querySelector('#analysis-card-track');
+  const cardProgress = document.querySelector('#analysis-card-progress');
   const startButton = document.querySelector('#analysis-start');
   const pauseButton = document.querySelector('#analysis-pause');
   const stopButton = document.querySelector('#analysis-stop');
@@ -32,35 +34,36 @@
   const IOU_THRESHOLD = .20;
   let ort;
   let session;
+  let loadedModelFile;
   let lastFocus;
   const card = window.InsectCard;
   const state = { active: false, paused: false, index: 0, inspected: 0, errors: 0, discoveries: 0, entries: [] };
 
   const say = (text) => { story.textContent = text; };
-  const fileForCapture = (capture) => card.fileFor(capture.imagePath);
-  const expectedEntries = () => (window.InsectData?.captures || [])
-    .filter((capture) => capture.imagePath)
-    .map((capture) => ({ capture, file: fileForCapture(capture) }));
   const availableEntries = (entries) => entries.filter((entry) => entry.file);
-  const sessionId = (entry) => entry.capture.runId || String(entry.capture.imagePath).split('/')[2] || 'unknown_session';
-  const analysisSessions = () => {
-    const sessions = new Map();
-    for (const entry of availableEntries(expectedEntries())) {
-      const runId = sessionId(entry), group = sessions.get(runId) || [];
-      group.push(entry);
-      sessions.set(runId, group);
-    }
-    return [...sessions.entries()].sort(([first], [second]) => second.localeCompare(first, undefined, { numeric: true }));
-  };
-  const selectedAnalysisEntries = () => expectedEntries().filter((entry) => sessionId(entry) === analysisSession.value);
+  const runIdOf = (capture) => capture.runId || String(capture.imagePath).split('/')[2] || 'unknown_session';
+  // Session names and counts come straight from card.sessionCounts() - the
+  // file listing the picker already gave us - not from walking every capture
+  // record. Reported 13 September 2026, after fixing fileFor's per-lookup
+  // cost: listing sessions still touched every one of 28,717 capture records
+  // on the real card just to populate a dropdown, when the file list alone
+  // (1,576 entries) already answers "which sessions exist and how many
+  // pictures does each have."
+  const analysisSessions = () => [...card.sessionCounts()].sort(([first], [second]) => second.localeCompare(first, undefined, { numeric: true }));
+  // The capture-to-file match (and the "N older records will be skipped"
+  // count it enables) only actually needs doing for the one session in use.
+  const entriesForSession = (runId) => (window.InsectData?.captures || [])
+    .filter((capture) => capture.imagePath && runIdOf(capture) === runId)
+    .map((capture) => ({ capture, file: card.fileFor(capture.imagePath) }));
+  const selectedAnalysisEntries = () => entriesForSession(analysisSession.value);
   const selectedSessionLabel = () => analysisSession.selectedOptions[0]?.textContent || 'No session selected';
   const refreshAnalysisSessions = () => {
     const sessions = analysisSessions(), previous = analysisSession.value;
     analysisSession.replaceChildren();
-    sessions.forEach(([runId, entries], index) => {
+    sessions.forEach(([runId, count], index) => {
       const option = document.createElement('option');
       option.value = runId;
-      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${entries.length} pictures)`;
+      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${count} pictures)`;
       analysisSession.append(option);
     });
     if (sessions.some(([runId]) => runId === previous)) analysisSession.value = previous;
@@ -231,13 +234,20 @@
     if (state.paused) return say('Paused. Your discoveries are safe on this page.');
     window.setTimeout(inspectNext, 0);
   };
-  const start = () => {
+  const start = async () => {
     const entries = selectedAnalysisEntries();
     const available = availableEntries(entries);
     const missingPictures = entries.length - available.length;
-    if (!session) return say('Load images and AI first.');
-    if (!entries.length) return say('There are no saved pictures for the AI to look at yet.');
+    if (!card.loaded || !entries.length) return say('There are no saved pictures for the AI to look at yet.');
     if (!available.length) return say('There are no saved picture files available for the AI to look at yet.');
+    // The model is fetched here, not on every choice change - see loadCard()
+    // and the choice-change handler below for why.
+    if (!session || loadedModelFile !== selectedModel().file) {
+      startButton.disabled = true;
+      say('Waking up the AI helper...');
+      await loadModel();
+      if (!session) return;
+    }
     const mode = selectedAnalysisMode();
     Object.assign(state, { active: true, paused: false, index: 0, inspected: 0, errors: 0, discoveries: 0, entries: available, mode });
     discoveries.replaceChildren();
@@ -258,45 +268,99 @@
     else say(mode === 'close' ? 'Looking closely in 12 picture pieces for tiny possible insects...' : 'Taking a quick look through each whole picture...');
     inspectNext();
   };
-  const loadCard = async () => {
-    session = undefined;
-    startButton.disabled = true;
-    if (!card.loaded) {
-      loadCardButton.hidden = false;
-      cardStatus.textContent = 'Press Load images and AI, then choose the INSECT-AI drive in the next window.';
+  const setCardProgress = (percent, message) => {
+    if (cardTrack && cardProgress) {
+      cardTrack.hidden = percent <= 0 || percent >= 100;
+      cardProgress.style.width = `${Math.max(4, Math.min(100, percent))}%`;
+    }
+    if (message) cardStatus.textContent = message;
+  };
+  const readyMessage = (modelName) => {
+    const entries = selectedAnalysisEntries(), available = availableEntries(entries), missing = entries.length - available.length;
+    startButton.disabled = !session || !available.length;
+    return `${modelName} is ready! ${selectedSessionLabel()} has ${available.length} saved picture${available.length === 1 ? '' : 's'}.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''} Press Start looking.`;
+  };
+  // Shown the whole time the panel is open but no model has been fetched yet
+  // (it only loads once Start looking is pressed). Deliberately reads the
+  // picture count from card.sessionCounts() - the free, file-based session
+  // list - rather than resolving this session's capture records the way
+  // readyMessage does. A session only appears in that list because it has at
+  // least one real file, so the button-enable decision needs nothing more;
+  // the precise "N older records will be skipped" figure is still shown, just
+  // by start() right before scanning begins, not repeated here. Found 13
+  // September 2026: without this, simply opening the panel resolved the
+  // default session's entire capture record set just to print this line -
+  // scoped to one session rather than the whole card, but still needless
+  // work before the user has asked for anything.
+  const cardReadyStatus = () => {
+    const count = card.sessionCounts().get(analysisSession.value) || 0;
+    startButton.disabled = !count;
+    return `Camera card ready! ${selectedSessionLabel()} has ${count} saved picture${count === 1 ? '' : 's'}. Press Start looking.`;
+  };
+  const loadModel = async () => {
+    const activeModel = selectedModel();
+    // Re-opening the panel used to rebuild the whole runtime every time. The
+    // model is unchanged unless the AI choice changed, so keep it.
+    if (session && loadedModelFile === activeModel.file) {
+      setCardProgress(0, readyMessage(activeModel.name));
       return;
     }
-    const activeModel = selectedModel();
+    session = undefined;
+    loadedModelFile = undefined;
+    startButton.disabled = true;
     const model = card.fileByName(activeModel.file);
     const runtime = RUNTIME_FILES.map(card.fileByName);
     const missingRuntime = RUNTIME_FILES.filter((name, index) => !runtime[index]);
     if (!model || missingRuntime.length) {
-      cardStatus.textContent = `This folder needs the ${activeModel.name} file and AI runtime in ai/: ${[!model ? activeModel.file : '', ...missingRuntime].filter(Boolean).join(', ')}.`;
+      setCardProgress(0, `Your pictures are ready, but this card has no ${activeModel.name} helper in ai/: ${[!model ? activeModel.file : '', ...missingRuntime].filter(Boolean).join(', ')}. Add the AI pack to the card, then try again.`);
       return;
     }
     try {
-      cardStatus.textContent = `Opening ${activeModel.name} and waking up the AI helper...`;
+      setCardProgress(25, `Opening ${activeModel.name} and waking up the AI helper...`);
       const urls = [];
       const blobUrl = (file) => { const url = URL.createObjectURL(file); urls.push(url); return url; };
       ort = await import(blobUrl(card.fileByName('ort.wasm.bundle.min.mjs')));
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
       ort.env.wasm.wasmPaths = { wasm: blobUrl(card.fileByName('ort-wasm-simd-threaded.wasm')) };
-      session = await ort.InferenceSession.create(new Uint8Array(await model.arrayBuffer()), { executionProviders: ['wasm'] });
-      refreshAnalysisSessions();
-      const entries = selectedAnalysisEntries();
-      const available = availableEntries(entries);
-      const missingPictures = entries.length - available.length;
-      if (!available.length) {
-        cardStatus.textContent = `No saved picture files are available. ${missingPictures} record${missingPictures === 1 ? '' : 's'} refer to images that are no longer on this card.`;
-        return;
-      }
-      cardStatus.textContent = `${activeModel.name} is ready! I found ${available.length} saved picture${available.length === 1 ? '' : 's'}. ${missingPictures ? `${missingPictures} older record${missingPictures === 1 ? '' : 's'} without image files will be skipped. ` : ''}Press Start looking.`;
-      loadCardButton.hidden = true;
-      startButton.disabled = false;
+      setCardProgress(55, `Reading the ${activeModel.name} helper from the card...`);
+      const weights = new Uint8Array(await model.arrayBuffer());
+      setCardProgress(80, `Starting ${activeModel.name}...`);
+      session = await ort.InferenceSession.create(weights, { executionProviders: ['wasm'] });
+      loadedModelFile = activeModel.file;
+      setCardProgress(0, readyMessage(activeModel.name));
     } catch (error) {
-      cardStatus.textContent = `The AI helper could not start: ${error instanceof Error ? error.message : String(error)}`;
+      session = undefined;
+      loadedModelFile = undefined;
+      setCardProgress(0, `The AI helper could not start: ${error instanceof Error ? error.message : String(error)}`);
     }
+  };
+  const loadCard = async () => {
+    startButton.disabled = true;
+    if (!card.loaded) {
+      loadCardButton.hidden = false;
+      setCardProgress(0, 'Press Load camera card, then choose the INSECT-AI drive in the next window.');
+      return;
+    }
+    loadCardButton.hidden = true;
+    // Sessions come from the pictures alone and are listed before the AI helper
+    // is touched. Loading them inside the model step meant a card with no ai/
+    // folder showed an empty session list, which looked like the session
+    // chooser itself was broken (reported 12 September 2026).
+    refreshAnalysisSessions();
+    if (!analysisSessions().length) {
+      session = undefined;
+      loadedModelFile = undefined;
+      loadCardButton.hidden = false;
+      setCardProgress(0, 'This folder has no saved camera pictures in it. Choose the top camera-card folder and try again.');
+      return;
+    }
+    // The AI helper itself is deliberately not touched here - it loads only
+    // when Start looking is pressed (see start()). Reported 13 September
+    // 2026: switching between AI choices felt laggy because every switch used
+    // to trigger a full model fetch and WebAssembly runtime start
+    // immediately, before the user had asked to run anything.
+    setCardProgress(0, cardReadyStatus());
   };
   const open = () => { lastFocus = document.activeElement; modal.hidden = false; setup.hidden = false; scanner.hidden = true; if (card.loaded) loadCard(); else loadCardButton.focus(); };
   const close = () => { state.active = false; modal.hidden = true; if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); };
@@ -304,18 +368,31 @@
   openButton.addEventListener('click', (event) => { event.stopImmediatePropagation(); open(); }, true);
   closeButton.addEventListener('click', close);
   modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
-  analysisChoiceInputs.forEach((input) => input.addEventListener('change', () => { updateChoiceNote(); session = undefined; startButton.disabled = true; if (card.loaded) loadCard(); }));
+  analysisChoiceInputs.forEach((input) => input.addEventListener('change', () => {
+    updateChoiceNote();
+    // No model fetch here - only Start looking loads one (see start()). If a
+    // different model was already loaded from an earlier search, session
+    // still refers to it; start() compares loadedModelFile against the newly
+    // selected one and reloads only if they actually differ.
+    if (card.loaded) setCardProgress(0, cardReadyStatus());
+    else startButton.disabled = true;
+  }));
   analysisSession.addEventListener('change', () => {
-    const entries = selectedAnalysisEntries(), available = availableEntries(entries), missing = entries.length - available.length;
     analysisSessionNote.textContent = `${selectedSessionLabel()} is selected. The AI will only look at these pictures.`;
-    if (session) {
-      cardStatus.textContent = `${selectedModel().name} is ready! ${selectedSessionLabel()} is selected.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''} Press Start looking.`;
-      startButton.disabled = !available.length;
-    }
+    cardStatus.textContent = session && loadedModelFile === selectedModel().file ? readyMessage(selectedModel().name) : cardReadyStatus();
   });
   updateChoiceNote();
   loadCardButton.addEventListener('click', () => card.request());
-  window.addEventListener('insect-card-loaded', () => { if (!modal.hidden) loadCard(); });
+  window.addEventListener('insect-card-progress', (event) => { if (!modal.hidden) setCardProgress(event.detail.percent, event.detail.message); });
+  window.addEventListener('insect-card-cancelled', () => { if (!modal.hidden) setCardProgress(0, 'No folder was chosen. Press Load camera card to try again.'); });
+  // The card is chosen once for the whole page. When the movie maker or the
+  // front-page picture check loaded it, this section must already know.
+  window.addEventListener('insect-card-loaded', () => {
+    if (!modal.hidden) { loadCard(); return; }
+    loadCardButton.hidden = card.loaded;
+    refreshAnalysisSessions();
+    if (card.loaded) cardStatus.textContent = 'Camera card ready. The AI helper starts when you open this.';
+  });
   startButton.addEventListener('click', start);
   pauseButton.addEventListener('click', () => {
     if (!state.active) return;

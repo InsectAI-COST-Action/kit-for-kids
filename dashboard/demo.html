@@ -13,9 +13,9 @@
   <body>
     <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-busy="true">
       <div class="loading-card">
-        <div class="loading-motif" aria-hidden="true"><span>??</span><span>??</span></div>
+        <div class="loading-motif" aria-hidden="true"><span>&#x1F41E;</span><span>&#x1F4F7;</span></div>
         <p class="eyebrow">Your camera adventure</p>
-        <h1>Opening your camera adventure?</h1>
+        <h1>Opening your camera adventure&hellip;</h1>
         <p id="loading-message">Finding your pictures on the card.</p>
         <div class="loading-track" aria-hidden="true"><span id="loading-progress"></span></div>
         <p id="loading-detail" class="loading-detail">Getting everything ready</p>
@@ -31,9 +31,9 @@
         <div>
           <p class="eyebrow">Insect AI Kit-for-Kids</p>
           <h1>What did your camera see?</h1>
-          <p id="status" role="status">Getting your pictures ready?</p>
+          <p id="status" role="status">Getting your pictures ready&hellip;</p>
         </div>
-        <div class="hero-badge" aria-hidden="true">??</div>
+        <div class="hero-badge" aria-hidden="true">&#x1F98B;</div>
       </header>
 
       <section class="welcome-card" aria-labelledby="welcome-title">
@@ -42,26 +42,36 @@
           <h2 id="welcome-title">Your camera took <strong id="welcome-count">-</strong> pictures!</h2>
           <p>Pick a picture, zoom in, and see what you can discover.</p>
         </div>
-        <a class="primary-button" href="#gallery-title">Explore pictures <span aria-hidden="true">?</span></a>
+        <a class="primary-button" href="#gallery-title">Explore pictures <span aria-hidden="true">&rarr;</span></a>
       </section>
 
       <section class="metrics" aria-label="Session summary">
         <article class="metric-card metric-purple"><span>Pictures</span><strong id="image-count">-</strong><small>saved by your camera</small></article>
         <article class="metric-card metric-teal"><span>Last adventure</span><strong id="session-duration">-</strong><small>how long your camera ran</small></article>
         <article class="metric-card metric-yellow"><span>Picture size</span><strong id="image-resolution">-</strong><small>how big each picture is</small></article>
-        <article class="metric-card metric-coral"><span>Memory card</span><strong id="storage-remaining">-</strong><small>space left for more pictures</small></article>
+        <article class="metric-card metric-coral"><span>Total time recorded</span><strong id="total-recorded">-</strong><small>all your sessions added up</small></article>
+      </section>
+
+      <section id="card-check" class="card-check" aria-labelledby="card-check-title">
+        <div>
+          <p class="eyebrow warm">Picture check</p>
+          <h2 id="card-check-title">Is everything still on the card?</h2>
+          <p id="card-check-note" role="status">These counts come from the camera&rsquo;s own record. If pictures were tidied off the card afterwards, the numbers above can be too high.</p>
+          <div id="card-check-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="card-check-progress"></span></div>
+        </div>
+        <button id="card-check-button" class="secondary-button" type="button">Check the card <span aria-hidden="true">&rarr;</span></button>
       </section>
 
       <section class="adventure-grid" aria-label="Explore and discover">
         <section class="adventure-card explore-card" aria-labelledby="explore-title">
-          <span class="card-icon" aria-hidden="true">??</span>
+          <span class="card-icon" aria-hidden="true">&#x1F50E;</span>
           <p class="eyebrow">Look closely</p>
           <h2 id="explore-title">Explore your pictures</h2>
           <p>Look closely at the world your camera watched.</p>
-          <a class="secondary-button" href="#gallery-title">Show me the pictures <span aria-hidden="true">?</span></a>
+          <a class="secondary-button" href="#gallery-title">Show me the pictures <span aria-hidden="true">&rarr;</span></a>
         </section>
         <section class="adventure-card ai-card" aria-labelledby="ai-title">
-          <span class="card-icon" aria-hidden="true">?</span>
+          <span class="card-icon" aria-hidden="true">&#x2728;</span>
           <p class="eyebrow">Your AI adventure</p>
           <h2 id="ai-title">Ask the AI to look</h2>
           <p>Ask your computer to look through the pictures. It will share possible-insect clues, and AI can make mistakes.</p>
@@ -131,7 +141,7 @@
     <div id="model-modal" class="model-modal" hidden role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
       <div class="model-modal-card">
         <button id="model-modal-close" class="modal-close" type="button" aria-label="Close message">x</button>
-        <div class="card-icon" aria-hidden="true">???</div>
+        <div class="card-icon" aria-hidden="true">&#x1F6E0;&#xFE0F;</div>
         <h2 id="model-modal-title">The AI is still getting ready</h2>
         <p>We are building the picture-spotting part of this adventure. For now, you can explore every picture yourself.</p>
         <button id="model-modal-ok" class="primary-button" type="button">Keep exploring</button>
@@ -147,6 +157,7 @@
           <p id="movie-info">Getting your pictures ready for a time-lapse.</p>
           <p class="movie-note">This makes an MP4 video from your saved pictures at 60 pictures per second. Nothing is uploaded or changed on the camera card.</p>
           <button id="movie-load-card" class="secondary-button" type="button">Load camera card <span aria-hidden="true">&rarr;</span></button>
+          <div id="movie-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="movie-card-progress"></span></div>
           <p id="movie-card-status" class="analysis-note" role="status">Press Load camera card, then choose this demo folder in the next window.</p>
           <label id="movie-session-label" class="movie-session-label" for="movie-session" hidden>Choose a session<select id="movie-session"></select></label>
           <button id="movie-start" class="primary-button" type="button" disabled>Make movie <span aria-hidden="true">&rarr;</span></button>
@@ -226,8 +237,9 @@
           <p id="analysis-choice-note" class="analysis-note">AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.</p>
           <label id="analysis-session-label" class="movie-session-label" for="analysis-session" hidden>Choose a session<select id="analysis-session"></select></label>
           <p id="analysis-session-note" class="analysis-note">Choose the newest available session to begin.</p>
-          <button id="analysis-load-card" class="primary-button" type="button">Load images and AI <span aria-hidden="true">&rarr;</span></button>
-          <p id="analysis-card-status" class="analysis-note" role="status">Press Load images and AI, then choose this demo folder in the next window. The browser can read the pictures and AI helper, but never change them.</p>
+          <button id="analysis-load-card" class="primary-button" type="button">Load camera card <span aria-hidden="true">&rarr;</span></button>
+          <div id="analysis-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="analysis-card-progress"></span></div>
+          <p id="analysis-card-status" class="analysis-note" role="status">Press Load camera card, then choose this demo folder in the next window. The browser can read the pictures and AI helper, but never change them.</p>
           <button id="analysis-start" class="primary-button" type="button" disabled>Start looking <span aria-hidden="true">&rarr;</span></button>
         </section>
         <section id="analysis-scanner" class="analysis-scanner" hidden aria-live="polite">

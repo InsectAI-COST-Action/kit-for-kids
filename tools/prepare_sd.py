@@ -34,6 +34,12 @@ def main() -> int:
         copy_file(ASSET_DIRECTORY / filename, destination / filename, args.dry_run)
     for filename in ("mediabunny.min.cjs", "mediabunny-LICENSE.txt", "README.md"):
         copy_file(ASSET_DIRECTORY / "vendor" / filename, destination / "vendor" / filename, args.dry_run)
+    # AI models ship by default as of 13 September 2026 - see docs/model-card.md
+    # for the redistribution decision and docs/next-session.md for why this
+    # used to be a separate opt-in step (tools/install_ai_pack.py still works,
+    # for adding the pack to an older card without a full re-prepare).
+    for filename in ("flatbug-n.onnx", "antai-beta.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt", "README.md"):
+        copy_file(ASSET_DIRECTORY / "ai" / filename, destination / "ai" / filename, args.dry_run)
     for filename in ("manifest.js", "summary.js"):
         runtime_file = destination / filename
         if runtime_file.exists():
