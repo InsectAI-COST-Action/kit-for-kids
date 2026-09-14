@@ -1,4 +1,5 @@
 (() => {
+  const { t } = window.i18n;
   const data = window.InsectData = window.InsectData || {};
   data.captures = data.captures || [];
   data.addCapture = data.addCapture || ((capture) => data.captures.push(capture));
@@ -75,7 +76,7 @@
     document.head.append(script);
   });
 
-  const relativeTime = (milliseconds) => `${((Number(milliseconds) || 0) / 1000).toFixed(1)} seconds`;
+  const relativeTime = (milliseconds) => t('time.seconds', ((Number(milliseconds) || 0) / 1000).toFixed(1));
   const formatDuration = (totalSeconds) => {
     if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '-';
     const hours = Math.floor(totalSeconds / 3600);
@@ -175,7 +176,7 @@
     .map((capture) => ({ capture, file: card.fileFor(capture.imagePath) }))
     .filter((entry) => entry.file);
   const selectedMovieCaptures = () => movieCapturesFor(movieSession.value);
-  const movieDuration = (count) => `${Math.max(1, Math.round(count / MOVIE_FPS))} seconds`;
+  const movieDuration = (count) => t('time.seconds', Math.max(1, Math.round(count / MOVIE_FPS)));
   const movieEncoderReady = () => Boolean(
     window.Mediabunny && window.VideoEncoder &&
     window.Mediabunny.Output && window.Mediabunny.Mp4OutputFormat &&
@@ -216,20 +217,20 @@
     context.fillRect(0, 0, MOVIE_WIDTH, MOVIE_HEIGHT);
     context.fillStyle = '#fff';
     context.font = 'bold 38px system-ui';
-    context.fillText('Picture unavailable', 300, 380);
+    context.fillText(t('movie.pictureUnavailable'), 300, 380);
   };
   const makeMovie = async () => {
     const captures = selectedMovieCaptures();
     if (!card.loaded) {
-      movieSupport.textContent = 'Press Load camera card first.';
+      movieSupport.textContent = t('movie.pressLoadFirst');
       return;
     }
     if (!captures.length) {
-      movieSupport.textContent = 'There are no saved picture files to make into a movie yet.';
+      movieSupport.textContent = t('movie.noSavedFiles');
       return;
     }
     if (!movieEncoderReady()) {
-      movieSupport.textContent = 'Movie making needs current Chrome or Edge with its local video tools enabled.';
+      movieSupport.textContent = t('movie.needsModernBrowser');
       return;
     }
     clearMovieDownload();
@@ -239,9 +240,9 @@
     movieProgress.hidden = false;
     movieStart.disabled = true;
     movieCancel.hidden = false;
-    movieMessage.textContent = 'Starting a properly timed MP4 movie.';
+    movieMessage.textContent = t('movie.startingMessage');
     movieProgressBar.style.width = '0%';
-    movieProgressText.textContent = `Picture 0 of ${captures.length}`;
+    movieProgressText.textContent = t('progress.text', 0, captures.length);
     try {
       const target = new window.Mediabunny.BufferTarget();
       const output = new window.Mediabunny.Output({
@@ -268,31 +269,31 @@
         await source.add(index / MOVIE_FPS, 1 / MOVIE_FPS);
         const completed = index + 1;
         movieProgressBar.style.width = `${Math.round(completed / captures.length * 100)}%`;
-        movieProgressText.textContent = `Picture ${completed} of ${captures.length}`;
+        movieProgressText.textContent = t('progress.text', completed, captures.length);
         movieMessage.textContent = completed === captures.length
-          ? 'Finishing your MP4 movie...'
-          : `Adding picture ${completed} to your speedy insect story.`;
+          ? t('movie.finishing')
+          : t('movie.addingPicture', completed);
         await yieldMovieWork();
       }
       if (movie.cancelled) {
-        movieMessage.textContent = 'Movie cancelled. No file was made.';
+        movieMessage.textContent = t('movie.cancelledMessage');
         return;
       }
       await output.finalize();
       if (movie.cancelled || !target.buffer) {
-        movieMessage.textContent = 'Movie cancelled. No file was made.';
+        movieMessage.textContent = t('movie.cancelledMessage');
         return;
       }
       movie.downloadUrl = URL.createObjectURL(new Blob([target.buffer], { type: 'video/mp4' }));
       movieDownload.href = movie.downloadUrl;
       movieDownload.download = 'insect-camera-timelapse.mp4';
       movieDownload.hidden = false;
-      movieMessage.textContent = `Your 60 pictures-per-second MP4 insect movie is ready! Download it to keep it.`;
+      movieMessage.textContent = t('movie.readyMessage');
     } catch (error) {
-      if (movie.cancelled) movieMessage.textContent = 'Movie cancelled. No file was made.';
+      if (movie.cancelled) movieMessage.textContent = t('movie.cancelledMessage');
       else {
-        movieMessage.textContent = 'We could not make this movie on this computer. Try current Chrome or Edge, then try again.';
-        movieSupport.textContent = `Movie maker detail: ${error.message}`;
+        movieMessage.textContent = t('movie.failedMessage');
+        movieSupport.textContent = t('movie.detailPrefix', error.message);
       }
     } finally {
       movie.active = false;
@@ -316,16 +317,16 @@
     sessions.forEach(([runId, count], index) => {
       const option = document.createElement('option');
       option.value = runId;
-      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${count} pictures)`;
+      option.textContent = t('session.optionLabel', runId, count, index === 0);
       movieSession.append(option);
     });
     if (sessions.some(([runId]) => runId === previous)) movieSession.value = previous;
     movieSessionLabel.hidden = !sessions.length;
     movieSession.disabled = !sessions.length;
     const chosenCount = sessions.find(([runId]) => runId === movieSession.value)?.[1] || 0;
-    movieInfo.textContent = chosenCount ? `${movieSession.selectedOptions[0].textContent} is selected. At 60 pictures each second, your movie will be about ${movieDuration(chosenCount)} long.` : 'There are no saved pictures to turn into a movie yet.';
+    movieInfo.textContent = chosenCount ? t('movie.infoSelected', movieSession.selectedOptions[0].textContent, movieDuration(chosenCount)) : t('movie.infoEmpty');
     // While the card is being read, the shared progress message owns this line.
-    if (!card.busy) movieCardStatus.textContent = card.loaded ? `Camera card ready! I found ${totalFiles} saved picture${totalFiles === 1 ? '' : 's'} in ${sessions.length} session${sessions.length === 1 ? '' : 's'}.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''}` : 'Press Load camera card, then choose the INSECT-AI drive in the next window.';
+    if (!card.busy) movieCardStatus.textContent = card.loaded ? t('movie.cardReady', totalFiles, sessions.length, missing) : t('movieModal.cardStatusDefault');
     movieLoadCard.hidden = card.loaded && totalFiles > 0;
     movieStart.disabled = !chosenCount || !movieEncoderReady();
   };
@@ -334,7 +335,7 @@
     movieModal.hidden = false;
     movieSetup.hidden = false;
     movieProgress.hidden = true;
-    movieSupport.textContent = movieEncoderReady() ? '' : 'Movie making needs current Chrome or Edge with its local video tools enabled.';
+    movieSupport.textContent = movieEncoderReady() ? '' : t('movie.needsModernBrowser');
     updateMovieCardStatus();
     movieStart.focus();
   };
@@ -362,7 +363,7 @@
     if (!scored.length) { motionPanel.hidden = true; return; }
 
     motionPanel.hidden = false;
-    motionCount.textContent = `${saved.length} picture${saved.length === 1 ? '' : 's'} saved`;
+    motionCount.textContent = t('motion.count', saved.length);
 
     const t0 = motionCaptures[0].uptimeMs;
     const threshold = scored[0].motionThreshold;
@@ -391,7 +392,7 @@
     const thresholdY = yScale(threshold);
     motionChart.append(svgEl('line', { class: 'motion-threshold-line', x1: M.left, x2: W - M.right, y1: thresholdY, y2: thresholdY }));
     const thresholdLabel = svgEl('text', { class: 'motion-threshold-label', x: W - M.right, y: thresholdY - 6, 'text-anchor': 'end' });
-    thresholdLabel.textContent = `save line (${threshold})`;
+    thresholdLabel.textContent = t('motion.saveLine', threshold);
     motionChart.append(thresholdLabel);
     const tMaxMin = Math.max(1, Math.ceil(tMax / 60));
     for (let minute = 0; minute <= tMaxMin; minute += Math.max(1, Math.ceil(tMaxMin / 6))) {
@@ -402,7 +403,7 @@
     }
 
     const addDot = (capture, isSaved) => {
-      const title = `${capture.captureId || 'capture'}: ${isSaved ? 'saved' : 'not saved'}, score ${capture.motionScore.toFixed(2)}`;
+      const title = t('motion.dotTitle', capture.captureId, isSaved, capture.motionScore.toFixed(2));
       const dot = svgEl('circle', {
         class: isSaved ? 'motion-dot-saved' : 'motion-dot-quiet',
         cx: xScale((capture.uptimeMs - t0) / 1000),
@@ -425,7 +426,7 @@
         fill: 'var(--coral)', stroke: 'var(--paper)', 'stroke-width': 1.5,
       });
       const diamondTitle = svgEl('title', {});
-      diamondTitle.textContent = `${baseline.captureId || 'first picture'}: always kept as a starting point`;
+      diamondTitle.textContent = t('motion.baselineTitle', baseline.captureId);
       diamond.append(diamondTitle);
       motionChart.append(diamond);
     }
@@ -450,22 +451,22 @@
     if (cardState.mismatch) {
       cardCheck.className = 'card-check card-check-drift';
       cardCheckButton.hidden = false;
-      cardCheckButton.textContent = 'Try another folder';
+      cardCheckButton.textContent = t('cardCheck.tryAnotherFolder');
       return;
     }
     if (!cardState.checked) {
       cardCheck.className = 'card-check';
       cardCheckButton.hidden = false;
-      cardCheckButton.textContent = 'Check the card';
-      cardCheckNote.textContent = "These counts come from the camera's own record. If pictures were tidied off the card afterwards, the numbers above can be too high.";
+      cardCheckButton.textContent = t('cardCheck.button');
+      cardCheckNote.textContent = t('cardCheck.note');
       return;
     }
     const missing = cardState.referenced - cardState.present;
     cardCheckButton.hidden = true;
     cardCheck.className = missing ? 'card-check card-check-drift' : 'card-check card-check-clean';
     cardCheckNote.textContent = missing
-      ? `Checked the card: ${cardState.present} of ${cardState.referenced} pictures are still here. ${missing} picture${missing === 1 ? ' is' : 's are'} in the camera's record but no longer on the card, so ${missing === 1 ? 'it is' : 'they are'} not counted above. Nothing on the card was changed.`
-      : `Checked the card: all ${cardState.present} picture${cardState.present === 1 ? '' : 's'} in the camera's record ${cardState.present === 1 ? 'is' : 'are'} still here.`;
+      ? t('cardCheck.mismatchDrift', cardState.present, cardState.referenced, missing)
+      : t('cardCheck.allPresent', cardState.present);
   };
 
   // Compares the camera's record against the files actually in the chosen
@@ -486,7 +487,7 @@
     if (!present) {
       cardState.mismatch = true;
       renderCardCheck();
-      cardCheckNote.textContent = "That folder does not hold any of this card's pictures. Choose the top camera-card folder - the one holding dashboard.html - and try again.";
+      cardCheckNote.textContent = t('cardCheck.wrongFolder');
       return;
     }
     data.captures.forEach((capture, index) => { capture.imageOnCard = presence[index]; });
@@ -508,12 +509,12 @@
     // check the rows whose JPEG is gone are excluded too.
     if (!status.classList.contains('status-warning')) {
       status.textContent = data.captures.length
-        ? `Ready! Your camera saved ${allImages.length} picture${allImages.length === 1 ? '' : 's'}.`
-        : 'No pictures are on this card yet. Try another camera card or run.';
+        ? t('hero.readyStatus', allImages.length)
+        : t('hero.noPicturesYet');
     }
     document.querySelector('#welcome-count').textContent = String(allImages.length);
     document.querySelector('#image-count').textContent = String(allImages.length);
-    document.querySelector('#gallery-count').textContent = `${allImages.length} picture${allImages.length === 1 ? '' : 's'}`;
+    document.querySelector('#gallery-count').textContent = t('gallery.count', allImages.length);
 
     // Last adventure: how long the newest session actually ran for, from its
     // first captured frame to its last - not the configured session limit,
@@ -544,41 +545,41 @@
     rows.replaceChildren();
     visibleCaptures.forEach((capture) => {
       const row = document.createElement('tr');
-      cell(row, capture.captureId || 'Unknown capture');
+      cell(row, capture.captureId || t('table.unknownCapture'));
       cell(row, relativeTime(capture.uptimeMs));
-      cell(row, capture.outcome || 'Unknown');
+      cell(row, capture.outcome || t('table.unknownOutcome'));
       const imageCell = document.createElement('td');
       if (hasImage(capture)) {
         const link = document.createElement('button');
         link.className = 'inline-button';
         link.type = 'button';
-        link.textContent = 'Open image';
-        link.addEventListener('click', () => openImage(capture.imagePath, `Frame ${capture.captureId}`));
+        link.textContent = t('table.openImage');
+        link.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId)));
         imageCell.append(link);
-      } else if (capture.imagePath) imageCell.textContent = 'No longer on the card';
-      else imageCell.textContent = 'Unavailable';
+      } else if (capture.imagePath) imageCell.textContent = t('table.noLongerOnCard');
+      else imageCell.textContent = t('table.unavailable');
       row.append(imageCell);
       rows.append(row);
     });
     frameToggle.hidden = captures.length <= initialLimit;
-    frameToggle.textContent = showAllFrames ? 'Show fewer frames' : 'Show all frames';
+    frameToggle.textContent = showAllFrames ? t('adult.showFewerFrames') : t('adult.showAllFrames');
 
     const visibleImages = (showAllImages ? images : images.slice(-initialLimit)).slice().reverse();
     gallery.replaceChildren();
     galleryEmpty.hidden = images.length > 0;
-    galleryEmpty.textContent = images.length ? '' : (search.value.trim() ? 'No pictures match that search.' : 'No committed images are available yet.');
+    galleryEmpty.textContent = images.length ? '' : (search.value.trim() ? t('gallery.noSearchMatch') : t('gallery.empty'));
     const template = document.querySelector('#gallery-item-template');
     visibleImages.forEach((capture) => {
       const item = template.content.firstElementChild.cloneNode(true);
       const image = item.querySelector('img');
       image.src = capture.imagePath;
-      image.alt = `Frame ${capture.captureId}`;
+      image.alt = t('table.frameCaption', capture.captureId);
       item.querySelector('span').textContent = capture.captureId;
-      item.addEventListener('click', () => openImage(capture.imagePath, `Frame ${capture.captureId}`));
+      item.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId)));
       gallery.append(item);
     });
     galleryToggle.hidden = images.length <= initialLimit;
-    galleryToggle.textContent = showAllImages ? 'Show fewer images' : 'Show all images';
+    galleryToggle.textContent = showAllImages ? t('gallery.showFewer') : t('gallery.showAll');
     renderMotionPanel();
     // The camera itself never runs AI - that is deliberate, not missing (see
     // docs/next-session.md). model_unavailable on every capture just means
@@ -587,9 +588,9 @@
     // August 2026: the previous wording here wrongly implied no AI existed
     // at all.
     document.querySelector('#model-note').textContent = inferenceOutcomes.has('model_unavailable')
-      ? 'Your camera does not run AI on its own, but you can ask this computer to look for possible insects any time - choose an AI helper below.'
-      : 'This card already has AI results saved on it, ready to explore.';
-    document.title = `Camera adventure - ${allImages.length} pictures`;
+      ? t('ai.noAIYet')
+      : t('ai.hasResults');
+    document.title = t('pageTitle.cameraAdventure', allImages.length);
     renderCardCheck();
   };
 
@@ -607,28 +608,28 @@
     const failures = [];
     let currentLoaded = false;
     const totalSteps = Math.max(1, chunks.length + 1);
-    setLoading('Finding your pictures on the card.', 'Reading the current session', 12);
+    setLoading(t('loading.message'), t('loading.readingCurrent'), 12);
     try {
       await loadScript('data/captures_current.js');
       currentLoaded = true;
     } catch (error) {
       // The current chunk is optional when the camera finished cleanly.
     }
-    setLoading('Finding your pictures on the card.', currentLoaded ? 'Found the newest pictures' : 'Checking saved picture groups', 100 / totalSteps);
+    setLoading(t('loading.message'), currentLoaded ? t('loading.foundNewest') : t('loading.checkingGroups'), 100 / totalSteps);
     for (const [index, chunk] of chunks.entries()) {
       try {
         await loadScript(chunk);
       } catch (error) {
         failures.push(error.message);
       }
-      setLoading('Putting your pictures in order.', `Picture group ${index + 1} of ${chunks.length}`, ((index + 2) / totalSteps) * 100);
+      setLoading(t('loading.puttingInOrder'), t('loading.groupProgress', index + 1, chunks.length), ((index + 2) / totalSteps) * 100);
     }
     if (failures.length) {
-      status.textContent = `Some picture groups could not be opened (${failures.length}). The pictures that loaded are still available.`;
+      status.textContent = t('loading.someGroupsFailed', failures.length);
       status.classList.add('status-warning');
       if (!data.captures.length) {
-        loadingMessage.textContent = 'Your pictures need a little help to open.';
-        loadingDetail.textContent = 'No picture groups could be read from this card.';
+        loadingMessage.textContent = t('loading.needsHelp');
+        loadingDetail.textContent = t('loading.noGroupsReadable');
         loadingProgress.style.width = '100%';
         loadingError.hidden = false;
         return;
@@ -681,5 +682,12 @@
   });
   search.addEventListener('input', render);
   loadingRetry.addEventListener('click', () => window.location.reload());
+  // Re-run the render paths that already exist, rather than a second update
+  // mechanism just for locale changes - they already recompute every dynamic
+  // string from current state.
+  window.i18n.onLocaleChange(() => {
+    if (data.captures.length || cardState.checked) render();
+    if (movieModal && movieSession) updateMovieCardStatus();
+  });
   load();
 })();

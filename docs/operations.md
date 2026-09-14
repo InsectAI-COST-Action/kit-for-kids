@@ -1,9 +1,17 @@
 # Operation guide
 
+## Set up a new device
+
+Run `py tools\setup_device.py` on a development computer with the board plugged
+in and a formatted FAT32 card in a reader. It flashes the firmware, then runs the
+card preparation below. Use `--flash-only` or `--skip-flash --card <root>` to do
+one half; `--port`, `--card` and `--yes` make it non-interactive. See the
+[setup guide](setup-guide.md).
+
 ## Prepare a card
 
 1. Format a supported microSD card as FAT32. Formatting removes existing data.
-2. On a development computer, run `py tools\prepare_sd.py <card-root>`.
+2. On a development computer, run `py tools\prepare_sd.py <card-root>` (or `py tools\setup_device.py --skip-flash --card <card-root>`). On Windows this also names the drive `INSECT-AI`, matching what the dashboard's folder picker tells users to choose; on macOS, rename it yourself (Finder → select the drive → press Return) since that step is not yet automated there.
 3. Inspect `config.json`. Normal `pilot` mode is fixed to QXGA (2048?1536), JPEG quality 12, 1 FPS, and sessions no longer than 3,600 seconds. Install that normal setting with `py tools\configure_camera_trial.py <card-root> --install-pilot-default`. The separate, short `quality_trial` mode is retained only as historical/diagnostic tooling; see [camera-quality-trial.md](camera-quality-trial.md).
 4. The preparation tool updates static dashboard files but preserves the runtime-generated `manifest.js` and `summary.js` when they already exist.
 5. For a transferred card, run `py tools\audit_card.py <card-root>` before changing or deleting anything.

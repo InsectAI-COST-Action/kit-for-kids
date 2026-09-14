@@ -3,6 +3,9 @@
 #include <FS.h>
 #include <SD.h>
 
+#include "app_config.h"
+#include "camera_service.h"
+
 namespace {
 constexpr size_t kChunkBytes = 512;        // bounded so large files never sit in RAM
 constexpr uint32_t kWriteTimeoutMs = 20000;
@@ -101,6 +104,64 @@ bool csvFieldEquals(const String& row, int index, const String& target) {
 // pretty-printed JSON manifests (see ConfigLoader/logger) - not a general
 // JSON parser. Matches `"key": "value"` with the space after the colon
 // optional.
+// Deletes every plain file directly inside `path` (one level, not
+// recursive). A missing directory is not an error - WIPE must be safe to
+// re-run on a card that is already partially clean. Uses File::path(), not
+// File::name(): confirmed against the framework's VFSFileImpl that name()
+// returns only the basename while path() carries the full path each
+// openNextFile() entry was already constructed with - name() alone is not
+// enough to reconstruct a path fs.remove() can act on.
+void clearFilesInDirectory(fs::FS& fs, const String& path, uint32_t& removed, uint32_t& scanned) {
+  File directory = fs.open(path);
+  if (!directory || !directory.isDirectory()) { if (directory) directory.close(); return; }
+  for (File entry = directory.openNextFile(); entry; entry = directory.openNextFile()) {
+    if (!entry.isDirectory()) {
+      const String full_path = String(entry.path());
+      entry.close();
+      if (fs.remove(full_path)) ++removed;
+    } else {
+      entry.close();
+    }
+    ++scanned;
+    if ((scanned % 64) == 0) { yield(); progress(String(scanned) + " entries scanned while clearing " + path); }
+  }
+  directory.close();
+}
+
+// Images sit two directories deep (/images/<run_id>/shard_NNNN/<file>.jpg).
+// Cleared bottom-up - every file in a shard, then the now-empty shard
+// directory, then the now-empty run directory - so an interrupted wipe (e.g.
+// power loss) leaves a filesystem that is still internally consistent rather
+// than a directory whose parent vanished out from under it.
+void wipeImagesTree(fs::FS& fs, uint32_t& files_removed, uint32_t& dirs_removed, uint32_t& scanned) {
+  File images = fs.open("/images");
+  if (!images || !images.isDirectory()) { if (images) images.close(); return; }
+  for (File run_dir = images.openNextFile(); run_dir; run_dir = images.openNextFile()) {
+    if (!run_dir.isDirectory()) { run_dir.close(); continue; }
+    const String run_path = String(run_dir.path());
+    for (File shard_dir = run_dir.openNextFile(); shard_dir; shard_dir = run_dir.openNextFile()) {
+      if (!shard_dir.isDirectory()) { shard_dir.close(); continue; }
+      const String shard_path = String(shard_dir.path());
+      for (File file = shard_dir.openNextFile(); file; file = shard_dir.openNextFile()) {
+        if (!file.isDirectory()) {
+          const String file_path = String(file.path());
+          file.close();
+          if (fs.remove(file_path)) ++files_removed;
+        } else {
+          file.close();
+        }
+        ++scanned;
+        if ((scanned % 64) == 0) { yield(); progress(String(scanned) + " image files scanned"); }
+      }
+      shard_dir.close();
+      if (fs.rmdir(shard_path)) ++dirs_removed;
+    }
+    run_dir.close();
+    if (fs.rmdir(run_path)) ++dirs_removed;
+  }
+  images.close();
+}
+
 String jsonStringField(const String& json, const String& key) {
   const int key_at = json.indexOf("\"" + key + "\"");
   if (key_at < 0) return String();
@@ -168,13 +229,18 @@ void DevBridge::execute(const String& line, const DevBridgeContext& context) {
     return;
   }
 
-  // Everything below touches the card. Refuse while a session is writing:
-  // the main loop owns the card during capture, and a multi-second transfer
-  // would wreck cadence.
+  // Everything below touches the card or the camera. Refuse while a session
+  // is writing: the main loop owns both during capture, and re-initialising
+  // the camera or holding up the card for a multi-second transfer would
+  // wreck cadence or corrupt an in-progress frame.
   if (context.capturing) {
     replyError("session active; send DEV STOP first");
     return;
   }
+  // PROBE deliberately does not need storage - it exists specifically to
+  // diagnose a card that will not mount, including when that is actually a
+  // disconnected expansion board rather than a bad card.
+  if (verb == "PROBE") { commandProbe(context); return; }
   if (context.storage == nullptr) {
     replyError("storage unavailable");
     return;
@@ -186,6 +252,7 @@ void DevBridge::execute(const String& line, const DevBridgeContext& context) {
   if (verb == "DF") { commandFree(context); return; }
   if (verb == "AUDIT") { commandAudit(argument, context); return; }
   if (verb == "RUNS") { commandRuns(context); return; }
+  if (verb == "WIPE") { commandWipe(argument, context); return; }
   if (verb == "PUT") {
     const int split = argument.lastIndexOf(' ');
     if (split < 0) { replyError("usage: DEV PUT <path> <bytes>"); return; }
@@ -452,6 +519,55 @@ void DevBridge::commandAudit(const String& run_id, const DevBridgeContext& conte
         " jpeg_mean=" + String(csv_completed ? static_cast<uint32_t>(jpeg_sum / csv_completed) : 0) +
         " interval_mean_ms=" + String(interval_count ? static_cast<uint32_t>(interval_sum / interval_count) : 0) +
         " interval_max_ms=" + String(interval_max));
+}
+
+// Resets a card to a clean slate remotely: every picture and every derived
+// record, so it looks like a freshly prepared card again. Leaves
+// config.json, ai/, vendor/, and every static dashboard file untouched -
+// this only ever removes things prepare_sd.py itself would recreate as
+// empty (images/, raw/, data/) or that the firmware writes at runtime
+// (manifest.js, summary.js). Gated the same as every other file command
+// (session must be stopped first), plus its own explicit confirmation on
+// top, since this is the one command here with no undo.
+void DevBridge::commandWipe(const String& argument, const DevBridgeContext& context) {
+  if (argument != "CONFIRM") {
+    replyError("this deletes every picture and record on the card - resend as DEV WIPE CONFIRM to proceed");
+    return;
+  }
+  fs::FS& fs = context.storage->fs();
+  uint32_t files_removed = 0, dirs_removed = 0, scanned = 0;
+  wipeImagesTree(fs, files_removed, dirs_removed, scanned);
+  clearFilesInDirectory(fs, "/raw/runs", files_removed, scanned);
+  clearFilesInDirectory(fs, "/raw", files_removed, scanned);
+  clearFilesInDirectory(fs, "/data", files_removed, scanned);
+  if (fs.exists("/manifest.js") && fs.remove("/manifest.js")) ++files_removed;
+  if (fs.exists("/summary.js") && fs.remove("/summary.js")) ++files_removed;
+  reply("OK files=" + String(files_removed) + " dirs=" + String(dirs_removed));
+}
+
+// Tells apart "the camera/SD expansion board is disconnected from the main
+// board" from "the expansion board is connected but the SD card itself is
+// missing or bad" - both currently produce the exact same
+// "SD mount failed on GPIO21 at every supported clock speed" error from
+// MOUNT, because storage.begin() has no way to see the camera at all.
+// Deliberately independent of storage: this must still work when the SD
+// side is completely unreachable, which is exactly the situation it exists
+// to diagnose.
+//
+// A default-constructed AppConfig is intentional, not a shortcut: only the
+// physical pin wiring (fixed constants in camera_service.cpp - XCLK, SCCB,
+// D0-D7) determines whether the sensor answers, not any config value, so
+// there is nothing case-specific to load here even if config.json itself is
+// unreachable because the card will not mount.
+void DevBridge::commandProbe(const DevBridgeContext& context) {
+  if (context.camera == nullptr) {
+    replyError("camera unavailable");
+    return;
+  }
+  AppConfig probe_config;
+  String diagnostic;
+  const bool camera_ok = context.camera->begin(probe_config, diagnostic);
+  reply("OK camera=" + String(camera_ok ? "ok" : "fail") + " detail=" + diagnostic);
 }
 
 // Remote equivalent of audit_card.py's run_states check: one line per run

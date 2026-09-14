@@ -53,14 +53,15 @@ You should see something like `Python 3.13.1`. If you get an error, Python is no
 
 ### 1.2 Install PlatformIO
 
-PlatformIO is the tool that compiles the firmware and sends it to the board. The easiest route is through Visual Studio Code:
+PlatformIO is the tool that compiles the firmware and sends it to the board. In the same terminal you just used, run:
 
-1. Install [Visual Studio Code](https://code.visualstudio.com/).
-2. Open it, click the **Extensions** icon in the left sidebar (four small squares).
-3. Search for `PlatformIO IDE` and click **Install**.
-4. Wait. It downloads several hundred megabytes of compiler tools and can take 5–10 minutes. It will tell you when it is finished and ask to reload.
+```powershell
+py -m pip install platformio
+```
 
-To check it worked, in a terminal:
+This downloads a few tens of megabytes and takes a minute or two. The much larger ESP32 compiler toolchain (several hundred megabytes) is fetched automatically the first time you build, in Part 3.
+
+To check it worked:
 
 ```powershell
 py -m platformio --version
@@ -68,7 +69,9 @@ py -m platformio --version
 
 You should see `PlatformIO Core, version 6.x.x`.
 
-> **Why `py -m platformio` and not just `pio`?** Both usually work. On some managed or school-issued computers, security policy blocks the short `pio` command while allowing the longer form. The longer form is used throughout this guide because it works in both cases.
+> **Why install with `py -m pip` and run with `py -m platformio`?** Both forms pin PlatformIO to the *same* Python you checked in step 1.1, so the two always agree. Installing PlatformIO another way — in particular through *only* the "PlatformIO IDE" Visual Studio Code extension — puts it somewhere `py -m platformio` cannot see, and every command in this guide then fails with `No module named platformio`. If that happens, run the `py -m pip install platformio` command above to fix it. A bare `pio` is also avoided throughout: some managed or school-issued computers block it while allowing the longer form.
+
+> **Prefer buttons to typing?** You can additionally install [Visual Studio Code](https://code.visualstudio.com/) and its `PlatformIO IDE` extension (Extensions icon in the left sidebar → search `PlatformIO IDE` → **Install**; 5–10 minutes, longer on a slow connection) for a graphical interface. This guide still uses the command line, because the commands are identical on every computer and easy to copy. The `py -m pip install platformio` step above is still needed for those commands even if you install the extension.
 
 ### 1.3 USB drivers
 
@@ -80,13 +83,15 @@ On Windows 10/11 and macOS, the XIAO board normally works with no driver install
 
 The camera software lives inside the wider Kit-for-Kids project, in the folder `software/TomA-insect-ESP32-software`. You download the whole project, then work inside that one folder.
 
-**Option A — download a ZIP (simplest)**
+**Option A — download a ZIP (simplest, recommended)**
 
 1. Go to [github.com/InsectAI-COST-Action/kit-for-kids](https://github.com/InsectAI-COST-Action/kit-for-kids).
 2. Click the green **Code** button, then **Download ZIP**.
 3. Unzip it somewhere memorable, e.g. `Documents\kit-for-kids`.
 
 **Option B — use Git (better if you want updates later)**
+
+Git does not come with Windows. Install it first from [git-scm.com/download/win](https://git-scm.com/download/win), accepting the default options, then in a terminal:
 
 ```powershell
 git clone https://github.com/InsectAI-COST-Action/kit-for-kids
@@ -105,6 +110,40 @@ dir
 ```
 
 > **Tip:** in File Explorer, navigate to that folder, then right-click while holding <kbd>Shift</kbd> and choose *"Open PowerShell window here"* to skip typing the path.
+
+---
+
+## Parts 3 and 4 the fast way — one command
+
+Once Parts 1 and 2 are done, a single script does everything device-specific: it
+builds and uploads the firmware, then installs the dashboard, folders and default
+settings on the memory card.
+
+1. Attach the camera module, plug the board in with a **data** USB-C cable.
+2. Put the **FAT32-formatted** memory card (32 GB or smaller — format it first, see [4.1](#41-format-the-card)) into your computer's card reader.
+3. Run:
+
+   ```powershell
+   py tools\setup_device.py
+   ```
+
+   It finds the board, asks you to confirm before flashing, then asks for the
+   card's drive letter (e.g. `E:\`). That is the whole setup.
+
+To script it with no questions, or to do only one half:
+
+```powershell
+py tools\setup_device.py --port COM5 --card E:\ --yes   # both, unattended
+py tools\setup_device.py --flash-only                   # firmware only
+py tools\setup_device.py --skip-flash --card E:\         # card only
+```
+
+The card step never overwrites existing pictures, `config.json`, or a card's
+runtime data, so it is safe to re-run. When it finishes, jump to
+[Part 4.3](#43-eject-safely) to eject the card, then [Part 5](#part-5--run-a-capture-session).
+
+The rest of Parts 3 and 4 below is the same work done by hand, step by step, if
+you would rather see each piece or the script hits a problem.
 
 ---
 
@@ -133,7 +172,7 @@ Replace `COM4` with your port:
 py -m platformio run -e xiao_esp32s3 -t upload --upload-port COM4
 ```
 
-The first time, this downloads the compiler toolchain and can take several minutes. Later runs take under a minute. You want to see:
+The first time, this downloads the ESP32 compiler toolchain (several hundred megabytes) and can take 5–15 minutes depending on your connection, then a few more minutes to compile. Later runs take under a minute. You want to see:
 
 ```
 Hash of data verified.
@@ -167,7 +206,7 @@ The card carries its own picture-viewing software, so it works on any computer w
 py tools\prepare_sd.py D:\
 ```
 
-This copies the dashboard, creates the folders the camera needs, and installs a default settings file. It deliberately **does not** overwrite existing pictures or settings, so it is safe to re-run on a card that already has data.
+This copies the dashboard, creates the folders the camera needs, and installs a default settings file. It deliberately **does not** overwrite existing pictures or settings, so it is safe to re-run on a card that already has data. On Windows it also names the drive **INSECT-AI**, so it's easy to spot later in the dashboard's folder picker — see Part 8. On macOS, that renaming step is not yet automated: rename the drive yourself in Finder (select it, press Return, type `INSECT-AI`).
 
 ### 4.3 Eject safely
 
@@ -269,6 +308,9 @@ In the dashboard, choose **Find insects with AI**, pick a mode, select the card 
 - Try a different USB port, ideally directly on the computer rather than through a hub.
 - Put the board into its flashing mode manually: hold the **BOOT** button, tap **RESET**, release BOOT. Then try again.
 
+**`py -m platformio` fails with `No module named platformio`**
+- PlatformIO is not installed in the Python that `py` runs. Run `py -m pip install platformio` (Part 1.2). This happens most often when only the PlatformIO VS Code extension was installed — it keeps a private copy the command line cannot see.
+
 **`pio` is not recognised**
 - Use `py -m platformio` instead, as shown throughout this guide.
 
@@ -295,15 +337,21 @@ In the dashboard, choose **Find insects with AI**, pick a mode, select the card 
 **Movement-triggered mode saves every single picture**
 - Known issue when the phone Wi-Fi is active at the same time: the radio interferes with movement detection. Either use movement mode without the phone app connected, or use normal every-picture mode. Being investigated.
 
+**The card isn't named `INSECT-AI` in the folder picker**
+- `py tools\prepare_sd.py` names it automatically on Windows; if the card was prepared before this was added, or on macOS (not yet automated there), re-run `py tools\prepare_sd.py D:\` on Windows, or rename it yourself: File Explorer → right-click the drive → Rename (Windows), or Finder → select the drive → press Return (macOS).
+
 ---
 
 ## Quick reference
 
 ```powershell
-# Flash firmware (replace COM4)
+# Flash the board AND prepare its card, one command (asks what it needs)
+py tools\setup_device.py
+
+# Flash firmware only (replace COM4)
 py -m platformio run -e xiao_esp32s3 -t upload --upload-port COM4
 
-# Prepare a card (replace D:\)
+# Prepare a card only (replace D:\)
 py tools\prepare_sd.py D:\
 
 # Check a card is healthy (read-only, safe)

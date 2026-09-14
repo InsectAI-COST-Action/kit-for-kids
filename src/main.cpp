@@ -25,6 +25,10 @@ uint32_t next_capture_due_ms = 0;
 uint32_t session_started_ms = 0;
 uint32_t saved_image_count = 0;
 String fatal_error;
+// Stable identifier for the phone app's translation table - see the
+// storage-mount-failure branch below. Empty for every other fatal_error,
+// which the app still shows via fatal_error itself, untranslated.
+String fatal_error_code;
 MotionPreview previous_motion_preview;
 MotionPreview current_motion_preview;
 bool motion_baseline_ready = false;
@@ -310,7 +314,32 @@ void setup() {
 #else
   report("control app disabled for this build: motion-detection control test");
 #endif
-  if (!storage.begin(diagnostic)) { report("fatal storage failure: " + diagnostic); fatal_error = "No SD card found: " + diagnostic; return; }
+  if (!storage.begin(diagnostic)) {
+    report("fatal storage failure: " + diagnostic);
+    // Camera and SD card share the same expansion-board connector (see
+    // docs/dev-bridge.md, "Telling a disconnected expansion board apart
+    // from a bad SD card") - storage.begin() alone cannot see the camera at
+    // all, so on its own this failure is ambiguous between "the board
+    // halves aren't connected" and "the card is missing/bad". Probing the
+    // camera here - with storage otherwise unreachable - lets the phone
+    // app (already up; control_server.begin() ran first for exactly this
+    // reason) tell a child/teacher which one they actually have, not just
+    // that something failed. A bare default AppConfig is deliberate: only
+    // camera pin wiring determines whether the sensor answers, and
+    // config.json cannot be read yet anyway with the card unreachable.
+    String camera_probe_diagnostic;
+    const bool camera_reachable = camera.begin(AppConfig{}, camera_probe_diagnostic);
+    fatal_error = camera_reachable
+        ? "SD card not found. The camera itself is working, so check that a FAT32 SD card (32GB or smaller) is properly inserted. (" + diagnostic + ")"
+        : "Camera and SD card are both unreachable. Check that the camera/SD board is firmly connected to the main board. (" + diagnostic + ")";
+    // The phone app's own TRANSLATIONS table has an entry for each of these
+    // two codes (see src/control_server.cpp) and renders that instead of
+    // this raw string when present - fatal_error above still carries the
+    // technical diagnostic for the serial log and for any other fatal_error
+    // case, which has no code and falls back to showing it as-is.
+    fatal_error_code = camera_reachable ? "sd_card_not_found" : "expansion_board_disconnected";
+    return;
+  }
   // storage.begin()'s own diagnostic (mount clock) was previously silently
   // discarded here - the next report() below overwrote it before it was
   // ever printed. Surfacing it now while investigating a totalBytes()
@@ -388,6 +417,7 @@ void loop() {
   // condition that gates captureOnce() below), so it can never race a write.
   DevBridgeContext dev_context;
   dev_context.storage = &storage;
+  dev_context.camera = &camera;
   dev_context.capturing = ready && !finished;
   dev_context.stop_session = []() { finishSession(); };
   dev_bridge.poll(dev_context);
@@ -398,6 +428,7 @@ void loop() {
   status.saved_count = saved_image_count;
   status.sd_mounted = fatal_error.isEmpty() && !finished;
   status.error = fatal_error;
+  status.error_code = fatal_error_code;
   status.elapsed_ms = ready ? (millis() - session_started_ms) : 0;
   status.state = !fatal_error.isEmpty() ? "error" : (!ready ? "warming_up" : (finished ? "safe_to_remove" : "capturing"));
   status.motion_recent_count = motion_history_count;

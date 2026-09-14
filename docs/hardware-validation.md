@@ -4,7 +4,7 @@ Update this record as evidence is collected. SD endurance and final cadence vali
 
 | Check | Required evidence | Result |
 | --- | --- | --- |
-| Board | ESP32-S3R8 XIAO ESP32S3 Sense; clean PlatformIO build and upload | Verified on physical board (COM4) |
+| Board | ESP32-S3R8 XIAO ESP32S3 Sense; clean PlatformIO build and upload | Verified on physical board (COM4). Independently reproduced 9 September 2026 on a second, clean Windows 10 machine with no prior toolchain: `git clone` → `py -m pip install platformio` → `py -m platformio run` → upload → boot evidence → 1 FPS QXGA capture → clean `dev_bridge_client.py stop`. Setup-doc gaps found in that run are fixed in [setup-guide.md](setup-guide.md) / [next-session.md](next-session.md). |
 | Camera | OV3660 PID reported at boot | Verified at boot |
 | PSRAM | `psramFound()` succeeds | Verified at boot |
 | SD | FAT32 card mounts and survives 3,600 QXGA writes | Two independent one-hour endurance runs, 28 August 2026: dark (`run_000041`, 3,589/3,600) and daylight (`run_000050`, 3,585/3,600). Both self-finished cleanly, no reboot, no storage error, no corruption. **Neither hit the exact 3,600 target** - see finding below; the shortfall is confirmed present regardless of lighting/JPEG size. Historical run 000012 retained 2,384 smaller JPEGs in 24 bounded shards; completed QXGA run 000004 retained 120 images. Card corruption observed once after normal battery-cable removal; see incident below. |
@@ -12,6 +12,29 @@ Update this record as evidence is collected. SD endurance and final cadence vali
 | Battery | Intended USB pack powers a representative capture run without reset, unsafe heating, or storage corruption; normal cable removal recovers cleanly | The 28 August one-hour run stayed powered throughout with no reset, but was not a deliberate power-removal/stability test - board was already on external USB power for unrelated remote-work reasons. Short stability smoke test with the *intended* pack, plus clean-removal recovery, remains pending; formal capacity profiling deprioritised by owner |
 | Recovery | Power interruption preserves prior CSV/chunks and marks the run interrupted | Verified with battery disconnect and subsequent reboot. Run 000012 awaits its next card-in-board boot to receive its normal `interrupted_power_removed` state. |
 | Dashboard | Opens offline in Chrome, Edge, Firefox, Safari; images and full chunk index load | Verified locally in the SD-card dashboard; full browser matrix pending. Front-page metrics reworked 29 August 2026 (images, last-session duration, picture size, storage remaining - the last held back, see finding below) and the AI-availability note corrected. The storage-remaining tile was later replaced outright (12 September 2026, see docs/next-session.md) rather than left waiting on the firmware fix below. |
+
+## Verified: one-command new-device setup, fresh board + fresh card (10 September 2026)
+
+First end-to-end run of `py tools\setup_device.py` on hardware that had never been
+set up before: a new XIAO ESP32S3 Sense and a blank 8 GB FAT32 microSD card.
+
+- **Firmware step:** board auto-detected on `COM5` (Espressif USB VID), built and
+  uploaded via the wrapped `py -m platformio run -e xiao_esp32s3 -t upload`. Boot
+  evidence confirmed PSRAM, OV3660, SD mount, null inference.
+- **Card step:** `prepare_card()` installed the dashboard, `vendor/mediabunny.min.cjs`
+  (650,512 bytes, byte-exact), blank runtime files, the pilot `config.json`, and the
+  `images/ raw/ data/ system/` folders. Re-run confirmed idempotent.
+- **Capture test** (`run_000001`, ended via the Wi-Fi control app's Finish button,
+  audited over the [dev bridge](dev-bridge.md)): run state `finished` (clean, not
+  interrupted); 46/46 images, one shard, **0 temp/partial files**; every CSV row
+  `2048 x 1536`, `outcome=completed`, `save_outcome=saved`; `interval_mean_ms=996`,
+  `interval_max_ms=1005`; first retained frame at uptime 16.5 s (after the 15 s AWB
+  warm-up); `manifest.js` / `summary.js` both agree with the 46-row CSV.
+
+Full chain works: flash -> card prep -> boot -> config load -> QXGA capture -> safe
+stop -> internally consistent data. `GET` of `captures.csv` over the dev bridge
+still needed retries (known USB-CDC transfer bug, not a card fault; on-device
+`AUDIT` confirmed the file intact).
 
 ## Finding: `SD.totalBytes()` reports a wrong value on every normal (cold) boot (29 August 2026)
 

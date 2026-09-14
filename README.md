@@ -24,14 +24,23 @@ The next development path has two strands: child-friendly dashboard/model work a
 
 ## Toolchain
 
-Install PlatformIO Core, then run:
+Install PlatformIO Core with `py -m pip install platformio`, then run:
 
 ```powershell
-pio run
+py -m platformio run
 py tests\check_project.py
 ```
 
-The pinned target is `espressif32@7.0.1`, board ID `seeed_xiao_esp32s3`, Arduino framework. Before a device flash, copy `config.example.json` to the SD-card root as `config.json` and use `py tools\prepare_sd.py <card-root>` to install or update the static dashboard files. Existing runtime `manifest.js` and `summary.js` are intentionally left untouched. For a separate synthetic presentation, run `py tools\install_dashboard_demo.py <card-root>` and open `<card-root>\\demo\\demo.html`.
+Use `py -m platformio`, not a bare `pio`: it pins PlatformIO to the same Python that runs the helper tools, and a bare `pio` is blocked outright on some managed Windows machines. Installing only the PlatformIO VS Code extension is **not** enough for these commands — `py -m pip install platformio` is still required. The non-specialist walkthrough is [docs/setup-guide.md](docs/setup-guide.md).
+
+The pinned target is `espressif32@7.0.1`, board ID `seeed_xiao_esp32s3`, Arduino framework.
+
+To set up a new device, run `py tools\setup_device.py`: it flashes the firmware to the connected board, then installs the dashboard, folders and default `config.json` on a mounted FAT32 card. Flags `--flash-only`, `--skip-flash --card <root>`, and `--port`/`--card`/`--yes` cover the scripted and partial cases. It is a wrapper around the two steps below, which can also be run directly:
+
+- `py -m platformio run -e xiao_esp32s3 -t upload --upload-port <port>` — flash only.
+- `py tools\prepare_sd.py <card-root>` — install or update the static dashboard files; existing runtime `manifest.js`, `summary.js` and `config.json` are left untouched. A fresh card gets `config.example.json` as its `config.json` (the settled QXGA/1-FPS pilot default).
+
+For a separate synthetic presentation, run `py tools\install_dashboard_demo.py <card-root>` and open `<card-root>\\demo\\demo.html`.
 
 ## Operating flow
 
@@ -49,6 +58,8 @@ Do not remove the SD card while the camera is powered. Previous committed record
 - `dashboard/`: self-contained HTML/CSS/JavaScript installed on the SD card.
 - `dashboard/ai/`: FlatBug Nano, AntAI - Beta, and their ONNX Runtime Web runtime; installed by default (see `tools/prepare_sd.py`). Redistribution decision recorded in `docs/model-card.md`.
 - `dashboard/fixtures/`: synthetic local-file data for dashboard testing.
+- `tools/setup_device.py`: one-command new-device setup — flash firmware, then prepare the SD card.
+- `tools/prepare_sd.py`: install/update the dashboard, folders and default config on a mounted card.
 - `tests/check_project.py`: dependency-free contract/static test harness.
 - `tools/audit_card.py`: read-only SD-card integrity audit.
 - `tools/install_ai_pack.py`: add `dashboard/ai/`'s FlatBug and AntAI - Beta package to an older card that predates the default install.

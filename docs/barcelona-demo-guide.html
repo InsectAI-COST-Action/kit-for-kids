@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bug Camera Day! A Step-by-Step Guide</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+
+  :root {
+    --ink: #22303f;
+    --paper: #fffdf7;
+    --accent: #2f8f5b;
+    --accent-dark: #1f6b41;
+    --sun: #f4a71a;
+    --sun-light: #fff2d9;
+    --sky: #eaf4fb;
+    --sky-line: #bcdcef;
+    --pink: #f6dfe6;
+    --pink-line: #e8b9c9;
+    --box-border: #c9c2ad;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Comic Sans MS", "Segoe UI Rounded", "Segoe UI", Verdana, sans-serif;
+    margin: 0;
+    padding: 0 6mm;
+    line-height: 1.45;
+  }
+
+  h1, h2, h3 { font-family: "Segoe UI Rounded", "Segoe UI", Verdana, sans-serif; margin: 0; }
+
+  .cover {
+    text-align: center;
+    padding: 10mm 0 8mm;
+  }
+  .cover .bug-row { font-size: 34px; letter-spacing: 10px; margin-bottom: 4mm; }
+  .cover h1 {
+    font-size: 40px;
+    color: var(--accent-dark);
+    margin-bottom: 2mm;
+  }
+  .cover .subtitle {
+    font-size: 17px;
+    color: var(--ink);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .cover .event-line {
+    margin-top: 5mm;
+    font-size: 14px;
+    color: #5a6b7a;
+  }
+  .cover .lang-links {
+    margin-top: 2mm;
+    font-size: 12px;
+    color: #5a6b7a;
+  }
+  .cover .lang-links a { color: var(--accent-dark); }
+
+  .photo-slot {
+    border: 3px dashed var(--box-border);
+    border-radius: 14px;
+    background: #faf7ee;
+    color: #8a8370;
+    text-align: center;
+    font-size: 13px;
+    padding: 6mm 3mm;
+    margin: 3mm 0 5mm;
+  }
+  .photo-slot .icon { font-size: 30px; display: block; margin-bottom: 2mm; }
+  .photo-slot.wide { min-height: 45mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  .photo-frame { margin: 3mm 0 5mm; text-align: center; }
+  .photo-frame img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 68mm;
+    border-radius: 14px;
+    border: 2px solid var(--box-border);
+    display: block;
+    margin: 0 auto;
+  }
+  .photo-frame.wide img { max-height: 78mm; }
+  .photo-row { display: flex; gap: 3mm; margin: 3mm 0 5mm; }
+  .photo-row .photo-frame { flex: 1 1 0; margin: 0; }
+  .photo-row .photo-frame img { max-height: 52mm; }
+
+  .checklist-box {
+    background: var(--sky);
+    border: 2px solid var(--sky-line);
+    border-radius: 14px;
+    padding: 5mm 6mm;
+    margin: 4mm 0 6mm;
+  }
+  .checklist-box h2 { color: var(--accent-dark); font-size: 20px; margin-bottom: 3mm; }
+  .checklist-box ul { margin: 0; padding-left: 6mm; }
+  .checklist-box li { margin-bottom: 1.5mm; font-size: 14px; }
+
+  .step {
+    page-break-inside: avoid;
+    display: flex;
+    gap: 5mm;
+    align-items: flex-start;
+    margin-bottom: 7mm;
+  }
+  .step-number {
+    flex: 0 0 auto;
+    width: 14mm;
+    height: 14mm;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step-body { flex: 1 1 auto; }
+  .step-body h3 { font-size: 18px; color: var(--accent-dark); margin-bottom: 1.5mm; }
+  .step-body p { font-size: 14.5px; margin: 0 0 2mm; }
+  .step-body .tap-btn {
+    display: inline-block;
+    background: var(--sun-light);
+    border: 1px solid var(--sun);
+    border-radius: 8px;
+    padding: 1mm 3mm;
+    font-weight: bold;
+  }
+
+  .page-break { page-break-before: always; }
+
+  .glossary {
+    background: var(--pink);
+    border: 2px solid var(--pink-line);
+    border-radius: 14px;
+    padding: 5mm 6mm;
+    margin: 6mm 0;
+  }
+  .glossary h2 { color: #9c3f5c; font-size: 19px; margin-bottom: 3mm; }
+  .glossary dt { font-weight: bold; font-size: 14px; margin-top: 2mm; }
+  .glossary dd { margin: 0.5mm 0 0; font-size: 13.5px; }
+
+  .teacher-note {
+    border-left: 5px solid var(--sun);
+    background: var(--sun-light);
+    border-radius: 0 10px 10px 0;
+    padding: 4mm 5mm;
+    margin: 5mm 0;
+    font-size: 13px;
+  }
+  .teacher-note strong { color: var(--accent-dark); }
+  .teacher-note ul { margin: 2mm 0 0; padding-left: 5mm; }
+  .teacher-note li { margin-bottom: 1mm; }
+
+  .qr-block {
+    text-align: center;
+    margin: 6mm 0;
+  }
+  .qr-block img { width: 45mm; height: 45mm; border: 2px solid var(--box-border); border-radius: 10px; padding: 2mm; background: white; }
+  .qr-block .wifi-name { font-size: 15px; margin-top: 2mm; }
+  .qr-block code { background: #eee; padding: 0.5mm 2mm; border-radius: 6px; }
+
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: #8a97a3;
+    margin: 8mm 0 4mm;
+  }
+
+  .logo-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8mm;
+    margin: 8mm 0 2mm;
+    padding-top: 4mm;
+    border-top: 1px solid var(--box-border);
+  }
+  .logo-strip img { height: 14mm; width: auto; max-width: 40mm; object-fit: contain; }
+
+  section h2.section-title {
+    font-size: 22px;
+    color: var(--accent-dark);
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+    padding-bottom: 1mm;
+    margin-bottom: 5mm;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="bug-row">🐞 🐜 🦋 🐝 🪲</div>
+  <h1>Bug Camera Day!</h1>
+  <p class="subtitle">Today you are going to run a real insect camera, catch its pictures, and let a computer try to spot the bugs in them — all by yourselves.</p>
+  <p class="event-line">A step-by-step guide for pupils and teachers · InsectAI Kit-for-Kids</p>
+  <p class="lang-links">🇬🇧 English · 🇪🇸 <a href="barcelona-demo-guide-es.html">Español</a></p>
+</div>
+
+<div class="photo-frame wide">
+  <img src="assets/image%20of%20the%20whole%20setup%20on%20transparent%20background.png" alt="The finished insect camera, fully assembled">
+</div>
+
+<div class="checklist-box">
+  <h2>What you'll need</h2>
+  <ul>
+    <li>A camera, SD card and Wi-Fi antenna</li>
+    <li>The camera enclosure (white)</li>
+    <li>The camera stage - made of three pieces of wood, two arches and one 4 pointed star piece</li>
+    <li>An elastic band</li>
+    <li>The little picture of ants that goes underneath the camera</li>
+    <li>The battery pack</li>
+    <li>A phone — <strong>an Android phone works best</strong> for today</li>
+    <li>A laptop or computer to look at the pictures afterwards</li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+
+<section>
+<h2 class="section-title">Build your camera!</h2>
+
+<div class="step">
+  <div class="step-number">1</div>
+  <div class="step-body">
+    <h3>Connect the antenna and slot in the memory card</h3>
+    <p>If the antenna and SD card are not already connected, plug the little Wi-Fi antenna onto the camera board, and slide the memory card into its slot. This is what the camera will use to talk to your phone and to save every picture it takes.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/camera%20and%20wifi%20antenna%20not%20in%20enclosure.jpg" alt="The camera board and Wi-Fi antenna before assembly">
+</div>
+
+<div class="step">
+  <div class="step-number">2</div>
+  <div class="step-body">
+    <h3>Close it into its case</h3>
+    <p>If the camera board is not already in the case, tuck it carefully into the white case so the lens looks out through the hole, then close the case.</p>
+  </div>
+</div>
+<div class="photo-row">
+  <div class="photo-frame">
+    <img src="assets/camera%20with%20half%20the%20enclosure%20on.jpg" alt="The camera board fitted into the first half of the case">
+  </div>
+  <div class="photo-frame">
+    <img src="assets/adding%20hte%20second%20half%20of%20the%20enclosure.jpg" alt="Adding the second half of the case on top">
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-number">3</div>
+  <div class="step-body">
+    <h3>Fix it to the star platform</h3>
+    <p>Sit the case on top of the wooden star-shaped platform. Stretch the elastic band across it, crossing over like a seatbelt, so it can't wobble loose.</p>
+  </div>
+</div>
+<div class="photo-row">
+  <div class="photo-frame">
+    <img src="assets/placing%20the%20camera%20onto%20the%20stage.jpg" alt="Placing the case onto the star-shaped platform">
+  </div>
+  <div class="photo-frame">
+    <img src="assets/securing%20the%20camera%20to%20the%20stage%20with%20an%20elastic%20band.jpg" alt="Securing the case to the platform with the elastic band">
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-number">4</div>
+  <div class="step-body">
+    <h3>Build the arch</h3>
+    <p>Slot the two curved wooden arch pieces together at the top, so they stand up together on there four legs.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/the%20arches%20assembled.jpg" alt="The two arch pieces slotted together">
+</div>
+
+<div class="step">
+  <div class="step-number">5</div>
+  <div class="step-body">
+    <h3>Slide the platform into the arch</h3>
+    <p>Raise the star platform — with the camera strapped to it — up into arches. Once at the top of the arches rotate it and lower it onto the notches pressing it gently into place.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/lifting%20hte%20stage%20into%20the%20arches.jpg" alt="Lowering the platform into the arch">
+</div>
+
+<div class="photo-frame wide">
+  <img src="assets/the%20stage%20secured%20within%20the%20arches.jpg" alt="The platform secured in place inside the arch — your camera, fully built">
+</div>
+
+<p style="text-align:center; font-size:15px; margin-top:2mm;"><strong>Great job — your camera is built! Now let's run it.</strong> 🎉</p>
+
+</section>
+
+<div class="page-break"></div>
+
+<section>
+<h2 class="section-title">Let's go!</h2>
+
+<div class="step">
+  <div class="step-number">1</div>
+  <div class="step-body">
+    <h3>Put the picture of ants under the camera</h3>
+    <p>This is what the camera will practice looking at. Line it up so it's nice and flat underneath the lens.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/image%20of%20ants%20placed%20under%20the%20camera.jpg" alt="The ant picture placed under the camera">
+</div>
+
+<div class="step">
+  <div class="step-number">2</div>
+  <div class="step-body">
+    <h3>Plug in the battery</h3>
+    <p>As soon as you connect the battery cable, the camera wakes up and starts taking a photo every second — all on its own!</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/connecting%20het%20USB%20cable%20to%20the%20camera%20once%20secured%20in%20the%20arches.jpg" alt="Connecting the USB cable to power up the camera">
+</div>
+
+<div class="step">
+  <div class="step-number">3</div>
+  <div class="step-body">
+    <h3>Join the camera's Wi-Fi with your phone</h3>
+    <p>Open your phone's camera app and point it at the QR code below. A little message will pop up — tap it to join. A welcome page should open by itself. (If it doesn't, ask your teacher.)</p>
+  </div>
+</div>
+
+<div class="qr-block">
+  <img src="assets/insectcam-wifi-qr.png" alt="InsectCam Wi-Fi QR code">
+  <div class="wifi-name">Network: <code>InsectCam</code> &nbsp; Password: <code>antcamera</code></div>
+</div>
+
+<div class="photo-row">
+  <div class="photo-frame">
+    <img src="assets/screenshot%20of%20available%20wifi%20networks%20including%20insectcam.jpg" alt="InsectCam in the phone's list of Wi-Fi networks">
+  </div>
+  <div class="photo-frame">
+    <img src="assets/screenshot%20of%20insectcam%20wifi%20conncetion%20page%20with%20option%20to%20sign%20in.jpg" alt="The sign-in prompt after joining InsectCam">
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-number">4</div>
+  <div class="step-body">
+    <h3>Take a peek</h3>
+    <p>On the welcome page, tap <span class="tap-btn">👁️ Take a peek</span> to see the most recent photo the camera has just taken — live! Watch the pictures for about a minute while the camera keeps working.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/screenshot%20of%20the%20Insectcam%20page%20connected%20over%20wifi.png" alt="The InsectCam page once connected, with the Take a peek button">
+</div>
+
+<div class="step">
+  <div class="step-number">5</div>
+  <div class="step-body">
+    <h3>Finish the adventure</h3>
+    <p>When you're ready to stop, tap <span class="tap-btn">🏁 Finish my adventure</span>. Wait for it to say it's done — this makes sure all your photos are saved safely before you touch anything.</p>
+  </div>
+</div>
+<div class="photo-row">
+  <div class="photo-frame">
+    <img src="assets/screeenshot%20of%20hte%20insectcam%20page%20during%20packing%20up.png" alt="The InsectCam page while it is packing up">
+  </div>
+  <div class="photo-frame">
+    <img src="assets/screenshot%20of%20insect%20cam%20page%20once%20packup%20is%20complete.png" alt="The InsectCam page confirming pack-up is complete">
+  </div>
+</div>
+
+</section>
+
+<div class="page-break"></div>
+
+<section>
+<h2 class="section-title">Now let's find the bugs!</h2>
+
+<div class="step">
+  <div class="step-number">6</div>
+  <div class="step-body">
+    <h3>Unplug and open up the card</h3>
+    <p>Disconnect the battery cable, carefully take out the memory card, and put it into a computer.</p>
+  </div>
+</div>
+<div class="photo-frame">
+  <img src="assets/removing%20the%20SD%20card%20from%20the%20camera.jpg" alt="Removing the SD card from the camera">
+</div>
+
+<div class="step">
+  <div class="step-number">7</div>
+  <div class="step-body">
+    <h3>Open the picture gallery</h3>
+    <p>On the computer, open the file called <strong>dashboard.html</strong> that's on the card. It shows every photo the camera just took — no internet needed, it all works right there on the card!</p>
+  </div>
+</div>
+<div class="photo-row">
+  <div class="photo-frame">
+    <img src="assets/screenshot%20of%20file%20explorer%20view%20of%20the%20sd%20card%20folder%20showing%20the%20dashboard%20file.png" alt="The SD card's folder, with dashboard.html visible">
+  </div>
+  <div class="photo-frame">
+    <img src="assets/screenshot%20of%20the%20top%20part%20of%20hte%20dashboard%20showing%20hte%20title%20and%20headline%20statistics.png" alt="The dashboard, open and showing today's picture count">
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-number">8</div>
+  <div class="step-body">
+    <h3>Load your pictures for the AI</h3>
+    <p>Click <strong>Find insects with AI</strong>, then click <span class="tap-btn">Load camera card →</span>. In the window that opens, choose your USB drive or SD card (look for <strong>INSECT-AI</strong>) and click <strong>OK</strong>. The browser will then ask if it's okay to look at all the files — click <strong>OK</strong> (or <strong>Upload</strong>) to allow it. Nothing is actually uploaded anywhere; this just lets the page on your computer read the pictures.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-number">9</div>
+  <div class="step-body">
+    <h3>Let the AI look for insects</h3>
+    <p>Pick <strong>FlatBug — Quick look</strong>. Watch as the computer looks at each photo, one at a time, and guesses where it thinks it can see an insect.</p>
+  </div>
+</div>
+<div class="photo-frame wide">
+  <img src="assets/screenshot%20of%20flatbug%20running%20in%20the%20dashboard%20on%20our%20mock%20ant%20images.png" alt="FlatBug finding insects in the dashboard">
+</div>
+
+<p style="text-align:center; font-size:15px; margin-top:6mm;"><strong>That's it — you've run a real insect-monitoring camera and used AI to look for bugs, start to finish!</strong> 🎉</p>
+
+</section>
+
+<div class="glossary">
+  <h2>Words to know</h2>
+  <dt>AI (Artificial Intelligence)</dt>
+  <dd>A computer program that has learned what insects tend to look like, and makes a best guess about where one might be in a photo. It can make mistakes — it's guessing, not certain!</dd>
+  <dt>SD card</dt>
+  <dd>The small memory card inside the camera that stores every photo it takes.</dd>
+  <dt>QR code</dt>
+  <dd>A special square pattern your phone's camera can read instead of you typing anything in.</dd>
+  <dt>Wi-Fi</dt>
+  <dd>How your phone talks to the camera without any wires, so you can peek at its photos while it's working.</dd>
+</div>
+
+<div class="teacher-note">
+  <strong>Notes for the teacher / facilitator</strong>
+  <ul>
+    <li>Always wait for <strong>🏁 Finish my adventure</strong> to confirm before removing the card — this is what safely saves the photos.</li>
+    <li>Never remove the SD card while the camera is still powered on.</li>
+  </ul>
+</div>
+
+<div class="logo-strip">
+  <img src="assets/InsectAI%20logo.svg" alt="InsectAI logo">
+  <img src="assets/cost%20logo.jpg" alt="COST Action logo">
+</div>
+
+<footer>InsectAI COST Action · Kit-for-Kids · Bug Camera Day guide</footer>
+
+</body>
+</html>

@@ -21,6 +21,8 @@ Usage:
   py tools\dev_bridge_client.py --port COM4 df
   py tools\dev_bridge_client.py --port COM4 runs
   py tools\dev_bridge_client.py --port COM4 audit run_000041
+  py tools\dev_bridge_client.py --port COM4 wipe --confirm
+  py tools\dev_bridge_client.py --port COM4 probe
   py tools\dev_bridge_client.py --port COM4 stop
   py tools\dev_bridge_client.py --port COM4 reboot
   py tools\dev_bridge_client.py --port COM4 ping
@@ -233,6 +235,24 @@ def cmd_audit(bridge: Bridge, args: argparse.Namespace) -> None:
     print(require_ok(bridge.command(f"AUDIT {args.run_id}", timeout=60.0)))
 
 
+def cmd_wipe(bridge: Bridge, args: argparse.Namespace) -> None:
+    if not args.confirm:
+        raise BridgeError("this deletes every picture and record on the card - re-run with --confirm to proceed")
+    # No progress heartbeat interval is fixed here the way AUDIT's is: image
+    # count varies wildly card to card, so this waits out whatever the
+    # firmware's own <DEV PROGRESS> cadence produces rather than guessing a
+    # ceiling. 300s covers a card with several thousand images even if
+    # heartbeats land less often than AUDIT's.
+    print(require_ok(bridge.command("WIPE CONFIRM", timeout=300.0)))
+
+
+def cmd_probe(bridge: Bridge, args: argparse.Namespace) -> None:
+    # Independent of the SD card entirely - see DevBridge::commandProbe.
+    # Camera init briefly claims PSRAM/DMA buffers even when it succeeds, so
+    # give it a bit more room than a plain PING.
+    print(require_ok(bridge.command("PROBE", timeout=10.0)))
+
+
 def cmd_runs(bridge: Bridge, args: argparse.Namespace) -> None:
     frame = bridge.command("RUNS")
     payload = require_ok(frame)
@@ -281,6 +301,15 @@ def main() -> int:
     audit_parser.set_defaults(func=cmd_audit)
 
     subparsers.add_parser("runs").set_defaults(func=cmd_runs)
+
+    wipe_parser = subparsers.add_parser("wipe", help="Delete every picture and record on the card - irreversible")
+    wipe_parser.add_argument("--confirm", action="store_true", help="Required; without it the command refuses to run")
+    wipe_parser.set_defaults(func=cmd_wipe)
+
+    subparsers.add_parser(
+        "probe", help="Check the camera alone, independent of the SD card - tells apart a disconnected "
+        "expansion board from a missing/bad SD card"
+    ).set_defaults(func=cmd_probe)
 
     args = parser.parse_args()
     bridge = Bridge(args.port, args.baud)

@@ -1,4 +1,5 @@
 (() => {
+  const { t } = window.i18n;
   const modal = document.querySelector('#settings-modal');
   const openButton = document.querySelector('#configure-camera');
   const closeButton = document.querySelector('#settings-close');
@@ -13,18 +14,11 @@
   const card = window.InsectCard;
   let lastFocus;
   const QUALITY = {
-    high: { frameSize: 'QXGA', jpegQuality: 12, label: 'High quality (QXGA)' },
-    low: { frameSize: 'VGA', jpegQuality: 24, label: 'Low quality (VGA)' },
+    high: { frameSize: 'QXGA', jpegQuality: 12, labelKey: 'settings.quality.highLabel' },
+    low: { frameSize: 'VGA', jpegQuality: 24, labelKey: 'settings.quality.lowLabel' },
   };
-  const intervalLabel = (milliseconds) => {
-    const seconds = milliseconds / 1000;
-    return seconds === 60 ? 'one picture every 1 minute' : `one picture every ${seconds} second${seconds === 1 ? '' : 's'}`;
-  };
-  const durationLabel = (seconds) => {
-    if (seconds === 0) return 'until you switch the camera off';
-    const minutes = seconds / 60;
-    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  };
+  const intervalLabel = (milliseconds) => t('settings.intervalPhrase', milliseconds / 1000);
+  const durationLabel = (seconds) => t('settings.durationPhrase', seconds);
   const selected = () => ({
     intervalMs: Number(interval.value), qualityKey: quality.value, durationSeconds: Number(duration.value), motionTriggerEnabled: motion.checked,
   });
@@ -49,13 +43,13 @@
   };
   const intervalFor = (settings) => Number(settings.capture_interval_ms) || (Number(settings.capture_fps) ? 1000 / Number(settings.capture_fps) : 1000);
   const imageLabelFor = (settings) => {
-    if (settings.frame_size === 'QXGA' && Number(settings.jpeg_quality) === 12) return QUALITY.high.label;
-    if (settings.frame_size === 'VGA' && Number(settings.jpeg_quality) === 24) return QUALITY.low.label;
-    return `${settings.frame_size || 'unknown'} quality ${settings.jpeg_quality ?? 'unknown'}`;
+    if (settings.frame_size === 'QXGA' && Number(settings.jpeg_quality) === 12) return t(QUALITY.high.labelKey);
+    if (settings.frame_size === 'VGA' && Number(settings.jpeg_quality) === 24) return t(QUALITY.low.labelKey);
+    return t('settings.unknownQuality', settings.frame_size, settings.jpeg_quality);
   };
   const describe = (settings) => {
-    const motionDescription = settings.motion_trigger_enabled ? 'save the first picture, then only save changes (motion score 5)' : 'save every picture';
-    return `${intervalLabel(intervalFor(settings))}, ${imageLabelFor(settings)}, for ${durationLabel(Number(settings.max_session_seconds))}; ${motionDescription}`;
+    const motionDescription = t(settings.motion_trigger_enabled ? 'settings.motionOnDescription' : 'settings.motionOffDescription');
+    return t('settings.describeComposed', intervalLabel(intervalFor(settings)), imageLabelFor(settings), durationLabel(Number(settings.max_session_seconds)), motionDescription);
   };
   const applyCurrentToControls = (settings) => {
     const milliseconds = intervalFor(settings);
@@ -75,20 +69,20 @@
     if (card.canWrite()) {
       allowButton.hidden = true;
       writeButton.disabled = false;
-      status.textContent = 'Camera card ready. Choose your three settings, then save them to the card.';
+      status.textContent = t('settings.cardReadyChoose');
       return;
     }
     allowButton.hidden = false;
     writeButton.disabled = true;
     if (!card.writeSupported()) {
       allowButton.disabled = true;
-      status.textContent = 'This browser cannot safely change camera-card files. Use current Chrome or Edge for this experimental tool.';
+      status.textContent = t('settings.browserCannotWrite');
     } else if (card.loaded) {
       allowButton.disabled = false;
-      status.textContent = 'Your pictures are loaded. To change settings, choose the same camera-card folder once more and allow changes.';
+      status.textContent = t('settings.pleaseAllowAgain');
     } else {
       allowButton.disabled = false;
-      status.textContent = 'Choose the top INSECT-AI camera-card folder and allow changes.';
+      status.textContent = t('settings.chooseAndAllow');
     }
   };
   const showCurrent = async () => {
@@ -96,10 +90,10 @@
       const value = JSON.parse(await card.readText('config.json'));
       const controlsMatch = applyCurrentToControls(value);
       current.textContent = controlsMatch ?
-        `Current setting on this card: ${describe(value)}. The choices below match it.` :
-        `Current setting on this card: ${describe(value)}. Choose one of the safe settings below to replace it.`;
+        t('settings.currentMatches', describe(value)) :
+        t('settings.currentNoMatch', describe(value));
     } catch (error) {
-      current.textContent = 'Current setting: not available until the camera card is chosen.';
+      current.textContent = t('settings.currentUnavailable');
     }
   };
   const open = async () => {
@@ -115,26 +109,26 @@
   };
   const allowCard = async () => {
     allowButton.disabled = true;
-    status.textContent = 'Choose the top INSECT-AI camera-card folder, then allow changes when your browser asks.';
+    status.textContent = t('settings.chooseAndAllowBrowserPrompt');
     await card.requestWrite();
     renderAccess();
-    if (!card.canWrite() && card.writeError) status.textContent = `The camera card was not changed: ${card.writeError}`;
+    if (!card.canWrite() && card.writeError) status.textContent = t('settings.cardNotChanged', card.writeError);
     await showCurrent();
   };
   const writeSettings = async () => {
     if (!card.canWrite()) return;
     const settings = configFor(selected());
     const description = describe(settings);
-    const extraWarning = settings.max_session_seconds === 0 ? '\n\nInfinite means the camera keeps taking pictures until it is switched off or the card fills up.' : '';
-    if (!window.confirm(`Save this camera setting?\n\n${description}${extraWarning}\n\nIt will replace config.json and take effect after the board is restarted.`)) return;
+    const extraWarning = settings.max_session_seconds === 0 ? t('settings.infiniteWarning') : '';
+    if (!window.confirm(t('settings.confirmPrompt', description, extraWarning))) return;
     writeButton.disabled = true;
-    status.textContent = 'Saving the camera setting safely...';
+    status.textContent = t('settings.saving');
     try {
       await card.writeText('config.json', `${JSON.stringify(settings, null, 2)}\n`);
-      status.textContent = `Saved! The next camera session will use ${description}. Safely disconnect the card, then restart the board.`;
-      current.textContent = `Current setting on this card: ${description}. Saved to config.json; the choices above now match it.`;
+      status.textContent = t('settings.savedMessage', description);
+      current.textContent = t('settings.currentSaved', description);
     } catch (error) {
-      status.textContent = `The camera card was not changed: ${error instanceof Error ? error.message : String(error)}`;
+      status.textContent = t('settings.cardNotChanged', error instanceof Error ? error.message : String(error));
     } finally {
       renderAccess();
     }
@@ -148,4 +142,5 @@
   window.addEventListener('insect-card-write-ready', async () => { if (!modal.hidden) { renderAccess(); await showCurrent(); } });
   window.addEventListener('insect-card-loaded', async () => { if (!modal.hidden) { renderAccess(); await showCurrent(); } });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.hidden) close(); });
+  window.i18n.onLocaleChange(async () => { if (!modal.hidden) { renderAccess(); await showCurrent(); } });
 })();

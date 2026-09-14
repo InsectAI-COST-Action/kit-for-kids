@@ -1,5 +1,11 @@
 # Project notes for Claude
 
+> **Reading this in a fresh clone of `kit-for-kids` from GitHub?** This file
+> describes the maintainer's *local* working copy — a remote-less repo living
+> inside a Google Drive folder — and the manual subtree workflow used to publish
+> from it. None of it applies to an ordinary clone. To build and run the camera,
+> follow [docs/setup-guide.md](docs/setup-guide.md).
+
 ## Publishing model: this repo has no remote, by design
 
 This local repo (`master` branch) is **not** connected to any GitHub remote —

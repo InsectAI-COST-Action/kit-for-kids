@@ -1,4 +1,5 @@
 (() => {
+  const { t } = window.i18n;
   const modal = document.querySelector('#analysis-modal');
   const openButton = document.querySelector('#find-insects');
   const closeButton = document.querySelector('#analysis-close');
@@ -56,36 +57,36 @@
     .filter((capture) => capture.imagePath && runIdOf(capture) === runId)
     .map((capture) => ({ capture, file: card.fileFor(capture.imagePath) }));
   const selectedAnalysisEntries = () => entriesForSession(analysisSession.value);
-  const selectedSessionLabel = () => analysisSession.selectedOptions[0]?.textContent || 'No session selected';
+  const selectedSessionLabel = () => analysisSession.selectedOptions[0]?.textContent || t('analysis.noSessionSelected');
   const refreshAnalysisSessions = () => {
     const sessions = analysisSessions(), previous = analysisSession.value;
     analysisSession.replaceChildren();
     sessions.forEach(([runId, count], index) => {
       const option = document.createElement('option');
       option.value = runId;
-      option.textContent = `${index === 0 ? 'Newest session - ' : ''}${runId} (${count} pictures)`;
+      option.textContent = t('session.optionLabel', runId, count, index === 0);
       analysisSession.append(option);
     });
     if (sessions.some(([runId]) => runId === previous)) analysisSession.value = previous;
     analysisSessionLabel.hidden = !sessions.length;
     analysisSession.disabled = !sessions.length;
-    analysisSessionNote.textContent = sessions.length ? `${selectedSessionLabel()} is selected. The AI will only look at these pictures.` : 'There are no saved picture sessions available on this card.';
+    analysisSessionNote.textContent = sessions.length ? t('analysis.sessionSelected', selectedSessionLabel()) : t('analysis.noSessionsAvailable');
   };
   const ANALYSIS_CHOICES = {
-    antai: { model: MODELS.antai, mode: 'quick', note: 'AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.' },
-    'flatbug-quick': { model: MODELS.flatbug, mode: 'quick', note: 'FlatBug Quick look is selected: one fast check of each whole picture.' },
-    'flatbug-close': { model: MODELS.flatbug, mode: 'close', note: 'FlatBug Look closely is selected: 12 zoomed-in checks for each picture, so it takes longer.' },
+    antai: { model: MODELS.antai, mode: 'quick', noteKey: 'analysisModal.choiceNoteDefault' },
+    'flatbug-quick': { model: MODELS.flatbug, mode: 'quick', noteKey: 'analysis.flatbugQuickNote' },
+    'flatbug-close': { model: MODELS.flatbug, mode: 'close', noteKey: 'analysis.flatbugCloseNote' },
   };
   const selectedChoice = () => ANALYSIS_CHOICES[analysisChoiceInputs.find((input) => input.checked)?.value || 'antai'];
   const selectedAnalysisMode = () => selectedChoice().mode;
   const selectedModel = () => selectedChoice().model;
-  const updateChoiceNote = () => { analysisChoiceNote.textContent = selectedChoice().note; };
+  const updateChoiceNote = () => { analysisChoiceNote.textContent = t(selectedChoice().noteKey); };
   const updateProgress = () => {
     const total = state.entries.length;
     const percent = total ? Math.round((state.inspected / total) * 100) : 0;
     progressBar.style.width = `${percent}%`;
-    progressText.textContent = `Picture ${Math.min(state.inspected + 1, total)} of ${total}`;
-    discoveryCount.textContent = `${state.discoveries} possible insect${state.discoveries === 1 ? '' : 's'} found`;
+    progressText.textContent = t('progress.text', Math.min(state.inspected + 1, total), total);
+    discoveryCount.textContent = t('discoveries.count', state.discoveries);
   };
   const clip = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
   const overlap = (first, second) => {
@@ -170,7 +171,7 @@
       context.strokeRect(box.x, box.y, box.width, box.height);
       context.fillStyle = '#f32b63';
       context.font = `900 ${Math.max(16, image.width / 30)}px system-ui`;
-      context.fillText(`${Math.round(box.score * 100)}% possible insect`, box.x + 4, Math.max(22, box.y - 5));
+      context.fillText(t('analysis.possibleInsectLabel', Math.round(box.score * 100)), box.x + 4, Math.max(22, box.y - 5));
     }
   };
   const addDiscovery = (capture, boxes) => {
@@ -180,14 +181,14 @@
     card.className = 'discovery-card';
     const thumbnail = document.createElement('img');
     thumbnail.src = capture.imagePath;
-    thumbnail.alt = `Picture ${capture.captureId}`;
+    thumbnail.alt = t('analysis.pictureCaption', capture.captureId);
     const heading = document.createElement('h4');
-    heading.textContent = 'A possible insect!';
+    heading.textContent = t('analysis.possibleInsectHeading');
     const detail = document.createElement('p');
-    detail.textContent = `${capture.captureId} - ${boxes.length} possible insect${boxes.length === 1 ? '' : 's'} - strongest clue ${Math.round(boxes[0].score * 100)}%`;
+    detail.textContent = t('analysis.discoveryDetail', capture.captureId, boxes.length, Math.round(boxes[0].score * 100));
     card.append(thumbnail, heading, detail);
     discoveries.prepend(card);
-    discoveryCount.textContent = `${state.discoveries} possible insect${state.discoveries === 1 ? '' : 's'} found`;
+    discoveryCount.textContent = t('discoveries.count', state.discoveries);
   };
   const finish = (message) => {
     state.active = false;
@@ -197,14 +198,14 @@
     startButton.disabled = !session;
     say(message);
     summary.hidden = false;
-    summary.textContent = `${state.inspected} picture${state.inspected === 1 ? '' : 's'} checked. ${state.discoveries} possible insect${state.discoveries === 1 ? '' : 's'} found.${state.errors ? ` ${state.errors} picture${state.errors === 1 ? '' : 's'} could not be checked.` : ''} These are experimental predictions and AI can make mistakes.`;
+    summary.textContent = t('analysis.summaryText', state.inspected, state.discoveries, state.errors);
     const metric = document.querySelector('#inference-status');
-    if (metric) metric.textContent = state.discoveries ? `${state.discoveries} possible` : 'Checked';
+    if (metric) metric.textContent = state.discoveries ? t('analysis.metricPossible', state.discoveries) : t('analysis.metricChecked');
   };
   const inspectNext = async () => {
     if (!state.active || state.paused) return;
     const entry = state.entries[state.index];
-    if (!entry) return finish('That is every picture. What a careful search!');
+    if (!entry) return finish(t('analysis.allDone'));
     const { capture, file } = entry;
     let image;
     try {
@@ -213,8 +214,8 @@
       for (let tileIndex = 0; tileIndex < tiles.length; tileIndex += 1) {
         if (!state.active || state.paused) return;
         const tile = tiles[tileIndex];
-        currentCaption.textContent = `Looking at ${capture.captureId} - piece ${tileIndex + 1} of ${tiles.length}`;
-        say(['Looking carefully...', 'Searching the shapes...', 'Checking for tiny wings and legs...', 'Being a brilliant bug detective...'][(state.index + tileIndex) % 4]);
+        currentCaption.textContent = t('analysis.lookingAtPiece', capture.captureId, tileIndex + 1, tiles.length);
+        say(t('analysis.thinkingMessages')[(state.index + tileIndex) % 4]);
         const prepared = makeInput(image, tile);
         const output = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', prepared.input, [1, 3, prepared.inputSize, prepared.inputSize]) });
         candidates.push(...decode(output[session.outputNames[0]], prepared.scale, prepared.padX, prepared.padY, tile.width, tile.height, tile.x, tile.y));
@@ -231,20 +232,20 @@
     state.inspected += 1;
     updateProgress();
     if (!state.active) return;
-    if (state.paused) return say('Paused. Your discoveries are safe on this page.');
+    if (state.paused) return say(t('analysis.pausedMessage'));
     window.setTimeout(inspectNext, 0);
   };
   const start = async () => {
     const entries = selectedAnalysisEntries();
     const available = availableEntries(entries);
     const missingPictures = entries.length - available.length;
-    if (!card.loaded || !entries.length) return say('There are no saved pictures for the AI to look at yet.');
-    if (!available.length) return say('There are no saved picture files available for the AI to look at yet.');
+    if (!card.loaded || !entries.length) return say(t('analysis.noPicturesAtAll'));
+    if (!available.length) return say(t('analysis.noAvailableFiles'));
     // The model is fetched here, not on every choice change - see loadCard()
     // and the choice-change handler below for why.
     if (!session || loadedModelFile !== selectedModel().file) {
       startButton.disabled = true;
-      say('Waking up the AI helper...');
+      say(t('analysis.wakingUp'));
       await loadModel();
       if (!session) return;
     }
@@ -253,7 +254,7 @@
     discoveries.replaceChildren();
     const empty = document.createElement('p');
     empty.className = 'empty-discoveries';
-    empty.textContent = 'No clues yet - the AI is still looking carefully.';
+    empty.textContent = t('discoveries.empty');
     discoveries.append(empty);
     summary.hidden = true;
     setup.hidden = true;
@@ -262,10 +263,10 @@
     stopButton.disabled = false;
     startButton.disabled = true;
     const startMetric = document.querySelector('#inference-status');
-    if (startMetric) startMetric.textContent = 'Looking...';
+    if (startMetric) startMetric.textContent = t('analysis.metricLooking');
     updateProgress();
-    if (missingPictures) say(`Looking at ${available.length} available pictures. ${missingPictures} older record${missingPictures === 1 ? '' : 's'} without image files will be skipped.`);
-    else say(mode === 'close' ? 'Looking closely in 12 picture pieces for tiny possible insects...' : 'Taking a quick look through each whole picture...');
+    if (missingPictures) say(t('analysis.lookingAtAvailable', available.length, missingPictures));
+    else say(mode === 'close' ? t('analysis.modeCloseMessage') : t('analysis.modeQuickMessage'));
     inspectNext();
   };
   const setCardProgress = (percent, message) => {
@@ -278,7 +279,7 @@
   const readyMessage = (modelName) => {
     const entries = selectedAnalysisEntries(), available = availableEntries(entries), missing = entries.length - available.length;
     startButton.disabled = !session || !available.length;
-    return `${modelName} is ready! ${selectedSessionLabel()} has ${available.length} saved picture${available.length === 1 ? '' : 's'}.${missing ? ` ${missing} older record${missing === 1 ? '' : 's'} without image files will be skipped.` : ''} Press Start looking.`;
+    return t('analysis.modelReady', modelName, selectedSessionLabel(), available.length, missing);
   };
   // Shown the whole time the panel is open but no model has been fetched yet
   // (it only loads once Start looking is pressed). Deliberately reads the
@@ -295,7 +296,7 @@
   const cardReadyStatus = () => {
     const count = card.sessionCounts().get(analysisSession.value) || 0;
     startButton.disabled = !count;
-    return `Camera card ready! ${selectedSessionLabel()} has ${count} saved picture${count === 1 ? '' : 's'}. Press Start looking.`;
+    return t('analysis.cardReadyWithSession', selectedSessionLabel(), count);
   };
   const loadModel = async () => {
     const activeModel = selectedModel();
@@ -312,34 +313,34 @@
     const runtime = RUNTIME_FILES.map(card.fileByName);
     const missingRuntime = RUNTIME_FILES.filter((name, index) => !runtime[index]);
     if (!model || missingRuntime.length) {
-      setCardProgress(0, `Your pictures are ready, but this card has no ${activeModel.name} helper in ai/: ${[!model ? activeModel.file : '', ...missingRuntime].filter(Boolean).join(', ')}. Add the AI pack to the card, then try again.`);
+      setCardProgress(0, t('analysis.missingHelper', activeModel.name, [!model ? activeModel.file : '', ...missingRuntime].filter(Boolean).join(', ')));
       return;
     }
     try {
-      setCardProgress(25, `Opening ${activeModel.name} and waking up the AI helper...`);
+      setCardProgress(25, t('analysis.openingModel', activeModel.name));
       const urls = [];
       const blobUrl = (file) => { const url = URL.createObjectURL(file); urls.push(url); return url; };
       ort = await import(blobUrl(card.fileByName('ort.wasm.bundle.min.mjs')));
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
       ort.env.wasm.wasmPaths = { wasm: blobUrl(card.fileByName('ort-wasm-simd-threaded.wasm')) };
-      setCardProgress(55, `Reading the ${activeModel.name} helper from the card...`);
+      setCardProgress(55, t('analysis.readingModel', activeModel.name));
       const weights = new Uint8Array(await model.arrayBuffer());
-      setCardProgress(80, `Starting ${activeModel.name}...`);
+      setCardProgress(80, t('analysis.startingModel', activeModel.name));
       session = await ort.InferenceSession.create(weights, { executionProviders: ['wasm'] });
       loadedModelFile = activeModel.file;
       setCardProgress(0, readyMessage(activeModel.name));
     } catch (error) {
       session = undefined;
       loadedModelFile = undefined;
-      setCardProgress(0, `The AI helper could not start: ${error instanceof Error ? error.message : String(error)}`);
+      setCardProgress(0, t('analysis.couldNotStart', error instanceof Error ? error.message : String(error)));
     }
   };
   const loadCard = async () => {
     startButton.disabled = true;
     if (!card.loaded) {
       loadCardButton.hidden = false;
-      setCardProgress(0, 'Press Load camera card, then choose the INSECT-AI drive in the next window.');
+      setCardProgress(0, t('analysis.cardStatusShort'));
       return;
     }
     loadCardButton.hidden = true;
@@ -352,7 +353,7 @@
       session = undefined;
       loadedModelFile = undefined;
       loadCardButton.hidden = false;
-      setCardProgress(0, 'This folder has no saved camera pictures in it. Choose the top camera-card folder and try again.');
+      setCardProgress(0, t('analysis.noSavedPicturesInFolder'));
       return;
     }
     // The AI helper itself is deliberately not touched here - it loads only
@@ -378,29 +379,33 @@
     else startButton.disabled = true;
   }));
   analysisSession.addEventListener('change', () => {
-    analysisSessionNote.textContent = `${selectedSessionLabel()} is selected. The AI will only look at these pictures.`;
+    analysisSessionNote.textContent = t('analysis.sessionSelected', selectedSessionLabel());
     cardStatus.textContent = session && loadedModelFile === selectedModel().file ? readyMessage(selectedModel().name) : cardReadyStatus();
   });
   updateChoiceNote();
   loadCardButton.addEventListener('click', () => card.request());
   window.addEventListener('insect-card-progress', (event) => { if (!modal.hidden) setCardProgress(event.detail.percent, event.detail.message); });
-  window.addEventListener('insect-card-cancelled', () => { if (!modal.hidden) setCardProgress(0, 'No folder was chosen. Press Load camera card to try again.'); });
+  window.addEventListener('insect-card-cancelled', () => { if (!modal.hidden) setCardProgress(0, t('analysis.noFolderChosen')); });
   // The card is chosen once for the whole page. When the movie maker or the
   // front-page picture check loaded it, this section must already know.
   window.addEventListener('insect-card-loaded', () => {
     if (!modal.hidden) { loadCard(); return; }
     loadCardButton.hidden = card.loaded;
     refreshAnalysisSessions();
-    if (card.loaded) cardStatus.textContent = 'Camera card ready. The AI helper starts when you open this.';
+    if (card.loaded) cardStatus.textContent = t('analysis.cardReadyBackground');
   });
   startButton.addEventListener('click', start);
   pauseButton.addEventListener('click', () => {
     if (!state.active) return;
     state.paused = !state.paused;
-    pauseButton.textContent = state.paused ? 'Keep looking' : 'Pause search';
-    if (state.paused) say('Finishing this picture, then pausing...');
+    pauseButton.textContent = state.paused ? t('analysis.keepLooking') : t('analysisScanner.pause');
+    if (state.paused) say(t('analysis.finishingThenPausing'));
     else inspectNext();
   });
-  stopButton.addEventListener('click', () => { if (state.active) finish('Search stopped. You can start a new search whenever you like.'); });
+  stopButton.addEventListener('click', () => { if (state.active) finish(t('analysis.searchStopped')); });
+  window.i18n.onLocaleChange(() => {
+    updateChoiceNote();
+    pauseButton.textContent = state.paused ? t('analysis.keepLooking') : t('analysisScanner.pause');
+  });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.hidden) { event.stopImmediatePropagation(); close(); } }, true);
 })();
