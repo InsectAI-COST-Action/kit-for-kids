@@ -1,10 +1,10 @@
-# Barcelona demo runbook (source for the printable guide)
+# Barcelona demo Instructions
 
 **Event:** show-and-tell, week of 7 September 2026. Audience: children, assembling and running the device themselves.
 
 **Planned sequence** (owner's own words, 31 August 2026): children assemble the physical device → place a reference image (ants) underneath → run a ~1 minute experiment → connect a phone to see it working → remove the SD card, put it in a computer, and see the AI results.
 
-This document is the working source for a one-page PDF a facilitator can follow. It is **not itself the PDF** — see "Producing the PDF" at the bottom.
+This document is the working source/runbook a facilitator can follow. The printable child/teacher-facing guide (and its PDF) is a separate document — see "The printable guide" at the bottom.
 
 ---
 
@@ -52,6 +52,6 @@ This document is the working source for a one-page PDF a facilitator can follow.
 4. iPhone path is genuinely untested. If any child is likely to bring an iPhone, worth a quick real test beforehand rather than finding out live.
 5. Print the QR code above onto the enclosure.
 
-## Producing the PDF
+## The printable guide
 
-Plan: author a clean, printable HTML page (not raw Markdown) and render it to PDF locally via `msedge.exe --headless=new --print-to-pdf` (already proven working in this project for the dashboard screenshot check). Not yet built - next step once the items above are resolved enough that the content is stable.
+Built, 14 September 2026: [`barcelona-demo-guide.html`](barcelona-demo-guide.html) (+ [`barcelona-demo-guide-es.html`](barcelona-demo-guide-es.html), cross-linked with each other) and their PDFs, rendered via `msedge.exe --headless=new --print-to-pdf`, matching this project's existing headless-Chrome pattern. Both versions carry real photos of the actual build sequence and the actual control-app screens (supplied by the owner), not placeholders. Spanish button wording (`👁️ Echa un vistazo`, `🏁 Termina tu aventura`) matches the phone app's own translated text exactly - see the language-support entry in [next-session.md](next-session.md).

@@ -206,7 +206,7 @@ The card carries its own picture-viewing software, so it works on any computer w
 py tools\prepare_sd.py D:\
 ```
 
-This copies the dashboard, creates the folders the camera needs, and installs a default settings file. It deliberately **does not** overwrite existing pictures or settings, so it is safe to re-run on a card that already has data.
+This copies the dashboard, creates the folders the camera needs, and installs a default settings file. It deliberately **does not** overwrite existing pictures or settings, so it is safe to re-run on a card that already has data. On Windows it also names the drive **INSECT-AI**, so it's easy to spot later in the dashboard's folder picker — see Part 8. On macOS, that renaming step is not yet automated: rename the drive yourself in Finder (select it, press Return, type `INSECT-AI`).
 
 ### 4.3 Eject safely
 
@@ -336,6 +336,9 @@ In the dashboard, choose **Find insects with AI**, pick a mode, select the card 
 
 **Movement-triggered mode saves every single picture**
 - Known issue when the phone Wi-Fi is active at the same time: the radio interferes with movement detection. Either use movement mode without the phone app connected, or use normal every-picture mode. Being investigated.
+
+**The card isn't named `INSECT-AI` in the folder picker**
+- `py tools\prepare_sd.py` names it automatically on Windows; if the card was prepared before this was added, or on macOS (not yet automated there), re-run `py tools\prepare_sd.py D:\` on Windows, or rename it yourself: File Explorer → right-click the drive → Rename (Windows), or Finder → select the drive → press Return (macOS).
 
 ---
 

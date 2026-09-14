@@ -33,6 +33,8 @@ Slow commands (`CAT`, `AUDIT`) may emit `<DEV PROGRESS ...>` frames while workin
 | `CAT <path>` | Read a file (hex-encoded) |
 | `PUT <path> <bytes>` | Write a file (hex-encoded payload follows) |
 | `RM <path>` | Delete a file |
+| `WIPE CONFIRM` | Delete every picture and record (`images/`, `raw/captures.csv`, `raw/runs/*`, `data/` chunks, `manifest.js`, `summary.js`) - leaves `config.json` and the static dashboard files untouched. Refuses without the literal `CONFIRM` argument; irreversible. |
+| `PROBE` | Initialise the camera sensor alone, independent of the SD card. Reports `camera=ok` or `camera=fail detail=...`. Works even when storage is unavailable - see "Telling a disconnected expansion board apart from a bad SD card" below. |
 | `DF` | Card total/used bytes |
 | `AUDIT <run_id>` | On-device summary of one run: image/shard counts, size stats, `captures.csv` row cross-check, capture-interval stats |
 | `RUNS` | One line per run manifest: `<run_id> <state>` |
@@ -55,6 +57,7 @@ py tools\dev_bridge_client.py --port COM4 stop
 py tools\dev_bridge_client.py --port COM4 mount
 py tools\dev_bridge_client.py --port COM4 runs
 py tools\dev_bridge_client.py --port COM4 audit run_000041
+py tools\dev_bridge_client.py --port COM4 wipe --confirm
 ```
 
 Each invocation opens a fresh connection and closes it afterward - there is no persistent session to keep alive between commands.
@@ -108,6 +111,17 @@ Live against real hardware, card in the board throughout: `ping`, session-active
 - **A firmware log line can merge with a `<DEV ERR>` reply on the wire, causing a client-side timeout instead of a clean error.** Observed repeatedly calling `df` while a session was actively capturing: the firmware's own housekeeping log (`remove(): /images/run_000041/shard_.../...`) and the `<DEV ERR session active; send DEV STOP first>` frame arrived concatenated on one line with no separating newline, which `_expect_frame`'s line-based parser can't recognise as a frame - it falls through to printing the whole mess as an ordinary log line and then times out waiting for a frame that already went by. The refusal is still working correctly (file commands remain safely blocked during a session); only the client's reporting of that fact is unreliable in this specific overlap.
 - **No collision handling if a command arrives mid-transfer.** `PUT`'s receive loop reads raw serial bytes directly rather than going through the normal line buffer; a second command sent before the first finishes would corrupt both. The client is synchronous and waits for each reply before sending the next, so this should not occur through normal use of `dev_bridge_client.py`, but nothing in the firmware itself prevents it.
 - **Git Bash path conversion.** Invoking the client from Git Bash on Windows, a bare `/` or a leading-slash path gets silently rewritten to a Windows path before Python ever sees it (confirmed: `/` became `C:/Program Files/Git/`). Prefix with `MSYS_NO_PATHCONV=1` when using Git Bash; PowerShell is unaffected.
+
+## Telling a disconnected expansion board apart from a bad SD card (14 September 2026)
+
+The camera and the SD card slot both live on the XIAO's separate "Sense" expansion board, not the main board carrying the USB/processor - the two connect to each other via a header. `MOUNT` failing with `SD mount failed on GPIO21 at every supported clock speed` (`sdWait` failures, `GO_IDLE_STATE failed`, `f_mount failed: (3)`) turned out to be **exactly the same error text** whether the expansion board was fully disconnected from the main board or was connected with no card inserted - `storage.begin()` only ever talks to the SD pins, so it cannot see the camera at all, and `setup()` returns before ever reaching `camera.begin()` if storage fails first (see `src/main.cpp`). Remotely, over serial only, those two very different physical states were indistinguishable.
+
+`PROBE` exists specifically to break that tie: it calls `camera.begin()` directly, bypassing `setup()`'s normal storage-first ordering, and does not require storage to be mounted at all. Because the camera and SD card share the same expansion-board connector, the two failure modes now read distinctly:
+
+- **Expansion board disconnected**: `PROBE` also fails (`camera=fail`) - the camera cannot be reached either, since it is not just the card that's unreachable but the whole board.
+- **Expansion board connected, card missing/bad**: `PROBE` succeeds (`camera=ok`) while `MOUNT` still fails - isolates the fault to the card specifically.
+
+Not yet exercised against a real "connected, no card" case as of this writing - the diagnostic was built and reasoned through during a live remote session where the board was confirmed to have its two halves separated, then reflashed with `PROBE` included before a planned reconnection test. Confirm the result actually matches this reasoning next time both states are testable.
 
 ## Verified 27-28 August 2026: one full unattended cycle
 

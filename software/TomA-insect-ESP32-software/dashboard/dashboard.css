@@ -30,6 +30,8 @@ p { line-height: 1.55; }
 .hero > div:first-child { max-width: 45rem; }
 .hero p:last-child { color: var(--muted); font-size: 1.15rem; margin-bottom: 0; }
 .hero-badge { align-items: center; background: var(--yellow); border: .45rem solid var(--paper); border-radius: 50%; box-shadow: var(--shadow); display: flex; font-size: clamp(3.5rem, 10vw, 7rem); height: clamp(8rem, 22vw, 13rem); justify-content: center; transform: rotate(8deg); width: clamp(8rem, 22vw, 13rem); }
+.hero-right { align-items: flex-end; display: flex; flex-direction: column; gap: .6rem; }
+.locale-picker { background: var(--paper); border: .12rem solid var(--purple-dark); border-radius: 999px; color: var(--ink); cursor: pointer; font: inherit; font-weight: 800; padding: .35rem .9rem; }
 .welcome-card { align-items: center; background: var(--purple); border-radius: 1.7rem; box-shadow: var(--shadow); color: #fff; display: flex; gap: 2rem; justify-content: space-between; margin: 1rem 0 1.25rem; overflow: hidden; padding: clamp(1.4rem, 5vw, 2.5rem); position: relative; }
 .welcome-card::after { color: rgb(255 255 255 / .12); content: "*  .  *"; font-size: 5rem; letter-spacing: 1rem; position: absolute; right: -1rem; top: -.4rem; transform: rotate(16deg); }
 .welcome-card > div { position: relative; z-index: 1; }

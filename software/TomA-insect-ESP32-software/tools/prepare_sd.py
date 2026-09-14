@@ -10,10 +10,16 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIRECTORY = ROOT / "dashboard"
+
+# The dashboard's folder picker (Load camera card) tells the child which drive to
+# choose by name - see the "INSECT-AI" wording in dashboard.html, dashboard.js,
+# analysis.js and settings.js - so the card actually needs to be named that.
+CARD_VOLUME_LABEL = "INSECT-AI"
 
 STATIC_DASHBOARD_FILES = (
     "dashboard.html",
@@ -22,6 +28,7 @@ STATIC_DASHBOARD_FILES = (
     "settings.js",
     "analysis.js",
     "card-access.js",
+    "i18n.js",
     "favicon.svg",
     "site.webmanifest",
 )
@@ -40,6 +47,23 @@ def copy_file(source: Path, destination: Path, dry_run: bool) -> None:
     if not dry_run:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+
+
+def set_volume_label(root: Path, label: str) -> bool:
+    """Best-effort: name the drive so it matches what the dashboard tells the child to look for.
+
+    Windows only for now - this never raises, so a failed rename does not stop the
+    rest of card preparation; the caller prints manual instructions if it returns False.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        drive = f"{root.drive}\\" if root.drive else str(root)
+        return bool(ctypes.windll.kernel32.SetVolumeLabelW(ctypes.c_wchar_p(drive), ctypes.c_wchar_p(label)))
+    except OSError:
+        return False
 
 
 def prepare_card(destination: Path, dry_run: bool = False) -> None:
@@ -70,6 +94,16 @@ def prepare_card(destination: Path, dry_run: bool = False) -> None:
         print(f"{'Would create' if dry_run else 'Ensuring'} {target}")
         if not dry_run:
             target.mkdir(exist_ok=True)
+    if dry_run:
+        print(f"Would name the drive '{CARD_VOLUME_LABEL}'")
+    elif set_volume_label(destination, CARD_VOLUME_LABEL):
+        print(f"Named the drive '{CARD_VOLUME_LABEL}'")
+    else:
+        print(
+            f"Could not rename the drive automatically - name it '{CARD_VOLUME_LABEL}' yourself\n"
+            "(Windows: File Explorer -> right-click the drive -> Rename; macOS: Finder -> select\n"
+            "the drive -> press Return to rename) so it's the one the dashboard tells you to pick."
+        )
     print("SD-card preparation complete. Eject the card safely before inserting it in the camera.")
 
 

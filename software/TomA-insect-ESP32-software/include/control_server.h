@@ -19,6 +19,11 @@ struct ControlStatus {
   uint32_t elapsed_ms = 0;
   bool sd_mounted = false;
   String error;
+  // Stable, translatable identifier for the subset of fatal_error cases the
+  // phone app's own translation table knows how to render (see main.cpp's
+  // storage-mount-failure branch) - empty for every other fatal_error, which
+  // still shows via `error` as raw, untranslated diagnostic text.
+  String error_code;
   // Most recent motion scores, oldest first. Costs nothing extra to compute
   // since the value already exists per check; drives a live "is anything
   // moving?" view without exposing any image data.

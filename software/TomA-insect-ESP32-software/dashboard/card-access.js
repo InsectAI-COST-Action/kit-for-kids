@@ -1,4 +1,5 @@
 (() => {
+  const { t } = window.i18n;
   const picker = document.querySelector('#card-picker');
   const normalisePath = (value) => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '').replace(/^\/+/, '').toLowerCase();
   const card = window.InsectCard = window.InsectCard || { files: new Map(), loaded: false };
@@ -65,7 +66,7 @@
   };
   card.request = () => {
     card.busy = true;
-    announce(6, 'Choose the top camera-card folder in the window your browser just opened.');
+    announce(6, t('card.chooseFolderPrompt'));
     try {
       if (typeof picker.showPicker === 'function') picker.showPicker();
       else picker.click();
@@ -79,7 +80,7 @@
     card.writeError = '';
     if (!card.writeSupported()) {
       card.writePermission = 'denied';
-      card.writeError = 'This browser cannot ask for permission to change a folder.';
+      card.writeError = t('card.cannotAskPermission');
       window.dispatchEvent(new CustomEvent('insect-card-write-ready'));
       return false;
     }
@@ -88,7 +89,7 @@
       // must obtain a writable directory handle from a clear, user-initiated action.
       const handle = await window.showDirectoryPicker({ id: 'insect-ai-card', mode: 'readwrite' });
       const permission = await handle.requestPermission({ mode: 'readwrite' });
-      if (permission !== 'granted') throw new Error('Permission to change this camera card was not granted.');
+      if (permission !== 'granted') throw new Error(t('card.permissionNotGranted'));
       card.directoryHandle = handle;
       card.writePermission = permission;
       window.dispatchEvent(new CustomEvent('insect-card-write-ready'));
@@ -102,7 +103,7 @@
   };
   card.readText = async (name) => {
     const safeName = String(name || '').replace(/^\/+/, '');
-    if (!safeName || safeName.includes('/') || safeName.includes('\\')) throw new Error('Only a card-root filename may be read.');
+    if (!safeName || safeName.includes('/') || safeName.includes('\\')) throw new Error(t('card.onlyRootFilenameRead'));
     if (card.directoryHandle) {
       try {
         const handle = await card.directoryHandle.getFileHandle(safeName);
@@ -112,15 +113,15 @@
       }
     }
     const file = card.fileByName(safeName);
-    if (!file) throw new Error(`${safeName} was not found on the selected camera card.`);
+    if (!file) throw new Error(t('card.fileNotFound', safeName));
     return file.text();
   };
   card.writeText = async (name, text) => {
     const safeName = String(name || '').replace(/^\/+/, '');
-    if (!safeName || safeName.includes('/') || safeName.includes('\\')) throw new Error('Only a card-root filename may be changed.');
-    if (!card.directoryHandle) throw new Error('Choose the camera card and allow changes first.');
+    if (!safeName || safeName.includes('/') || safeName.includes('\\')) throw new Error(t('card.onlyRootFilenameWrite'));
+    if (!card.directoryHandle) throw new Error(t('card.chooseAndAllowFirst'));
     const permission = await card.directoryHandle.requestPermission({ mode: 'readwrite' });
-    if (permission !== 'granted') throw new Error('Permission to change this camera card was not granted.');
+    if (permission !== 'granted') throw new Error(t('card.permissionNotGranted'));
     card.writePermission = permission;
     const handle = await card.directoryHandle.getFileHandle(safeName, { create: true });
     const writable = await handle.createWritable();
@@ -146,7 +147,7 @@
   picker.addEventListener('change', async () => {
     card.busy = true;
     const files = [...picker.files];
-    announce(12, `Reading the camera card: 0 of ${files.length} files.`);
+    announce(12, t('card.readingProgress', 0, files.length));
     // Built in batches with a paint between them. A full card can hold many
     // thousands of files, and one synchronous pass froze the page with no sign
     // that anything was happening.
@@ -171,13 +172,13 @@
         next.set(normalisePath(file.name), file);
       }
       const done = Math.min(index + batchSize, files.length);
-      announce(12 + Math.round((done / Math.max(1, files.length)) * 83), `Reading the camera card: ${done} of ${files.length} files.`);
+      announce(12 + Math.round((done / Math.max(1, files.length)) * 83), t('card.readingProgress', done, files.length));
       await yieldToPaint();
     }
     card.files = next;
     card.loaded = next.size > 0;
     card.busy = false;
-    announce(100, card.loaded ? 'Camera card ready.' : 'That folder had no files in it.');
+    announce(100, card.loaded ? t('card.ready') : t('card.emptyFolder'));
     window.dispatchEvent(new CustomEvent('insect-card-loaded'));
   });
 })();

@@ -19,6 +19,7 @@ FILES = {
     DASHBOARD / "analysis.js": Path("demo/analysis.js"),
     DASHBOARD / "settings.js": Path("demo/settings.js"),
     DASHBOARD / "card-access.js": Path("demo/card-access.js"),
+    DASHBOARD / "i18n.js": Path("demo/i18n.js"),
     DASHBOARD / "config.json": Path("demo/config.json"),
     DASHBOARD / "vendor" / "mediabunny.min.cjs": Path("demo/vendor/mediabunny.min.cjs"),
     DASHBOARD / "fixtures" / "demo-manifest.js": Path("demo/fixtures/demo-manifest.js"),

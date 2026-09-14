@@ -78,102 +78,317 @@ const char kControlAppHtml[] PROGMEM = R"HTML(<!doctype html>
   @keyframes spin { to { transform:rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spinner { animation:none; border-top-color:#e3d9f5; } }
   [hidden] { display:none !important; }
+  .locale-picker { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.5); border-radius:999px;
+    color:#fff; font:inherit; font-weight:800; font-size:.72rem; padding:.2rem .5rem; }
+  .locale-picker option { color:#17324d; }
 </style>
 </head>
 <body>
   <div class="phone">
     <div class="bar">
       <span class="bar-dot" id="dot" aria-hidden="true"></span>
-      <span class="bar-title">Your insect camera</span>
-      <span class="bar-sub" id="barSub">Connecting&hellip;</span>
+      <span class="bar-title" data-i18n="control.title">Your insect camera</span>
+      <span class="bar-sub" id="barSub" data-i18n="control.connecting">Connecting&hellip;</span>
+      <select class="locale-picker" id="localePicker" aria-label="Language / Idioma"></select>
     </div>
 
     <div class="screen" id="screenMain">
       <div class="hero-card">
-        <p class="hero-eyebrow">Camera adventure</p>
-        <p class="hero-count"><span id="shotCount">-</span> <small>pictures</small></p>
-        <p class="hero-time" id="elapsed">Getting ready&hellip;</p>
+        <p class="hero-eyebrow" data-i18n="control.cameraAdventure">Camera adventure</p>
+        <p class="hero-count"><span id="shotCount">-</span> <small data-i18n="control.picturesWord">pictures</small></p>
+        <p class="hero-time" id="elapsed" data-i18n="control.gettingReady">Getting ready&hellip;</p>
       </div>
       <div class="peek-card">
         <div class="peek-stage" id="peekStage">
-          <p class="peek-empty" id="peekEmpty">Tap below to see what your camera can see right now.</p>
+          <p class="peek-empty" id="peekEmpty" data-i18n="control.peekPrompt">Tap below to see what your camera can see right now.</p>
         </div>
-        <button class="btn-peek" id="btnPeek">&#x1F441;&#xFE0F; Take a peek</button>
+        <button class="btn-peek" id="btnPeek" data-i18n="control.takeAPeek">&#x1F441;&#xFE0F; Take a peek</button>
       </div>
       <div class="meter-card" id="meterCard" hidden>
         <div class="meter-head">
-          <span class="meter-title">Is anything moving?</span>
-          <span class="meter-verdict" id="meterVerdict">All quiet</span>
+          <span class="meter-title" data-i18n="control.isAnythingMoving">Is anything moving?</span>
+          <span class="meter-verdict" id="meterVerdict" data-i18n="control.allQuiet">All quiet</span>
         </div>
         <div class="bars" id="bars" aria-hidden="true"></div>
       </div>
       <div class="note-card" id="noteCard">
-        <h3>All good here</h3>
-        <p>This page shows what your camera is doing right now.</p>
+        <h3 data-i18n="control.allGoodHere">All good here</h3>
+        <p data-i18n="control.pageShowsStatus">This page shows what your camera is doing right now.</p>
       </div>
       <details class="settings-details">
-        <summary>Grown-up helper: camera settings</summary>
+        <summary data-i18n="control.grownUpHelperSettings">Grown-up helper: camera settings</summary>
         <div class="settings-body">
-          <p class="settings-hint" id="settingsCurrent">Current: checking&hellip;</p>
-          <label>How often should the camera take a picture?
+          <p class="settings-hint" id="settingsCurrent" data-i18n="control.currentChecking">Current: checking&hellip;</p>
+          <label><span data-i18n="control.howOften">How often should the camera take a picture?</span>
             <select id="cfgInterval">
-              <option value="1000">1 image every 1 second</option>
-              <option value="2000">1 image every 2 seconds</option>
-              <option value="30000">1 image every 30 seconds</option>
-              <option value="60000">1 image every 1 minute</option>
+              <option value="1000" data-i18n="control.interval.sec1">1 image every 1 second</option>
+              <option value="2000" data-i18n="control.interval.sec2">1 image every 2 seconds</option>
+              <option value="30000" data-i18n="control.interval.sec30">1 image every 30 seconds</option>
+              <option value="60000" data-i18n="control.interval.min1">1 image every 1 minute</option>
             </select>
           </label>
-          <label>How clear should the pictures be?
+          <label><span data-i18n="control.howClear">How clear should the pictures be?</span>
             <select id="cfgQuality">
-              <option value="high">High quality</option>
-              <option value="low">Low quality</option>
+              <option value="high" data-i18n="control.quality.high">High quality</option>
+              <option value="low" data-i18n="control.quality.low">Low quality</option>
             </select>
           </label>
-          <label>How long should the camera keep going?
+          <label><span data-i18n="control.howLong">How long should the camera keep going?</span>
             <select id="cfgDuration">
-              <option value="60">1 minute</option>
-              <option value="300">5 minutes</option>
-              <option value="1800">30 minutes</option>
-              <option value="3600" selected>1 hour</option>
-              <option value="0">Infinite &ndash; until switched off</option>
+              <option value="60" data-i18n="control.duration.min1">1 minute</option>
+              <option value="300" data-i18n="control.duration.min5">5 minutes</option>
+              <option value="1800" data-i18n="control.duration.min30">30 minutes</option>
+              <option value="3600" selected data-i18n="control.duration.hour1">1 hour</option>
+              <option value="0" data-i18n="control.duration.infinite">Infinite &ndash; until switched off</option>
             </select>
           </label>
-          <label class="settings-check"><input type="checkbox" id="cfgMotion"> Save pictures only when something moves</label>
-          <button class="btn-teal" id="btnSaveConfig">Save this setting</button>
-          <button class="btn-teal" id="btnRestartNow" hidden>&#x1F504; Restart now to use this setting</button>
-          <p class="settings-hint" id="settingsStatus">Changing this takes effect after the board is restarted.</p>
+          <label class="settings-check"><input type="checkbox" id="cfgMotion"> <span data-i18n="control.motionLabel">Save pictures only when something moves</span></label>
+          <button class="btn-teal" id="btnSaveConfig" data-i18n="control.saveThisSetting">Save this setting</button>
+          <button class="btn-teal" id="btnRestartNow" hidden data-i18n="control.restartNow">&#x1F504; Restart now to use this setting</button>
+          <p class="settings-hint" id="settingsStatus" data-i18n="control.changeTakesEffect">Changing this takes effect after the board is restarted.</p>
         </div>
       </details>
-      <button class="btn-finish" id="btnFinish">&#x1F3C1; Finish my adventure</button>
-      <p class="finish-note">Always finish here before you unplug &mdash; it makes sure every picture is saved properly.</p>
-      <p class="offline-note">You're connected directly to the camera. There's no internet here &mdash; that's normal.</p>
+      <button class="btn-finish" id="btnFinish" data-i18n="control.finishAdventure">&#x1F3C1; Finish my adventure</button>
+      <p class="finish-note" data-i18n="control.finishNote">Always finish here before you unplug &mdash; it makes sure every picture is saved properly.</p>
+      <p class="offline-note" data-i18n="control.offlineNote">You're connected directly to the camera. There's no internet here &mdash; that's normal.</p>
     </div>
 
     <div class="center-screen" id="screenFinishing" hidden>
       <div class="big-emoji">&#x1F4E6;</div>
       <div class="spinner" role="status" aria-label="Working"></div>
-      <h2>Packing up&hellip;</h2>
-      <p>Making sure every picture is safely stored on the card. This can take a little while &mdash; please wait for the safe-to-unplug message before you disconnect the battery.</p>
+      <h2 data-i18n="control.packingUp">Packing up&hellip;</h2>
+      <p data-i18n="control.packingUpDetail">Making sure every picture is safely stored on the card. This can take a little while &mdash; please wait for the safe-to-unplug message before you disconnect the battery.</p>
     </div>
 
     <div class="center-screen" id="screenSafe" hidden>
       <div class="big-emoji">&#x1F389;</div>
-      <h2>All done!</h2>
-      <p>Your camera saved <b id="finalCount">-</b> pictures. They are all stored safely.</p>
+      <h2 data-i18n="control.allDone">All done!</h2>
+      <p><span data-i18n="control.savedPrefix">Your camera saved</span> <b id="finalCount">-</b> <span data-i18n="control.savedSuffix">pictures. They are all stored safely.</span></p>
       <div class="safe-banner">
-        <strong>&#x1F50C; Safe to unplug now</strong>
-        <span>You can disconnect the battery and take the memory card to a computer.</span>
+        <strong data-i18n="control.safeToUnplug">&#x1F50C; Safe to unplug now</strong>
+        <span data-i18n="control.safeToUnplugDetail">You can disconnect the battery and take the memory card to a computer.</span>
       </div>
-      <p class="settings-hint" style="margin-top:14px">Leaving the battery connected?</p>
-      <button class="btn-teal" id="btnStartAgain" style="max-width:19rem">&#x1F504; Start another adventure</button>
+      <p class="settings-hint" style="margin-top:14px" data-i18n="control.leavingConnected">Leaving the battery connected?</p>
+      <button class="btn-teal" id="btnStartAgain" style="max-width:19rem" data-i18n="control.startAnotherAdventure">&#x1F504; Start another adventure</button>
     </div>
   </div>
 <script>
+// Small, self-contained i18n layer - this page is one PROGMEM string served
+// from firmware, so (unlike the SD-card dashboard) it cannot load a separate
+// i18n.js file. LOCALES is a registry, not a hardcoded pair, so a future
+// language is one more entry here plus one more translation block.
+const LOCALES = [
+  { code: 'en', label: 'English', flag: '\u{1F1EC}\u{1F1E7}' },
+  { code: 'es', label: 'Español', flag: '\u{1F1EA}\u{1F1F8}' },
+];
+const TRANSLATIONS = {
+  en: {
+    'control.title': 'Your insect camera',
+    'control.connecting': 'Connecting…',
+    'control.cameraAdventure': 'Camera adventure',
+    'control.picturesWord': 'pictures',
+    'control.gettingReady': 'Getting ready…',
+    'control.peekPrompt': 'Tap below to see what your camera can see right now.',
+    'control.takeAPeek': '\u{1F441}\u{FE0F} Take a peek',
+    'control.isAnythingMoving': 'Is anything moving?',
+    'control.allQuiet': 'All quiet',
+    'control.somethingMoved': 'Something moved!',
+    'control.littleWiggle': 'A little wiggle',
+    'control.allGoodHere': 'All good here',
+    'control.pageShowsStatus': 'This page shows what your camera is doing right now.',
+    'control.grownUpHelperSettings': 'Grown-up helper: camera settings',
+    'control.currentChecking': 'Current: checking…',
+    'control.howOften': 'How often should the camera take a picture?',
+    'control.interval.sec1': '1 image every 1 second',
+    'control.interval.sec2': '1 image every 2 seconds',
+    'control.interval.sec30': '1 image every 30 seconds',
+    'control.interval.min1': '1 image every 1 minute',
+    'control.howClear': 'How clear should the pictures be?',
+    'control.quality.high': 'High quality',
+    'control.quality.low': 'Low quality',
+    'control.howLong': 'How long should the camera keep going?',
+    'control.duration.min1': '1 minute',
+    'control.duration.min5': '5 minutes',
+    'control.duration.min30': '30 minutes',
+    'control.duration.hour1': '1 hour',
+    'control.duration.infinite': 'Infinite – until switched off',
+    'control.motionLabel': 'Save pictures only when something moves',
+    'control.saveThisSetting': 'Save this setting',
+    'control.restartNow': '\u{1F504} Restart now to use this setting',
+    'control.changeTakesEffect': 'Changing this takes effect after the board is restarted.',
+    'control.finishAdventure': '\u{1F3C1} Finish my adventure',
+    'control.finishNote': 'Always finish here before you unplug — it makes sure every picture is saved properly.',
+    'control.offlineNote': 'You’re connected directly to the camera. There’s no internet here — that’s normal.',
+    'control.packingUp': 'Packing up…',
+    'control.packingUpDetail': 'Making sure every picture is safely stored on the card. This can take a little while — please wait for the safe-to-unplug message before you disconnect the battery.',
+    'control.allDone': 'All done!',
+    'control.savedPrefix': 'Your camera saved',
+    'control.savedSuffix': 'pictures. They are all stored safely.',
+    'control.safeToUnplug': '\u{1F50C} Safe to unplug now',
+    'control.safeToUnplugDetail': 'You can disconnect the battery and take the memory card to a computer.',
+    'control.leavingConnected': 'Leaving the battery connected?',
+    'control.startAnotherAdventure': '\u{1F504} Start another adventure',
+    'control.state.capturing': 'Watching',
+    'control.state.warming_up': 'Warming up',
+    'control.state.safe_to_remove': 'Finished',
+    'control.state.error': 'Needs attention',
+    'control.elapsedMinutes': (m) => `${m} minute${m === 1 ? '' : 's'}`,
+    'control.elapsedSeconds': (s) => `${s} second${s === 1 ? '' : 's'}`,
+    'control.noPictureYet': 'No picture yet — check back in a moment.',
+    'control.recentPictureAlt': 'The most recent picture your camera took',
+    'control.couldNotLoadPicture': 'Could not load a picture right now.',
+    'control.describeInterval': (seconds) => (seconds === 60 ? 'one picture every 1 minute' : `one picture every ${seconds}${seconds === 1 ? ' second' : ' seconds'}`),
+    'control.describeQualityHigh': 'high quality',
+    'control.describeQualityLow': 'low quality',
+    'control.describeDurationInfinite': 'until switched off',
+    'control.describeDurationMinutes': (minutes) => `${minutes} minute${minutes === 1 ? '' : 's'}`,
+    'control.describeMotionSuffix': '; saves only when something moves',
+    'control.describeComposed': (interval, quality, duration, motionSuffix) => `${interval}, ${quality}, for ${duration}${motionSuffix}`,
+    'control.currentPrefix': (desc) => `Current: ${desc}`,
+    'control.couldNotReadSetting': 'Could not read the current setting.',
+    'control.saving': 'Saving…',
+    'control.savedRestartToUse': 'Saved! Restart to start using this setting.',
+    'control.couldNotSaveSetting': 'Could not save this setting.',
+    'control.couldNotReachCamera': 'Could not reach the camera to save this.',
+    'control.confirmRestart': 'This will end the current picture-taking session early and restart your camera with the new setting. Continue?',
+    'control.finishingSessionFirst': 'Finishing the current session first…',
+    'control.restartingCamera': 'Restarting your camera…',
+    'control.needsHelpTitle': 'Your camera needs help',
+    'control.somethingWentWrong': 'Something went wrong while starting up.',
+    'control.reconnecting': 'Reconnecting…',
+    'control.startingAgain': 'Starting again…',
+    'control.notWatchingYet': 'Not watching yet',
+    'control.watchingForPrefix': (time) => `Watching for ${time}`,
+    'control.errorCode.adventure_in_progress': 'Finish the current adventure first.',
+    'control.errorCode.no_card_mounted': 'No camera card is mounted right now.',
+    'control.errorCode.missing_fields': 'Missing fields.',
+    'control.errorCode.unsafe_combination': 'Not a safe setting combination.',
+    'control.errorCode.expansion_board_disconnected': 'Camera and SD card are both unreachable. Check that the camera/SD board is firmly connected to the main board.',
+    'control.errorCode.sd_card_not_found': 'SD card not found. The camera itself is working, so check that a FAT32 SD card (32GB or smaller) is properly inserted.',
+  },
+  es: {
+    'control.title': 'Tu cámara de insectos',
+    'control.connecting': 'Conectando…',
+    'control.cameraAdventure': 'Aventura con la cámara',
+    'control.picturesWord': 'fotos',
+    'control.gettingReady': 'Preparándose…',
+    'control.peekPrompt': 'Toca abajo para ver lo que tu cámara puede ver ahora mismo.',
+    'control.takeAPeek': '\u{1F441}\u{FE0F} Echa un vistazo',
+    'control.isAnythingMoving': '¿Se mueve algo?',
+    'control.allQuiet': 'Todo tranquilo',
+    'control.somethingMoved': '¡Algo se ha movido!',
+    'control.littleWiggle': 'Un pequeño movimiento',
+    'control.allGoodHere': 'Todo va bien',
+    'control.pageShowsStatus': 'Esta página muestra lo que está haciendo tu cámara ahora mismo.',
+    'control.grownUpHelperSettings': 'Ayudante para mayores: ajustes de la cámara',
+    'control.currentChecking': 'Actual: comprobando…',
+    'control.howOften': '¿Con qué frecuencia debe hacer una foto la cámara?',
+    'control.interval.sec1': '1 foto cada 1 segundo',
+    'control.interval.sec2': '1 foto cada 2 segundos',
+    'control.interval.sec30': '1 foto cada 30 segundos',
+    'control.interval.min1': '1 foto cada 1 minuto',
+    'control.howClear': '¿Con qué claridad deben verse las fotos?',
+    'control.quality.high': 'Calidad alta',
+    'control.quality.low': 'Calidad baja',
+    'control.howLong': '¿Durante cuánto tiempo debe seguir la cámara?',
+    'control.duration.min1': '1 minuto',
+    'control.duration.min5': '5 minutos',
+    'control.duration.min30': '30 minutos',
+    'control.duration.hour1': '1 hora',
+    'control.duration.infinite': 'Infinito – hasta que se apague',
+    'control.motionLabel': 'Guardar fotos solo cuando algo se mueve',
+    'control.saveThisSetting': 'Guardar este ajuste',
+    'control.restartNow': '\u{1F504} Reiniciar ahora para usar este ajuste',
+    'control.changeTakesEffect': 'Este cambio se aplica después de reiniciar la placa.',
+    'control.finishAdventure': '\u{1F3C1} Termina tu aventura',
+    'control.finishNote': 'Termina siempre aquí antes de desenchufar — así te aseguras de que cada foto se guarda bien.',
+    'control.offlineNote': 'Estás conectado directamente a la cámara. Aquí no hay internet — eso es normal.',
+    'control.packingUp': 'Guardando todo…',
+    'control.packingUpDetail': 'Asegurándonos de que cada foto se guarda bien en la tarjeta. Esto puede tardar un poco — espera al mensaje de seguro para desconectar antes de quitar la batería.',
+    'control.allDone': '¡Todo listo!',
+    'control.savedPrefix': 'Tu cámara ha guardado',
+    'control.savedSuffix': 'fotos. Todas están guardadas de forma segura.',
+    'control.safeToUnplug': '\u{1F50C} Ya puedes desconectarla',
+    'control.safeToUnplugDetail': 'Puedes desconectar la batería y llevar la tarjeta de memoria a un ordenador.',
+    'control.leavingConnected': '¿Vas a dejar la batería conectada?',
+    'control.startAnotherAdventure': '\u{1F504} Empezar otra aventura',
+    'control.state.capturing': 'Vigilando',
+    'control.state.warming_up': 'Calentándose',
+    'control.state.safe_to_remove': 'Terminado',
+    'control.state.error': 'Necesita ayuda',
+    'control.elapsedMinutes': (m) => `${m} minuto${m === 1 ? '' : 's'}`,
+    'control.elapsedSeconds': (s) => `${s} segundo${s === 1 ? '' : 's'}`,
+    'control.noPictureYet': 'Todavía no hay foto — vuelve a mirar en un momento.',
+    'control.recentPictureAlt': 'La foto más reciente que hizo tu cámara',
+    'control.couldNotLoadPicture': 'No se ha podido cargar una foto ahora mismo.',
+    'control.describeInterval': (seconds) => (seconds === 60 ? 'una foto cada 1 minuto' : `una foto cada ${seconds}${seconds === 1 ? ' segundo' : ' segundos'}`),
+    'control.describeQualityHigh': 'calidad alta',
+    'control.describeQualityLow': 'calidad baja',
+    'control.describeDurationInfinite': 'hasta que se apague',
+    'control.describeDurationMinutes': (minutes) => `${minutes} minuto${minutes === 1 ? '' : 's'}`,
+    'control.describeMotionSuffix': '; solo guarda cambios',
+    'control.describeComposed': (interval, quality, duration, motionSuffix) => `${interval}, ${quality}, durante ${duration}${motionSuffix}`,
+    'control.currentPrefix': (desc) => `Actual: ${desc}`,
+    'control.couldNotReadSetting': 'No se ha podido leer el ajuste actual.',
+    'control.saving': 'Guardando…',
+    'control.savedRestartToUse': '¡Guardado! Reinicia para empezar a usar este ajuste.',
+    'control.couldNotSaveSetting': 'No se ha podido guardar este ajuste.',
+    'control.couldNotReachCamera': 'No se ha podido conectar con la cámara para guardar esto.',
+    'control.confirmRestart': 'Esto terminará la sesión actual antes de tiempo y reiniciará tu cámara con el nuevo ajuste. ¿Continuar?',
+    'control.finishingSessionFirst': 'Terminando primero la sesión actual…',
+    'control.restartingCamera': 'Reiniciando tu cámara…',
+    'control.needsHelpTitle': 'Tu cámara necesita ayuda',
+    'control.somethingWentWrong': 'Algo fue mal al iniciar.',
+    'control.reconnecting': 'Reconectando…',
+    'control.startingAgain': 'Empezando otra vez…',
+    'control.notWatchingYet': 'Aún no está vigilando',
+    'control.watchingForPrefix': (time) => `Vigilando desde hace ${time}`,
+    'control.errorCode.adventure_in_progress': 'Termina primero la aventura actual.',
+    'control.errorCode.no_card_mounted': 'Ahora mismo no hay ninguna tarjeta de cámara puesta.',
+    'control.errorCode.missing_fields': 'Faltan datos.',
+    'control.errorCode.unsafe_combination': 'Esa combinación de ajustes no es segura.',
+    'control.errorCode.expansion_board_disconnected': 'La cámara y la tarjeta SD no responden. Comprueba que la placa de la cámara/SD esté bien conectada a la placa principal.',
+    'control.errorCode.sd_card_not_found': 'No se encuentra la tarjeta SD. La cámara funciona bien, así que comprueba que hay una tarjeta SD FAT32 (32GB o menos) bien insertada.',
+  },
+};
+const STORAGE_KEY = 'insectcam-locale';
+let currentLocale = 'en';
+try { const saved = localStorage.getItem(STORAGE_KEY); if (saved && TRANSLATIONS[saved]) currentLocale = saved; } catch (error) { /* private browsing: keep default */ }
+function t(key, ...args) {
+  const entry = (TRANSLATIONS[currentLocale] && TRANSLATIONS[currentLocale][key]) !== undefined ? TRANSLATIONS[currentLocale][key] : TRANSLATIONS.en[key];
+  if (entry === undefined) return key;
+  return typeof entry === 'function' ? entry(...args) : entry;
+}
+function tOr(key, fallback) {
+  const table = TRANSLATIONS[currentLocale] || TRANSLATIONS.en;
+  return (table[key] !== undefined ? table[key] : TRANSLATIONS.en[key]) !== undefined ? t(key) : fallback;
+}
+function applyStaticText() {
+  document.documentElement.lang = currentLocale;
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
+}
+function setLocale(code) {
+  if (!TRANSLATIONS[code]) return;
+  currentLocale = code;
+  try { localStorage.setItem(STORAGE_KEY, code); } catch (error) { /* ignore */ }
+  applyStaticText();
+}
+const localePicker = document.getElementById('localePicker');
+LOCALES.forEach(({ code, label, flag }) => {
+  const option = document.createElement('option');
+  option.value = code;
+  option.textContent = `${flag} ${code.toUpperCase()}`;
+  option.title = label;
+  localePicker.append(option);
+});
+localePicker.value = currentLocale;
+localePicker.addEventListener('change', () => setLocale(localePicker.value));
+applyStaticText();
+
 function fmtElapsed(ms) {
   const s = Math.floor(ms / 1000), m = Math.floor(s / 60);
-  return m > 0 ? (m + (m === 1 ? ' minute' : ' minutes')) : (s + (s === 1 ? ' second' : ' seconds'));
+  return m > 0 ? t('control.elapsedMinutes', m) : t('control.elapsedSeconds', s);
 }
-const STATE_LABELS = { capturing: 'Watching', warming_up: 'Warming up', safe_to_remove: 'Finished', error: 'Needs attention' };
 let finishing = false;
 let awaitingRestart = false;
 let awaitingStartAfterStop = false;
@@ -197,7 +412,7 @@ function updateMotionMeter(scores) {
   });
   const latest = recent[recent.length - 1];
   const verdict = document.getElementById('meterVerdict');
-  verdict.textContent = latest >= 5 ? 'Something moved!' : (latest >= 3 ? 'A little wiggle' : 'All quiet');
+  verdict.textContent = latest >= 5 ? t('control.somethingMoved') : (latest >= 3 ? t('control.littleWiggle') : t('control.allQuiet'));
   verdict.style.color = latest >= 5 ? '#b34642' : (latest >= 3 ? '#8a6d0a' : '#075c63');
 }
 
@@ -205,24 +420,24 @@ async function loadPeek() {
   const stage = document.getElementById('peekStage');
   try {
     const response = await fetch('/api/peek?' + Date.now());
-    if (response.status !== 200) { stage.innerHTML = '<p class="peek-empty">No picture yet &mdash; check back in a moment.</p>'; return; }
+    if (response.status !== 200) { stage.innerHTML = '<p class="peek-empty">' + t('control.noPictureYet') + '</p>'; return; }
     const blob = await response.blob();
     const img = document.createElement('img');
     img.src = URL.createObjectURL(blob);
-    img.alt = 'The most recent picture your camera took';
+    img.alt = t('control.recentPictureAlt');
     stage.replaceChildren(img);
   } catch (error) {
-    stage.innerHTML = '<p class="peek-empty">Could not load a picture right now.</p>';
+    stage.innerHTML = '<p class="peek-empty">' + t('control.couldNotLoadPicture') + '</p>';
   }
 }
 document.getElementById('btnPeek').addEventListener('click', loadPeek);
 
 function describeConfig(cfg) {
   const seconds = cfg.capture_interval_ms / 1000;
-  const intervalText = seconds === 60 ? 'one picture every 1 minute' : ('one picture every ' + seconds + (seconds === 1 ? ' second' : ' seconds'));
-  const qualityText = cfg.frame_size === 'QXGA' ? 'high quality' : 'low quality';
-  const durationText = cfg.max_session_seconds === 0 ? 'until switched off' : ((cfg.max_session_seconds / 60) + ' minute' + (cfg.max_session_seconds === 60 ? '' : 's'));
-  return intervalText + ', ' + qualityText + ', for ' + durationText + (cfg.motion_trigger_enabled ? '; saves only when something moves' : '');
+  const intervalText = t('control.describeInterval', seconds);
+  const qualityText = cfg.frame_size === 'QXGA' ? t('control.describeQualityHigh') : t('control.describeQualityLow');
+  const durationText = cfg.max_session_seconds === 0 ? t('control.describeDurationInfinite') : t('control.describeDurationMinutes', cfg.max_session_seconds / 60);
+  return t('control.describeComposed', intervalText, qualityText, durationText, cfg.motion_trigger_enabled ? t('control.describeMotionSuffix') : '');
 }
 
 async function loadConfig() {
@@ -234,15 +449,15 @@ async function loadConfig() {
     document.getElementById('cfgQuality').value = qualityKey;
     document.getElementById('cfgDuration').value = String(cfg.max_session_seconds);
     document.getElementById('cfgMotion').checked = Boolean(cfg.motion_trigger_enabled);
-    document.getElementById('settingsCurrent').textContent = 'Current: ' + describeConfig(cfg);
+    document.getElementById('settingsCurrent').textContent = t('control.currentPrefix', describeConfig(cfg));
   } catch (error) {
-    document.getElementById('settingsCurrent').textContent = 'Could not read the current setting.';
+    document.getElementById('settingsCurrent').textContent = t('control.couldNotReadSetting');
   }
 }
 
 document.getElementById('btnSaveConfig').addEventListener('click', async () => {
   const status = document.getElementById('settingsStatus');
-  status.textContent = 'Saving…';
+  status.textContent = t('control.saving');
   try {
     const body = new URLSearchParams({
       intervalMs: document.getElementById('cfgInterval').value,
@@ -252,15 +467,15 @@ document.getElementById('btnSaveConfig').addEventListener('click', async () => {
     });
     const response = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
     if (response.status === 202) {
-      status.textContent = 'Saved! Restart to start using this setting.';
+      status.textContent = t('control.savedRestartToUse');
       document.getElementById('btnRestartNow').hidden = false;
       loadConfig();
     } else {
       const data = await response.json().catch(() => ({}));
-      status.textContent = data.error || 'Could not save this setting.';
+      status.textContent = data.errorCode ? t('control.errorCode.' + data.errorCode) : (data.error || t('control.couldNotSaveSetting'));
     }
   } catch (error) {
-    status.textContent = 'Could not reach the camera to save this.';
+    status.textContent = t('control.couldNotReachCamera');
   }
 });
 loadConfig();
@@ -269,9 +484,9 @@ document.getElementById('btnRestartNow').addEventListener('click', async () => {
   const button = document.getElementById('btnRestartNow');
   const status = document.getElementById('settingsStatus');
   if (lastKnownState === 'capturing' || lastKnownState === 'warming_up') {
-    if (!window.confirm('This will end the current picture-taking session early and restart your camera with the new setting. Continue?')) return;
+    if (!window.confirm(t('control.confirmRestart'))) return;
     button.disabled = true;
-    status.textContent = 'Finishing the current session first…';
+    status.textContent = t('control.finishingSessionFirst');
     finishing = true;
     awaitingStartAfterStop = true;
     document.getElementById('screenMain').hidden = true;
@@ -288,7 +503,7 @@ async function poll() {
   try {
     const response = await fetch('/api/status');
     const data = await response.json();
-    document.getElementById('barSub').textContent = STATE_LABELS[data.state] || data.state;
+    document.getElementById('barSub').textContent = tOr('control.state.' + data.state, data.state);
     document.getElementById('dot').style.background = data.state === 'capturing' ? '#8ef0a8' : (data.state === 'error' ? '#ef6f61' : '#ffe179');
 
     if (data.state === 'safe_to_remove') {
@@ -298,7 +513,7 @@ async function poll() {
         // than showing the "safe to unplug" screen for a setting change.
         awaitingStartAfterStop = false;
         awaitingRestart = true;
-        document.getElementById('settingsStatus').textContent = 'Restarting your camera…';
+        document.getElementById('settingsStatus').textContent = t('control.restartingCamera');
         try { await fetch('/api/start', { method: 'POST' }); } catch (error) { /* device is rebooting; polling will recover */ }
         return;
       }
@@ -318,30 +533,31 @@ async function poll() {
       document.getElementById('screenMain').hidden = false;
       const startAgainButton = document.getElementById('btnStartAgain');
       startAgainButton.disabled = false;
-      startAgainButton.textContent = '\u{1F504} Start another adventure';
+      startAgainButton.textContent = t('control.startAnotherAdventure');
       const restartNowButton = document.getElementById('btnRestartNow');
       restartNowButton.hidden = true;
       restartNowButton.disabled = false;
-      document.getElementById('settingsStatus').textContent = 'Changing this takes effect after the board is restarted.';
+      document.getElementById('settingsStatus').textContent = t('control.changeTakesEffect');
     }
     lastKnownState = data.state;
     if (finishing) return;
 
     document.getElementById('shotCount').textContent = data.savedCount;
-    document.getElementById('elapsed').textContent = data.state === 'error' ? 'Not watching yet' : ('Watching for ' + fmtElapsed(data.elapsedMs));
+    document.getElementById('elapsed').textContent = data.state === 'error' ? t('control.notWatchingYet') : t('control.watchingForPrefix', fmtElapsed(data.elapsedMs));
     updateMotionMeter(data.motionRecent);
     peekAvailable = Boolean(data.hasPeek);
     document.getElementById('btnPeek').disabled = !peekAvailable;
     const note = document.getElementById('noteCard');
     if (data.state === 'error') {
-      note.innerHTML = '<h3>Your camera needs help</h3><p>' + (data.error || 'Something went wrong while starting up.') + '</p>';
+      const detail = data.errorCode ? tOr('control.errorCode.' + data.errorCode, data.error) : (data.error || t('control.somethingWentWrong'));
+      note.innerHTML = '<h3>' + t('control.needsHelpTitle') + '</h3><p>' + detail + '</p>';
       document.getElementById('btnFinish').disabled = true;
     } else {
-      note.innerHTML = '<h3>All good here</h3><p>This page shows what your camera is doing right now.</p>';
+      note.innerHTML = '<h3>' + t('control.allGoodHere') + '</h3><p>' + t('control.pageShowsStatus') + '</p>';
       document.getElementById('btnFinish').disabled = false;
     }
   } catch (error) {
-    document.getElementById('barSub').textContent = 'Reconnecting…';
+    document.getElementById('barSub').textContent = t('control.reconnecting');
   }
 }
 
@@ -355,7 +571,7 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
 document.getElementById('btnStartAgain').addEventListener('click', async () => {
   awaitingRestart = true;
   document.getElementById('btnStartAgain').disabled = true;
-  document.getElementById('btnStartAgain').textContent = 'Starting again…';
+  document.getElementById('btnStartAgain').textContent = t('control.startingAgain');
   try { await fetch('/api/start', { method: 'POST' }); } catch (error) { /* the device is rebooting; polling will recover */ }
 });
 
@@ -441,7 +657,7 @@ void ControlServer::handleStart() {
   // docs/device-control-app-plan.md Phase 4 for why the in-place approach
   // was rejected.
   if (status_.state == "capturing" || status_.state == "warming_up") {
-    server_.send(409, "application/json", "{\"error\":\"Finish the current adventure first.\"}");
+    server_.send(409, "application/json", "{\"error\":\"Finish the current adventure first.\",\"errorCode\":\"adventure_in_progress\"}");
     return;
   }
   server_.send(202, "application/json", "{\"accepted\":true}");
@@ -478,12 +694,12 @@ void ControlServer::handleConfigRead() {
 
 void ControlServer::handleConfigWrite() {
   if (!status_.sd_mounted) {
-    server_.send(409, "application/json", "{\"error\":\"No camera card is mounted right now.\"}");
+    server_.send(409, "application/json", "{\"error\":\"No camera card is mounted right now.\",\"errorCode\":\"no_card_mounted\"}");
     return;
   }
   if (!server_.hasArg("intervalMs") || !server_.hasArg("quality") || !server_.hasArg("durationSeconds") ||
       !server_.hasArg("motionTriggerEnabled")) {
-    server_.send(400, "application/json", "{\"error\":\"Missing fields.\"}");
+    server_.send(400, "application/json", "{\"error\":\"Missing fields.\",\"errorCode\":\"missing_fields\"}");
     return;
   }
 
@@ -502,7 +718,7 @@ void ControlServer::handleConfigWrite() {
   for (uint32_t value : kAllowedDurations) if (value == duration_seconds) duration_ok = true;
   const bool quality_ok = (quality == "high" || quality == "low");
   if (!interval_ok || !duration_ok || !quality_ok) {
-    server_.send(400, "application/json", "{\"error\":\"Not a safe setting combination.\"}");
+    server_.send(400, "application/json", "{\"error\":\"Not a safe setting combination.\",\"errorCode\":\"unsafe_combination\"}");
     return;
   }
 
@@ -553,6 +769,7 @@ void ControlServer::handleStatus() {
       ",\"elapsedMs\":" + String(status_.elapsed_ms) +
       ",\"sdMounted\":" + String(status_.sd_mounted ? "true" : "false") +
       ",\"error\":\"" + status_.error +
+      "\",\"errorCode\":\"" + status_.error_code +
       "\",\"hasPeek\":" + String(peek_active_index_ >= 0 ? "true" : "false") +
       ",\"motionRecent\":" + motion_recent +
       ",\"freeHeap\":" + String(ESP.getFreeHeap()) + "}";

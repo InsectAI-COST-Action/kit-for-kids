@@ -5,6 +5,10 @@
 
 #include "sd_storage.h"
 
+class CameraService;  // include/camera_service.h - only used by PROBE, kept as a
+                       // forward declaration so every other command's header
+                       // dependency footprint is unaffected.
+
 // A line-based command interface over the existing USB serial link, so the
 // SD card can be inspected and modified while it stays in the board. This
 // exists for unattended/remote development: without it, every card change
@@ -27,6 +31,7 @@
 // never has to fit in RAM.
 struct DevBridgeContext {
   SdStorage* storage = nullptr;
+  CameraService* camera = nullptr;        // only used by PROBE; every other command ignores it
   bool capturing = false;                 // a session is actively writing
   std::function<void()> stop_session;     // finish + unmount, safely
 };
@@ -51,6 +56,23 @@ class DevBridge {
   // from a mounted card; see docs/dev-bridge.md for exact scope/parity.
   void commandAudit(const String& run_id, const DevBridgeContext& context);
   void commandRuns(const DevBridgeContext& context);
+  // Deletes every picture and record (images/, raw/captures.csv, raw/runs/*,
+  // data/ chunks, manifest.js, summary.js) so a card can be reset to a clean
+  // slate without physically moving it to a reader. config.json and the
+  // static dashboard files are left untouched. Requires the exact argument
+  // "CONFIRM" - this is destructive and irreversible, and unlike every other
+  // command here it cannot be undone by a re-run, so it does not fire on a
+  // bare "DEV WIPE" the way a typo in another command harmlessly would.
+  void commandWipe(const String& argument, const DevBridgeContext& context);
+  // Independent of SD storage entirely: initialises the camera sensor alone
+  // and reports whether it responds. Exists to tell apart two failure modes
+  // that otherwise produce an identical SD-mount error - the camera and SD
+  // card sit on the same expansion board (Seeed's XIAO "Sense" add-on), so
+  // if that board is disconnected from the main XIAO board, BOTH fail the
+  // same way; if only the SD card itself is missing/bad, the camera still
+  // answers. Deliberately callable even when storage is unavailable - that
+  // is exactly the situation it is meant to diagnose.
+  void commandProbe(const DevBridgeContext& context);
 
   String buffer_;
 };
