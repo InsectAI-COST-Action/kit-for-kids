@@ -9,6 +9,7 @@
     <script src="fixtures/demo-manifest.js"></script>
     <script src="fixtures/demo-summary.js"></script>
     <script src="fixtures/demo-captures.js"></script>
+    <script src="fixtures/demo-embedded-files.js"></script>
   </head>
   <body>
     <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-busy="true">
@@ -161,7 +162,7 @@
           <p class="movie-note" data-i18n="movieModal.note">This makes an MP4 video from your saved pictures at 60 pictures per second. Nothing is uploaded or changed on the camera card.</p>
           <button id="movie-load-card" class="secondary-button" type="button"><span data-i18n="card.loadButton">Load camera card</span> <span aria-hidden="true">&rarr;</span></button>
           <div id="movie-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="movie-card-progress"></span></div>
-          <p id="movie-card-status" class="analysis-note" role="status" data-i18n="demo.cardStatusDefault">Press Load camera card, then choose this demo folder in the next window.</p>
+          <p id="movie-card-status" class="analysis-note" role="status" data-i18n="demo.cardStatusDefault">This demo is already loaded — no folder to choose.</p>
           <label id="movie-session-label" class="movie-session-label" for="movie-session" hidden><span data-i18n="session.chooseLabel">Choose a session</span><select id="movie-session"></select></label>
           <button id="movie-start" class="primary-button" type="button" disabled><span data-i18n="movieModal.startButton">Make movie</span> <span aria-hidden="true">&rarr;</span></button>
           <p id="movie-support" class="analysis-note" role="status"></p>
@@ -233,16 +234,16 @@
           <p data-i18n="analysisModal.intro">Choose the top camera-card folder once. The AI helper will look at your pictures one at a time, and its clues can be wrong.</p>
           <fieldset class="analysis-mode-choice">
             <legend data-i18n="analysisModal.legend">How should the AI look at this session?</legend>
-            <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="antai" checked><span><strong data-i18n="analysisModal.antai.label">AntAI &ndash; Beta &#x1F41C;</strong><small data-i18n="analysisModal.antai.hint">Fast ant helper &mdash; trained on our own camera pictures. It checks each whole picture once.</small></span></label>
+            <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="antai-test" checked><span><strong data-i18n="analysisModal.antaiTest.label">AntAI &ndash; Test &#x1F9EA;</strong><small data-i18n="analysisModal.antaiTest.hint">Experimental ant helper &mdash; not yet checked for accuracy. It checks each whole picture once.</small></span></label>
             <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="flatbug-quick"><span><strong data-i18n="analysisModal.flatbugQuick.label">FlatBug &ndash; Quick look &#x1F680;</strong><small data-i18n="analysisModal.flatbugQuick.hint">Fast general insect helper &mdash; checks each whole picture once. Best for bigger, clearer insects.</small></span></label>
             <label class="analysis-mode-option"><input type="radio" name="analysis-choice" value="flatbug-close"><span><strong data-i18n="analysisModal.flatbugClose.label">FlatBug &ndash; Look closely &#x1F50E;</strong><small data-i18n="analysisModal.flatbugClose.hint">Slower general insect helper &mdash; checks 12 zoomed-in pieces. Better for tiny insects.</small></span></label>
           </fieldset>
-          <p id="analysis-choice-note" class="analysis-note" data-i18n="analysisModal.choiceNoteDefault">AntAI - Beta is selected: it only looks for ants, and its clues can still be wrong.</p>
+          <p id="analysis-choice-note" class="analysis-note" data-i18n="analysis.antaiTestNote">AntAI - Test is selected: an experimental ant helper with no accuracy check yet, so treat its clues with extra caution.</p>
           <label id="analysis-session-label" class="movie-session-label" for="analysis-session" hidden><span data-i18n="session.chooseLabel">Choose a session</span><select id="analysis-session"></select></label>
           <p id="analysis-session-note" class="analysis-note" data-i18n="analysisModal.sessionNoteDefault">Choose the newest available session to begin.</p>
           <button id="analysis-load-card" class="primary-button" type="button"><span data-i18n="card.loadButton">Load camera card</span> <span aria-hidden="true">&rarr;</span></button>
           <div id="analysis-card-track" class="analysis-progress-track" hidden aria-hidden="true"><span id="analysis-card-progress"></span></div>
-          <p id="analysis-card-status" class="analysis-note" role="status" data-i18n="demo.analysisCardStatusDefault">Press Load camera card, then choose this demo folder in the next window. The browser can read the pictures and AI helper, but never change them.</p>
+          <p id="analysis-card-status" class="analysis-note" role="status" data-i18n="demo.analysisCardStatusDefault">This demo is already loaded — no folder to choose. The browser can read the pictures and AI helper, but never change them.</p>
           <button id="analysis-start" class="primary-button" type="button" disabled><span data-i18n="analysisModal.startButton">Start looking</span> <span aria-hidden="true">&rarr;</span></button>
         </section>
         <section id="analysis-scanner" class="analysis-scanner" hidden aria-live="polite">
@@ -266,5 +267,6 @@
     <script src="dashboard.js"></script>
     <script src="settings.js"></script>
     <script src="analysis.js"></script>
+    <script src="demo-autoload.js"></script>
   </body>
 </html>

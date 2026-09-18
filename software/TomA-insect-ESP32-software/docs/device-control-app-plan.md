@@ -207,6 +207,16 @@ Built and flashed without a phone to test against — logic reuses already-prove
 
 **Gate: half met.** The Android half is satisfied — QR scan to working control app, no IP address needed. The iPhone half is **blocked on hardware availability**, not on implementation, and must not be assumed to pass by analogy with Android. The physical sticker is also still outstanding.
 
+### Phase 5 amendment: SSID made per-device again, QR-code joining dropped (17 September 2026)
+
+The 22 August decision's accepted trade-off (identical network name across every kit in a room) turned out to matter once multiple units were actually running in the same room — the owner asked to fix it. Re-reads as a partial reversal, not a full one: **only the SSID changed, the password did not.**
+
+- **SSID**: `InsectCam-` plus 3 hex digits, derived from `ESP.getEfuseMac()` (the chip's factory-programmed, permanently unique ID) at boot — `wifiSuffix()` in `control_server.cpp`. No per-unit setup-time bookkeeping: the same firmware image produces a correct, different suffix on every board automatically. 4096 possible suffixes, not collision-proof but ample headroom for how many kits are actually likely to share a room.
+- **Password**: unchanged, still the fixed `antcamera` shared across every device. The 22 August rationale for a shared password (no real confidentiality need, teacher-gatekeeping only) was never actually about the SSID being shared too — those were bundled into one decision that didn't need to move together.
+- **QR-code joining dropped, deliberately, not merely undone.** The 22 August reversal's real driver was the manufacturing/support cost of a *unique QR sticker per unit* once credentials stopped being shared — reintroducing that per-unit SSID uniqueness while trying to keep QR joining would have brought that exact cost straight back. Chose instead: a child joins by picking their own unit's name from the phone's normal Wi-Fi list (now meaningfully distinct per unit, unlike before), with the enclosure labelled at setup time. `tools/setup_device.py` reads the assigned SSID back over serial right after flashing (`report_wifi_name()`) and prints it clearly for exactly this purpose - no manual lookup, no guessing.
+- The `docs/barcelona-demo-guide.html`/`-es.html` guides and `docs/setup-guide.md`/`docs/barcelona-demo.md` runbooks were updated to describe "find your unit's name in the Wi-Fi list" instead of "scan this QR code." `docs/assets/insectcam-wifi-qr.png` is no longer part of the instructed flow; left on disk rather than deleted, since it's still accurate historical evidence of the Phase 5 Android test.
+- **Not yet tested live**: a real "two units in one room, confirm each phone can tell them apart and join the right one" run. The suffix derivation and the boot-time readback have each been verified independently (firmware compiles, `check_project.py` passes), but not yet the full two-device scenario together.
+
 ## Risks
 
 | Risk | Severity | Mitigation |

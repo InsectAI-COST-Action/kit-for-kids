@@ -17,14 +17,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "dashboard" / "ai"
-FILES = ("flatbug-n.onnx", "antai-beta.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt", "README.md")
+FILES = ("flatbug-n.onnx", "antai-test.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt", "README.md")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Add the browser AI pack (FlatBug Nano and AntAI - Beta) to a camera SD card.")
+    parser = argparse.ArgumentParser(description="Add the browser AI pack (FlatBug Nano and AntAI - Test) to a camera SD card.")
     parser.add_argument("destination", type=Path, help="Mounted SD-card root, for example D:\\")
     parser.add_argument("--dry-run", action="store_true", help="Show planned copies without writing")
-    parser.add_argument("--include-antai-beta", action="store_true", help="Deprecated: AntAI - Beta now installs unconditionally, kept only so existing scripts do not break")
     args = parser.parse_args()
     destination = args.destination.resolve()
     if not destination.is_dir():

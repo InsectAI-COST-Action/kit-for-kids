@@ -27,7 +27,7 @@
   const summary = document.querySelector('#analysis-summary');
   const MODELS = {
     flatbug: { file: 'flatbug-n.onnx', name: 'FlatBug Nano', inputSize: 640, scoreThreshold: .20 },
-    antai: { file: 'antai-beta.onnx', name: 'AntAI - Beta', inputSize: 1024, scoreThreshold: .15 },
+    antaiTest: { file: 'antai-test.onnx', name: 'AntAI - Test', inputSize: 640, scoreThreshold: .15 },
   };
   const RUNTIME_FILES = ['ort.wasm.bundle.min.mjs', 'ort-wasm-simd-threaded.wasm'];
   const TILE_COLUMNS = 4;
@@ -73,11 +73,11 @@
     analysisSessionNote.textContent = sessions.length ? t('analysis.sessionSelected', selectedSessionLabel()) : t('analysis.noSessionsAvailable');
   };
   const ANALYSIS_CHOICES = {
-    antai: { model: MODELS.antai, mode: 'quick', noteKey: 'analysisModal.choiceNoteDefault' },
+    'antai-test': { model: MODELS.antaiTest, mode: 'quick', noteKey: 'analysis.antaiTestNote' },
     'flatbug-quick': { model: MODELS.flatbug, mode: 'quick', noteKey: 'analysis.flatbugQuickNote' },
     'flatbug-close': { model: MODELS.flatbug, mode: 'close', noteKey: 'analysis.flatbugCloseNote' },
   };
-  const selectedChoice = () => ANALYSIS_CHOICES[analysisChoiceInputs.find((input) => input.checked)?.value || 'antai'];
+  const selectedChoice = () => ANALYSIS_CHOICES[analysisChoiceInputs.find((input) => input.checked)?.value || 'antai-test'];
   const selectedAnalysisMode = () => selectedChoice().mode;
   const selectedModel = () => selectedChoice().model;
   const updateChoiceNote = () => { analysisChoiceNote.textContent = t(selectedChoice().noteKey); };
@@ -115,9 +115,14 @@
       }
       return suppress(candidates);
     }
-    // FlatBug Nano is a segmentation export: [batch, 4 box values + 1 insect
-    // score + 32 mask coefficients, candidates].  Only channel 4 is a score;
-    // coefficients may legitimately be greater than 1 or negative.
+    // Fallback: a generic [batch, >=5 channels, candidates] box+score reader.
+    // Channels 0-3 are cx/cy/w/h and channel 4 is a single confidence score;
+    // anything past channel 4 is simply never read. FlatBug Nano's export has
+    // 4 box values + 1 insect score + 32 mask coefficients, candidates] and
+    // relies on those extra 32 mask coefficients being ignored (they may
+    // legitimately be greater than 1 or negative - harmless, since nothing
+    // here reads them). AntAI - Test's raw YOLO head has no mask coefficients
+    // at all (just the 5 channels) and satisfies the exact same arithmetic.
     const stride = dimensions.length >= 3 ? dimensions[dimensions.length - 1] : output.length / 5;
     for (let index = 0; index < stride; index += 1) {
       const score = clip(output[4 * stride + index] || 0, 0, 1);

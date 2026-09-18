@@ -141,6 +141,7 @@
     border-radius: 14px;
     padding: 5mm 6mm;
     margin: 6mm 0;
+    page-break-inside: avoid;
   }
   .glossary h2 { color: #9c3f5c; font-size: 19px; margin-bottom: 3mm; }
   .glossary dt { font-weight: bold; font-size: 14px; margin-top: 2mm; }
@@ -153,6 +154,7 @@
     padding: 4mm 5mm;
     margin: 5mm 0;
     font-size: 13px;
+    page-break-inside: avoid;
   }
   .teacher-note strong { color: var(--accent-dark); }
   .teacher-note ul { margin: 2mm 0 0; padding-left: 5mm; }
@@ -218,8 +220,30 @@
     <li>Una goma elástica</li>
     <li>La foto pequeña de hormigas que se coloca debajo de la cámara</li>
     <li>La batería externa</li>
+    <li>Un cable USB-C, para conectar la batería a la cámara</li>
     <li>Un teléfono — <strong>hoy es mejor usar uno Android</strong></li>
     <li>Un portátil u ordenador para ver las fotos después</li>
+  </ul>
+</div>
+
+<div class="glossary">
+  <h2>Palabras que hay que saber</h2>
+  <dt>IA (Inteligencia Artificial)</dt>
+  <dd>Un programa de ordenador que ha aprendido cómo suelen ser los insectos, y que hace una estimación de dónde podría haber uno en una foto. ¡Puede equivocarse — está adivinando, no está seguro!</dd>
+  <dt>Tarjeta SD</dt>
+  <dd>La pequeña tarjeta de memoria dentro de la cámara que guarda cada foto que hace.</dd>
+  <dt>Código QR</dt>
+  <dd>Un dibujo cuadrado especial que la cámara de tu teléfono puede leer, para que no tengas que escribir nada.</dd>
+  <dt>Wi-Fi</dt>
+  <dd>Así es como tu teléfono habla con la cámara sin cables, para que puedas ver sus fotos mientras está trabajando.</dd>
+</div>
+
+<div class="teacher-note">
+  <strong>Notas para el profesorado / persona facilitadora</strong>
+  <ul>
+    <li>Espera siempre a que <strong>🏁 Termina tu aventura</strong> lo confirme antes de sacar la tarjeta — así es como se guardan las fotos de forma segura.</li>
+    <li>Nunca saques la tarjeta SD mientras la cámara sigue encendida.</li>
+    <li>Cada cámara tiene su propio nombre de Wi-Fi (<code>InsectCam-</code> más una etiqueta corta), así que varias cámaras pueden funcionar en la misma sala sin confundirse — comprueba que cada cámara tiene su nombre bien visible antes de empezar.</li>
   </ul>
 </div>
 
@@ -259,7 +283,7 @@
   <div class="step-number">3</div>
   <div class="step-body">
     <h3>Sujétala a la plataforma en forma de estrella</h3>
-    <p>Coloca la carcasa encima de la plataforma de madera en forma de estrella. Estira la goma elástica cruzándola por encima, como un cinturón de seguridad, para que no se mueva.</p>
+    <p>Coloca la cámara en la plataforma de madera en forma de estrella, de modo que la cámara encaje en el agujero del centro. Estira la goma elástica por encima, usando los ganchos de cada lado para que la goma rodee el disipador de calor, presionando la cámara dentro del agujero del centro.</p>
   </div>
 </div>
 <div class="photo-row">
@@ -332,21 +356,20 @@
   <div class="step-number">3</div>
   <div class="step-body">
     <h3>Conecta tu teléfono al Wi-Fi de la cámara</h3>
-    <p>Abre la aplicación de cámara de tu teléfono y apunta al código QR de abajo. Aparecerá un mensajito — tócalo para unirte. Debería abrirse sola una página de bienvenida. (Si no se abre, pregunta a tu profe.)</p>
+    <p>Abre los ajustes de Wi-Fi de tu teléfono y busca una red que empiece por <code>InsectCam-</code> — cada cámara tiene su propio nombre, así que mira la etiqueta de tu cámara para encontrar el tuyo. Tócala y escribe la contraseña. Debería abrirse sola una página de bienvenida. (Si no se abre, pregunta a tu profe.)</p>
   </div>
 </div>
 
 <div class="qr-block">
-  <img src="assets/insectcam-wifi-qr.png" alt="Código QR del Wi-Fi de InsectCam">
-  <div class="wifi-name">Red: <code>InsectCam</code> &nbsp; Contraseña: <code>antcamera</code></div>
+  <div class="wifi-name">Red: <code>InsectCam-</code>… (mira la etiqueta de tu cámara) &nbsp; Contraseña: <code>antcamera</code></div>
 </div>
 
 <div class="photo-row">
   <div class="photo-frame">
-    <img src="assets/screenshot%20of%20available%20wifi%20networks%20including%20insectcam.jpg" alt="InsectCam en la lista de redes Wi-Fi del teléfono">
+    <img src="assets/screenshot%20of%20available%20wifi%20networks%20including%20insectcam.jpg" alt="Una red InsectCam en la lista de redes Wi-Fi del teléfono">
   </div>
   <div class="photo-frame">
-    <img src="assets/screenshot%20of%20insectcam%20wifi%20conncetion%20page%20with%20option%20to%20sign%20in.jpg" alt="El aviso para iniciar sesión después de unirte a InsectCam">
+    <img src="assets/screenshot%20of%20insectcam%20wifi%20conncetion%20page%20with%20option%20to%20sign%20in.jpg" alt="El aviso para iniciar sesión después de unirte a una red InsectCam">
   </div>
 </div>
 
@@ -399,7 +422,7 @@
   <div class="step-number">7</div>
   <div class="step-body">
     <h3>Abre la galería de fotos</h3>
-    <p>En el ordenador, abre el archivo llamado <strong>dashboard.html</strong> que hay en la tarjeta. Muestra todas las fotos que acaba de hacer la cámara — no hace falta internet, ¡todo funciona ahí mismo, en la tarjeta!</p>
+    <p>En el ordenador, abre el archivo llamado <strong>dashboard.html</strong> que hay en la tarjeta — no necesitas instalar nada, ábrelo como cualquier otro archivo y se abrirá en tu navegador. Muestra todas las fotos que acaba de hacer la cámara — no hace falta internet, ¡todo funciona ahí mismo, en la tarjeta!</p>
   </div>
 </div>
 <div class="photo-row">
@@ -423,7 +446,7 @@
   <div class="step-number">9</div>
   <div class="step-body">
     <h3>Deja que la IA busque insectos</h3>
-    <p>Elige <strong>FlatBug — Vistazo rápido</strong>. Observa cómo el ordenador mira cada foto, una por una, y adivina dónde cree que puede ver un insecto.</p>
+    <p>Elige <strong>FlatBug — Vistazo rápido</strong>, un modelo de IA entrenado para encontrar insectos en fotos. Observa cómo el ordenador mira cada foto, una por una, y adivina dónde cree que puede ver un insecto.</p>
   </div>
 </div>
 <div class="photo-frame wide">
@@ -433,26 +456,6 @@
 <p style="text-align:center; font-size:15px; margin-top:6mm;"><strong>¡Y ya está — has puesto en marcha una cámara de verdad para vigilar insectos y has usado la IA para buscar bichos, de principio a fin!</strong> 🎉</p>
 
 </section>
-
-<div class="glossary">
-  <h2>Palabras que hay que saber</h2>
-  <dt>IA (Inteligencia Artificial)</dt>
-  <dd>Un programa de ordenador que ha aprendido cómo suelen ser los insectos, y que hace una estimación de dónde podría haber uno en una foto. ¡Puede equivocarse — está adivinando, no está seguro!</dd>
-  <dt>Tarjeta SD</dt>
-  <dd>La pequeña tarjeta de memoria dentro de la cámara que guarda cada foto que hace.</dd>
-  <dt>Código QR</dt>
-  <dd>Un dibujo cuadrado especial que la cámara de tu teléfono puede leer, para que no tengas que escribir nada.</dd>
-  <dt>Wi-Fi</dt>
-  <dd>Así es como tu teléfono habla con la cámara sin cables, para que puedas ver sus fotos mientras está trabajando.</dd>
-</div>
-
-<div class="teacher-note">
-  <strong>Notas para el profesorado / persona facilitadora</strong>
-  <ul>
-    <li>Espera siempre a que <strong>🏁 Termina tu aventura</strong> lo confirme antes de sacar la tarjeta — así es como se guardan las fotos de forma segura.</li>
-    <li>Nunca saques la tarjeta SD mientras la cámara sigue encendida.</li>
-  </ul>
-</div>
 
 <div class="logo-strip">
   <img src="assets/InsectAI%20logo.svg" alt="Logo de InsectAI">

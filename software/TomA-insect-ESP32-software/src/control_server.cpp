@@ -2,9 +2,42 @@
 
 #include <WiFi.h>
 #include <esp_heap_caps.h>
+#include <esp_mac.h>
 
 namespace {
 constexpr uint8_t kDnsPort = 53;
+
+// The last 4 hex digits (last two bytes) of the chip's factory-programmed,
+// permanently unique MAC-derived ID - stable across reflashes, needs no
+// per-unit setup step or bookkeeping, and the same firmware image produces a
+// different, correct suffix on every board automatically.
+//
+// 18 September 2026: this used to read ESP.getEfuseMac() & 0xFFF, which
+// looked right but wasn't - confirmed from cores/esp32/Esp.cpp,
+// getEfuseMac() fills the uint64_t via esp_efuse_mac_get_default(uint8_t*),
+// writing the MAC's bytes (first byte first) starting at the integer's
+// lowest address. On this little-endian chip that puts the MAC's FIRST byte
+// - the shared vendor/batch OUI, identical across most boards bought
+// together for one kit - in the LOW bits that "& 0xFFF" reads, not the
+// chip-unique LAST byte the comment always intended. Confirmed live: two
+// boards from the same reel (E8:F6:0A:8B:A7:C4 and E8:F6:0A:8B:B4:20, same
+// first two bytes) both produced InsectCam-6E8. Fixed by reading the MAC
+// bytes directly instead of a bitmask of the packed integer whose byte order
+// isn't what it looks like.
+//
+// Widened from 3 to 4 hex digits the same day: 4096 slots (3 digits) gives a
+// ~30% chance of at least one collision in a 50-board kit (birthday-paradox
+// math, n(n-1)/2m), even with the byte-order bug fixed - not safe enough for
+// events at that scale. 65536 slots (4 digits, the full last two MAC bytes)
+// brings that under 2% for the same 50 boards.
+String wifiSuffix() {
+  uint8_t mac[6] = {0};
+  esp_efuse_mac_get_default(mac);
+  const unsigned suffix_value = (static_cast<unsigned>(mac[4]) << 8) | mac[5];
+  char suffix[5];
+  snprintf(suffix, sizeof(suffix), "%04X", suffix_value);
+  return String(suffix);
+}
 
 const char kControlAppHtml[] PROGMEM = R"HTML(<!doctype html>
 <html lang="en">
@@ -584,16 +617,23 @@ setInterval(poll, 1500);
 }  // namespace
 
 bool ControlServer::begin(String& diagnostic) {
-  // Fixed and shared across every device, by deliberate owner decision: this
-  // is a local-only AP for a kids' kit shipped in quantity, the SD card's
-  // contents are not sensitive, and per-device credentials would only add
-  // manufacturing/support burden for no real security benefit here. The
-  // password still exists so a teacher can decide who joins - not for
-  // confidentiality. One shared QR sticker design works for the whole
-  // product line. Known trade-off, accepted: several kits running in the
-  // same room broadcast the same network name, so a phone may need to
-  // choose the right one manually if more than one is nearby.
-  ap_ssid_ = "InsectCam";
+  // Password fixed and shared across every device, by deliberate owner
+  // decision: this is a local-only AP for a kids' kit shipped in quantity,
+  // and the SD card's contents are not sensitive - the password exists so a
+  // teacher can decide who joins, not for confidentiality.
+  //
+  // The network NAME, unlike the password, is per-device as of 17 September
+  // 2026 - reopening an explicit 22 August 2026 decision to keep it shared
+  // too (see docs/device-control-app-plan.md). That decision's stated
+  // reason was avoiding a unique QR sticker per unit; the owner has since
+  // hit the trade-off it accepted (several kits in the same room broadcast
+  // the same name) and asked to fix it, while deliberately choosing to keep
+  // the password shared and drop QR-code joining rather than reintroduce a
+  // per-unit sticker - see that same doc for the full reasoning. A child now
+  // picks their own unit by name from the phone's normal Wi-Fi list; the
+  // enclosure should be labelled with this SSID at setup time (see
+  // tools/setup_device.py, which reads it back and prints it after flashing).
+  ap_ssid_ = "InsectCam-" + wifiSuffix();
   ap_password_ = "antcamera";
 
   WiFi.mode(WIFI_AP);
@@ -618,9 +658,8 @@ bool ControlServer::begin(String& diagnostic) {
   server_.onNotFound([this]() { handleRoot(); });  // any unrecognised path also lands on the app, for captive-portal probes
   server_.begin();
   started_ = true;
-  const String qr_payload = "WIFI:S:" + ap_ssid_ + ";T:WPA;P:" + ap_password_ + ";;";
   diagnostic = "control app ready at http://" + WiFi.softAPIP().toString() + " (network: " + ap_ssid_ +
-               ", password: " + ap_password_ + ") - QR payload: " + qr_payload;
+               ", password: " + ap_password_ + ")";
   return true;
 }
 

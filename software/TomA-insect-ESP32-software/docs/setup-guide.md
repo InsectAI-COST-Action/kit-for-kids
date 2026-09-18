@@ -128,7 +128,9 @@ settings on the memory card.
    ```
 
    It finds the board, asks you to confirm before flashing, then asks for the
-   card's drive letter (e.g. `E:\`). That is the whole setup.
+   card's drive letter (e.g. `E:\`). That is the whole setup. It also prints this
+   board's own Wi-Fi network name once flashing finishes — worth noting down to
+   label the enclosure with, since it is different for every board (see Part 6).
 
 To script it with no questions, or to do only one half:
 
@@ -182,6 +184,8 @@ Hard resetting via RTS pin...
 ```
 
 The board restarts automatically and is now an insect camera.
+
+Each board picks its own Wi-Fi network name automatically (`InsectCam-` plus 3 characters unique to that board — see Part 6). `py tools\setup_device.py` (below) reads this back and prints it for you right after flashing; flashing directly with `platformio run -t upload` as above does not, so open a serial monitor afterwards if you want to see it immediately — or just check once you reach Part 6.
 
 ---
 
@@ -240,13 +244,11 @@ The camera makes its own small Wi-Fi network so you can check on it, take a peek
 
 ### Connecting
 
-1. On your phone, open Wi-Fi settings and look for the network **`InsectCam`**.
-2. Password: **`antcamera`**
+1. On your phone, open Wi-Fi settings and look for a network starting with **`InsectCam-`** — each board has its own name (3 hex digits after the dash, derived from the board's own chip ID), printed to the serial log during setup (Part 3) and worth labelling on the enclosure so it doesn't need looking up again. This matters once more than one kit is running nearby: each one's name is different, so there's no need to guess which access point belongs to which board.
+2. Password: **`antcamera`** — the same for every board; only the network name is per-device.
 3. Your phone will warn you there is no internet on this network. **This is correct** — you are connected directly to the camera, which has no internet by design. Choose to stay connected.
 4. Your phone should offer a **"Sign in"** notification. Tap it and the camera's page opens.
 5. If nothing appears, open a browser and go to **`192.168.4.1`**.
-
-If your kit has a QR code sticker, scanning it with the phone's camera joins the network without typing the password.
 
 ### What you can do
 
@@ -366,7 +368,7 @@ py tools\install_dashboard_demo.py D:\
 
 | | |
 | --- | --- |
-| Wi-Fi network | `InsectCam` |
+| Wi-Fi network | `InsectCam-` + this board's own 3-digit label |
 | Wi-Fi password | `antcamera` |
 | Camera page | `192.168.4.1` |
 | Default settings | 1 picture/second, high quality, 1 hour maximum |
