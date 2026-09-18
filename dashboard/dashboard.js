@@ -689,5 +689,17 @@
     if (data.captures.length || cardState.checked) render();
     if (movieModal && movieSession) updateMovieCardStatus();
   });
+  // i18n.js's own DOMContentLoaded handler blindly resets every [data-i18n]
+  // element (including #status) to its static base string - normally
+  // harmless, since load()'s data usually isn't ready until well after
+  // DOMContentLoaded fires and render() runs later still. When data is
+  // already available synchronously at parse time (the demo's embedded
+  // fixtures), render() can finish before that reset runs and gets silently
+  // undone by it. Re-running the same guarded render once DOMContentLoaded
+  // fires - the exact same condition onLocaleChange above already uses -
+  // guarantees the dynamic text wins regardless of which one landed first.
+  document.addEventListener('DOMContentLoaded', () => {
+    if (data.captures.length || cardState.checked) render();
+  });
   load();
 })();

@@ -64,3 +64,5 @@ __pycache__/
 !/datasets/ant-detector-rfdetr-v2/valid/_annotations.coco.json
 !/datasets/ant-detector-rfdetr-v2/test/_annotations.coco.json
 /secrets.roboflow.env
+# Local, generated preview install of the rehearsal demo (py tools/install_dashboard_demo.py) - regenerable, includes a large base64 fixture.
+/dashboard/preview/

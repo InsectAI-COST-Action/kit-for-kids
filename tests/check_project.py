@@ -101,6 +101,8 @@ def check_dashboard_contract() -> None:
     require("i18n.js" in html and "locale-picker-slot" in html and 'data-i18n="hero.title"' in html, "Dashboard must load the shared i18n module and offer a language picker")
     require('"i18n.js"' in text("tools/prepare_sd.py"), "SD preparation must deploy the dashboard's i18n module - a card without it fails to load the dashboard at all")
     require('"i18n.js"' in text("tools/install_dashboard_demo.py"), "The demo installer must deploy the dashboard's i18n module too")
+    require("demo-autoload.js" in text("dashboard/demo.html") and (ROOT / "dashboard" / "demo-autoload.js").is_file(), "The demo must auto-load its own card - there is no real folder for a person to point the picker at")
+    require("generate_embedded_files_js" in text("tools/install_dashboard_demo.py") and "InsectDemoFiles" in text("dashboard/demo-autoload.js"), "The demo installer must embed images/AI models as base64 so the demo works with no folder-picker interaction")
     require("session-duration" in html and "image-resolution" in html and "total-recorded" in html, "Dashboard front page must show session duration, picture size, and total recorded time")
     require("not connected yet" not in javascript, "The AI note must not imply AI is unavailable when interactive browser analysis exists")
     # The "Memory card" tile it replaced could only ever read "Soon": the firmware
@@ -131,7 +133,7 @@ def check_dashboard_contract() -> None:
     require("TILE_COLUMNS = 4" in analysis and "TILE_ROWS = 3" in analysis and "makeTiles(image, state.mode)" in analysis and "mode === 'quick'" in analysis, "Browser analysis must provide one-pass and 4-by-3 Nano tile searches")
     require("MINIMUM_BOX_SIZE" not in analysis, "Browser analysis must not discard small model detections by box size")
     require("32 mask coefficients" in analysis and "output[4 * stride + index]" in analysis and "Math.max(...Array.from" not in analysis, "FlatBug must use its insect-score channel rather than segmentation coefficients as confidence")
-    require("analysis-choice" in html and "AntAI" in html and "FlatBug &ndash; Quick look" in html and "FlatBug &ndash; Look closely" in html and "antai-beta.onnx" in analysis and "dimensions[2] === 6" in analysis, "Dashboard must offer and decode the three experimental AI choices")
+    require("analysis-choice" in html and "AntAI" in html and "FlatBug &ndash; Quick look" in html and "FlatBug &ndash; Look closely" in html and "antai-test.onnx" in analysis and "antai-beta.onnx" not in analysis, "Dashboard must offer and decode the three experimental AI choices, with AntAI - Beta retired")
     require("adult-details" in html, "Technical details must be separated for adult users")
     require("Insect AI Kit-for-Kids" in html, "Dashboard title must use the Kit-for-Kids name")
     require('aria-label="Close image"' in html and '>x</button>' in html, "Image modal must use an ASCII x close control")
@@ -201,6 +203,11 @@ def check_dashboard_contract() -> None:
     require("camera.begin(AppConfig{}, camera_probe_diagnostic)" in scheduler and "both unreachable" in scheduler and "properly inserted" in scheduler, "A storage-mount failure must probe the camera too, so the phone app's error message distinguishes a disconnected expansion board from a missing/bad SD card")
     require("fatal_error_code" in scheduler and "status.error_code = fatal_error_code" in scheduler, "The board-vs-card diagnosis must reach the phone app as a stable, translatable code, not just raw English text")
     require("errorCode.expansion_board_disconnected" in control_server and "errorCode.sd_card_not_found" in control_server, "The phone app's translation table must cover both new boot-diagnosis codes")
+    require('ap_ssid_ = "InsectCam-" + wifiSuffix()' in control_server and "esp_efuse_mac_get_default(mac)" in control_server and 'ap_password_ = "antcamera"' in control_server, "Each board's Wi-Fi name must be derived from its own unique chip ID, with the password still shared")
+    setup_device = text("tools/setup_device.py")
+    require("report_wifi_name" in setup_device and "from dev_bridge_client import Bridge" in setup_device and 'bridge.command("REBOOT")' in setup_device, "setup_device.py must read back and print each board's own Wi-Fi name, rebooting only after it is already listening so the diagnostic line cannot race the flash's own reset")
+    guide_en, guide_es = text("docs/barcelona-demo-guide.html"), text("docs/barcelona-demo-guide-es.html")
+    require("InsectCam-" in guide_en and "insectcam-wifi-qr.png" not in guide_en and "InsectCam-" in guide_es and "insectcam-wifi-qr.png" not in guide_es, "The printable guides must describe finding a unit by name, not scanning a shared QR code")
 
 
 def check_fixture_schema() -> None:
@@ -228,9 +235,10 @@ def check_development_path_docs() -> None:
     # not a silent one.
     require("Redistribution decision" in model_card and "13 September 2026" in model_card, "The FlatBug weight-redistribution risk acceptance must be recorded, not silent")
     ai_dir = ROOT / "dashboard" / "ai"
-    for filename in ("flatbug-n.onnx", "antai-beta.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt"):
+    for filename in ("flatbug-n.onnx", "antai-test.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt"):
         require((ai_dir / filename).is_file(), f"Canonical AI asset is missing: dashboard/ai/{filename}")
-    require('"flatbug-n.onnx"' in text("tools/prepare_sd.py") and '"antai-beta.onnx"' in text("tools/prepare_sd.py") and 'ASSET_DIRECTORY / "ai"' in text("tools/prepare_sd.py"), "SD preparation must install the AI pack by default")
+    require(not (ai_dir / "antai-beta.onnx").is_file(), "AntAI - Beta has been retired and its weights must not ship")
+    require('"flatbug-n.onnx"' in text("tools/prepare_sd.py") and '"antai-test.onnx"' in text("tools/prepare_sd.py") and 'ASSET_DIRECTORY / "ai"' in text("tools/prepare_sd.py"), "SD preparation must install the AI pack by default")
 
 
 def main() -> int:

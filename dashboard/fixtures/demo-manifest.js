@@ -1,2 +1,2 @@
 window.InsectData = window.InsectData || {};
-window.InsectData.manifest = {schemaVersion: 1, captureChunks: [], lastCommittedCaptureCount: 12};
+window.InsectData.manifest = {schemaVersion: 1, captureChunks: [], lastCommittedCaptureCount: 26};

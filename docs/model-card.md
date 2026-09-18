@@ -57,9 +57,11 @@ The reference FlatBug package's multi-scale tiled/pyramid workflow is **not** re
 - Privacy/retention implications:
 - Approval date and owner:
 
-## AntAI - Beta record (experimental; not approval)
+## AntAI - Beta record (retired 18 September 2026; experimental, was never approval)
 
-AntAI - Beta is a separate one-class YOLO26 Nano detector trained locally from the updated Roboflow export. It is an evaluation aid, not a production model and must never be presented as a confirmed ant count or identification.
+**Retired from the shipped dashboard 18 September 2026**, replaced by AntAI - Test (record below). `dashboard/ai/antai-beta.onnx` has been deleted and every installer (`tools/prepare_sd.py`, `tools/install_ai_pack.py`, `tools/install_dashboard_demo.py`) no longer references it. Kept below as the historical record of what was evaluated and why, per this project's practice of preserving investigation history rather than deleting it - see the OV3660→OV5640 camera swap in `docs/hardware-validation.md` for the same pattern.
+
+AntAI - Beta was a separate one-class YOLO26 Nano detector trained locally from the updated Roboflow export. It was an evaluation aid, not a production model, and was never to be presented as a confirmed ant count or identification.
 
 - Task and class: object detection, one class (`ant`). Source labels `ant` and `ants` were intentionally merged.
 - Training evidence: 34 images / 468 boxes fit; 10 images / 147 boxes validation; 5 images / 58 boxes held-out test. All originate from the current camera domain, but this is far too little and too homogeneous for a reliable performance claim.
@@ -68,3 +70,13 @@ AntAI - Beta is a separate one-class YOLO26 Nano detector trained locally from t
 - Runtime and packaging: the existing offline ONNX Runtime Web WebAssembly package, one thread, read-only top-card-folder picker. Ships by default with `py tools\prepare_sd.py D:\` as of 13 September 2026; `py tools\install_ai_pack.py D:\` adds it to an older card without a full re-prepare.
 - Dashboard behaviour: selectable as **AntAI - Beta** (whole-picture only, threshold 0.15) beside **FlatBug - Quick look** and **FlatBug - Look closely** (threshold 0.20); only FlatBug offers the 4x3 tiled search. IoU suppression is 0.20. The user selects one available run/session, so analyses do not mix experiments.
 - Known limitations: no independent experiment/session split, no empty-frame evaluation, no cross-browser timing evidence, no tracking, and no validation beyond five held-out annotated images.
+
+## AntAI - Test record (experimental; not approval)
+
+AntAI - Test is a second, separate one-class ant detector, sourced pre-trained from the published `kit-for-kids` monorepo (`models/ONNX/AntTestModel.onnx`, 18 September 2026) rather than trained inside this project. No training-evidence record (dataset size, epoch count, precision/recall/mAP) is available to cite here, since that training happened outside this repository - stated plainly rather than fabricated. It is an evaluation aid, not a production model, and must never be presented as a confirmed ant count or identification.
+
+- Task and class: object detection, one class (assumed `ant`, consistent with the source file's name - not independently confirmed from a label map, since none was supplied with the model).
+- Browser artefact: `antai-test.onnx`, 4,959,639 bytes, SHA-256 `91532ada92739982970459664e81de4c69f1ae149c1d432d054d1dc11e114b2d`. Inspected directly with the `onnx` Python package (not assumed): input `images` is `[1,3,640,640]`; output `output0` is a raw, non-NMS-baked YOLO detection head `[1,5,8400]` - channels 0-3 are box (cx,cy,w,h), channel 4 is a single score, 8400 candidates. Decoded by `dashboard/analysis.js`'s existing generic box+score fallback branch (the same one FlatBug Nano uses, which simply never reads past channel 4) - no new decode logic was needed.
+- Runtime and packaging: the existing offline ONNX Runtime Web WebAssembly package, one thread, read-only top-card-folder picker. Ships by default with `py tools\prepare_sd.py D:\` as of 18 September 2026; `py tools\install_ai_pack.py D:\` adds it to an older card without a full re-prepare.
+- Dashboard behaviour: selectable as **AntAI - Test** (whole-picture only, no tiled option), threshold **0.15** - carried over from AntAI - Beta's threshold as a starting point, **not independently validated for this model**. IoU suppression is the shared 0.20. The user selects one available run/session, so analyses do not mix experiments.
+- Known limitations: no training-evidence record, no confidence-threshold validation, no independent experiment/session split, no empty-frame evaluation, no cross-browser timing evidence, no tracking, no accuracy comparison against AntAI - Beta or FlatBug performed yet, and the one-class assumption is inferred from the filename rather than confirmed.

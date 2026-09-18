@@ -2,7 +2,10 @@ r"""One-command setup for a new insect camera.
 
 This does the two device-specific steps in order:
 
-1. Build and upload the firmware to a connected XIAO ESP32S3 Sense board.
+1. Build and upload the firmware to a connected XIAO ESP32S3 Sense board,
+   then read back and print the unit's own Wi-Fi network name (derived from
+   the board's chip ID, different on every unit with no bookkeeping needed)
+   so it can be labelled and told apart from other units in the same room.
 2. Install the dashboard, folders and default ``config.json`` on the camera's
    microSD card (the card must already be formatted FAT32 and mounted).
 
@@ -44,6 +47,65 @@ def run_platformio(args: list[str]) -> None:
     result = subprocess.run(command, cwd=ROOT)
     if result.returncode != 0:
         raise SystemExit(f"PlatformIO exited with code {result.returncode}")
+
+
+def report_wifi_name(port: str, timeout_seconds: float = 20.0) -> None:
+    """Reads boot log lines until the control app reports its assigned,
+    per-device Wi-Fi network name (see src/control_server.cpp - the name is
+    derived from the chip's own unique ID, a different one per board with no
+    setup-time bookkeeping needed), then prints it clearly enough to label
+    the enclosure with. Best-effort only: this never fails setup, since the
+    name is always visible in a serial monitor regardless.
+
+    Deliberately reboots the board with DEV REBOOT rather than reading the
+    line from the boot that just happened from flashing: that first boot's
+    diagnostic line prints within a second or two of esptool's own reset,
+    which this script cannot reliably win a race against (subprocess
+    teardown, module import, and opening the port all take some non-zero
+    time) - confirmed missing it live on real hardware. Rebooting only once
+    already connected and listening removes the race entirely, at the cost
+    of one extra restart the operator does not otherwise need.
+    """
+    try:
+        import serial  # noqa: F401 - presence-checked here so the friendly message below fires first
+    except ImportError:
+        print(
+            "\n(pyserial not installed, so the Wi-Fi name could not be read back "
+            "automatically - `py -m pip install pyserial` for that, or check a serial "
+            'monitor: it is the line starting "[insect-logger] control app ready".)'
+        )
+        return
+    import time
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from dev_bridge_client import Bridge  # noqa: E402 - reuses the same DTR/RTS-safe serial handling already proven here
+
+    time.sleep(3)  # let the board finish settling from the flash's own reset before touching the port at all
+    try:
+        bridge = Bridge(port)
+    except Exception as error:
+        print(f"\n(could not open {port} to read back the Wi-Fi name: {error})")
+        return
+    try:
+        try:
+            bridge.command("REBOOT")
+        except Exception:
+            pass  # even if this specific reply is missed, the reboot itself still happens - keep waiting for the line
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            line = bridge.serial.readline().decode("utf-8", "replace").strip()
+            if "network:" not in line:
+                continue
+            name = line.split("network:", 1)[1].split(",", 1)[0].strip()
+            print(f"\nThis unit's Wi-Fi network: {name}")
+            print("Label the enclosure with this name so it can be told apart from other units in the same room.")
+            return
+    finally:
+        bridge.close()
+    print(
+        f"\nCould not detect the Wi-Fi name automatically within {timeout_seconds:.0f}s - "
+        'check a serial monitor for the "[insect-logger] control app ready" line.'
+    )
 
 
 def list_serial_ports() -> list[dict]:
@@ -161,6 +223,7 @@ def main() -> int:
         port = choose_port(args.port, args.yes)
         run_platformio(["run", "-e", PIO_ENV, "-t", "upload", "--upload-port", port])
         print("\nFirmware uploaded. The board restarts on its own.")
+        report_wifi_name(port)
 
     if not args.flash_only:
         print("\n== Step 2 of 2: SD card ==")

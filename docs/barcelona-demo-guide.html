@@ -141,6 +141,7 @@
     border-radius: 14px;
     padding: 5mm 6mm;
     margin: 6mm 0;
+    page-break-inside: avoid;
   }
   .glossary h2 { color: #9c3f5c; font-size: 19px; margin-bottom: 3mm; }
   .glossary dt { font-weight: bold; font-size: 14px; margin-top: 2mm; }
@@ -153,6 +154,7 @@
     padding: 4mm 5mm;
     margin: 5mm 0;
     font-size: 13px;
+    page-break-inside: avoid;
   }
   .teacher-note strong { color: var(--accent-dark); }
   .teacher-note ul { margin: 2mm 0 0; padding-left: 5mm; }
@@ -218,8 +220,30 @@
     <li>An elastic band</li>
     <li>The little picture of ants that goes underneath the camera</li>
     <li>The battery pack</li>
+    <li>A USB-C cable, to connect the battery pack to the camera</li>
     <li>A phone — <strong>an Android phone works best</strong> for today</li>
     <li>A laptop or computer to look at the pictures afterwards</li>
+  </ul>
+</div>
+
+<div class="glossary">
+  <h2>Words to know</h2>
+  <dt>AI (Artificial Intelligence)</dt>
+  <dd>A computer program that has learned what insects tend to look like, and makes a best guess about where one might be in a photo. It can make mistakes — it's guessing, not certain!</dd>
+  <dt>SD card</dt>
+  <dd>The small memory card inside the camera that stores every photo it takes.</dd>
+  <dt>QR code</dt>
+  <dd>A special square pattern your phone's camera can read instead of you typing anything in.</dd>
+  <dt>Wi-Fi</dt>
+  <dd>How your phone talks to the camera without any wires, so you can peek at its photos while it's working.</dd>
+</div>
+
+<div class="teacher-note">
+  <strong>Notes for the teacher / facilitator</strong>
+  <ul>
+    <li>Always wait for <strong>🏁 Finish my adventure</strong> to confirm before removing the card — this is what safely saves the photos.</li>
+    <li>Never remove the SD card while the camera is still powered on.</li>
+    <li>Each camera has its own Wi-Fi name (<code>InsectCam-</code> plus a short label), so several cameras can run in the same room without clashing — check every camera is labelled with its name before the day starts.</li>
   </ul>
 </div>
 
@@ -259,7 +283,7 @@
   <div class="step-number">3</div>
   <div class="step-body">
     <h3>Fix it to the star platform</h3>
-    <p>Sit the case on top of the wooden star-shaped platform. Stretch the elastic band across it, crossing over like a seatbelt, so it can't wobble loose.</p>
+    <p>Sit the camera into the wooden star-shaped platform so that the camera goes into the hole in the center. Stretch the elastic band across it, using the hooks on each side so that the elastic band goes around the heatsink, pressing the camera into the hole in the center.</p>
   </div>
 </div>
 <div class="photo-row">
@@ -275,7 +299,7 @@
   <div class="step-number">4</div>
   <div class="step-body">
     <h3>Build the arch</h3>
-    <p>Slot the two curved wooden arch pieces together at the top, so they stand up together on there four legs.</p>
+    <p>Slot the two curved wooden arch pieces together at the top, so they stand up together on their four legs.</p>
   </div>
 </div>
 <div class="photo-frame">
@@ -332,21 +356,20 @@
   <div class="step-number">3</div>
   <div class="step-body">
     <h3>Join the camera's Wi-Fi with your phone</h3>
-    <p>Open your phone's camera app and point it at the QR code below. A little message will pop up — tap it to join. A welcome page should open by itself. (If it doesn't, ask your teacher.)</p>
+    <p>Open your phone's Wi-Fi settings and look for a network starting with <code>InsectCam-</code> — every camera has its own name, so check the label on your camera to find yours. Tap it, then type the password. A welcome page should open by itself. (If it doesn't, ask your teacher.)</p>
   </div>
 </div>
 
 <div class="qr-block">
-  <img src="assets/insectcam-wifi-qr.png" alt="InsectCam Wi-Fi QR code">
-  <div class="wifi-name">Network: <code>InsectCam</code> &nbsp; Password: <code>antcamera</code></div>
+  <div class="wifi-name">Network: <code>InsectCam-</code>… (see your camera's label) &nbsp; Password: <code>antcamera</code></div>
 </div>
 
 <div class="photo-row">
   <div class="photo-frame">
-    <img src="assets/screenshot%20of%20available%20wifi%20networks%20including%20insectcam.jpg" alt="InsectCam in the phone's list of Wi-Fi networks">
+    <img src="assets/screenshot%20of%20available%20wifi%20networks%20including%20insectcam.jpg" alt="An InsectCam network in the phone's list of Wi-Fi networks">
   </div>
   <div class="photo-frame">
-    <img src="assets/screenshot%20of%20insectcam%20wifi%20conncetion%20page%20with%20option%20to%20sign%20in.jpg" alt="The sign-in prompt after joining InsectCam">
+    <img src="assets/screenshot%20of%20insectcam%20wifi%20conncetion%20page%20with%20option%20to%20sign%20in.jpg" alt="The sign-in prompt after joining an InsectCam network">
   </div>
 </div>
 
@@ -399,7 +422,7 @@
   <div class="step-number">7</div>
   <div class="step-body">
     <h3>Open the picture gallery</h3>
-    <p>On the computer, open the file called <strong>dashboard.html</strong> that's on the card. It shows every photo the camera just took — no internet needed, it all works right there on the card!</p>
+    <p>On the computer, open the file called <strong>dashboard.html</strong> that's on the card — you don't need to install anything, just open it like any other file and it opens in your web browser. It shows every photo the camera just took — no internet needed, it all works right there on the card!</p>
   </div>
 </div>
 <div class="photo-row">
@@ -423,7 +446,7 @@
   <div class="step-number">9</div>
   <div class="step-body">
     <h3>Let the AI look for insects</h3>
-    <p>Pick <strong>FlatBug — Quick look</strong>. Watch as the computer looks at each photo, one at a time, and guesses where it thinks it can see an insect.</p>
+    <p>Pick <strong>FlatBug — Quick look</strong>, an AI model that has been trained to spot insects in photos. Watch as the computer looks at each photo, one at a time, and guesses where it thinks it can see an insect.</p>
   </div>
 </div>
 <div class="photo-frame wide">
@@ -433,26 +456,6 @@
 <p style="text-align:center; font-size:15px; margin-top:6mm;"><strong>That's it — you've run a real insect-monitoring camera and used AI to look for bugs, start to finish!</strong> 🎉</p>
 
 </section>
-
-<div class="glossary">
-  <h2>Words to know</h2>
-  <dt>AI (Artificial Intelligence)</dt>
-  <dd>A computer program that has learned what insects tend to look like, and makes a best guess about where one might be in a photo. It can make mistakes — it's guessing, not certain!</dd>
-  <dt>SD card</dt>
-  <dd>The small memory card inside the camera that stores every photo it takes.</dd>
-  <dt>QR code</dt>
-  <dd>A special square pattern your phone's camera can read instead of you typing anything in.</dd>
-  <dt>Wi-Fi</dt>
-  <dd>How your phone talks to the camera without any wires, so you can peek at its photos while it's working.</dd>
-</div>
-
-<div class="teacher-note">
-  <strong>Notes for the teacher / facilitator</strong>
-  <ul>
-    <li>Always wait for <strong>🏁 Finish my adventure</strong> to confirm before removing the card — this is what safely saves the photos.</li>
-    <li>Never remove the SD card while the camera is still powered on.</li>
-  </ul>
-</div>
 
 <div class="logo-strip">
   <img src="assets/InsectAI%20logo.svg" alt="InsectAI logo">

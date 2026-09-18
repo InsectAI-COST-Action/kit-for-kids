@@ -37,7 +37,7 @@ VENDOR_FILES = ("mediabunny.min.cjs", "mediabunny-LICENSE.txt", "README.md")
 # the redistribution decision and docs/next-session.md for why this used to be
 # a separate opt-in step (tools/install_ai_pack.py still works, for adding the
 # pack to an older card without a full re-prepare).
-AI_FILES = ("flatbug-n.onnx", "antai-beta.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt", "README.md")
+AI_FILES = ("flatbug-n.onnx", "antai-test.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm", "LICENSE-onnxruntime.txt", "README.md")
 RUNTIME_FILES = ("manifest.js", "summary.js")
 CARD_DIRECTORIES = ("images", "raw", "data", "system")
 
