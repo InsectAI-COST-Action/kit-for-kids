@@ -1,5 +1,7 @@
 # OV3660 image-quality decision and trial record
 
+> **17 September 2026:** this project's camera moved from OV3660 to OV5640 (see `docs/hardware-validation.md`). The trial and measurements below were run on OV3660 specifically and are kept as that historical record. The settled defaults they produced (QXGA/quality-12/1fps) carry over unchanged to the OV5640 build; whether they're still the right choice on the new sensor hasn't been re-tested.
+
 ## Settled pilot setting
 
 The pilot now uses **QXGA (2048?1536), JPEG quality 12, 1 FPS, maximum 3,600 seconds**. This is the normal `pilot` configuration in `config.example.json`; it is deliberately separate from the short `quality_trial` mode.

@@ -21,7 +21,7 @@ This directory separates everyday operation from technical design and historical
 | [Architecture](architecture.md) | Component boundaries and data-flow decisions. |
 | [Decision records](adr/) | Numbered ADRs. A decision that changes scope or a shared contract is recorded here before the work starts. |
 | [Data schema](data-schema.md) | Capture, run, and derived-dashboard record formats. |
-| [Camera specification](camera-spec.md) | Confirmed OV3660/XIAO hardware and power facts. |
+| [Camera specification](camera-spec.md) | Vendor XIAO hardware/power facts, plus this project's OV5640 camera swap note. |
 | [OV3660 image-quality trial](camera-quality-trial.md) | Controlled resolution/JPEG/rate comparison and decision rule. |
 | [Operations guide](operations.md) | Human operating procedure; use this for SD-card handling. |
 | [Serial development bridge](dev-bridge.md) | Inspecting and changing the SD card over USB serial while it stays in the board, for unattended/remote development. |

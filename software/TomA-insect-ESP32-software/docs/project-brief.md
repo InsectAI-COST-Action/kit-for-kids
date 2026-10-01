@@ -1,4 +1,4 @@
-# Project Brief: Autonomous OV3660 Insect Camera, Logger, and Offline Analysis Dashboard
+# Project Brief: Autonomous OV5640 Insect Camera, Logger, and Offline Analysis Dashboard
 
 Status: active pilot implementation; scope authority and lower-level-agent task contract
 Reviewed: 13 August 2026
@@ -8,7 +8,7 @@ Navigation: this is the detailed scope/requirements contract. For day-to-day ope
 
 ## Current implementation status
 
-The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV3660/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.
+The XIAO ESP32S3 Sense firmware has built, uploaded, and captured data on the physical OV5640/PSRAM/SD hardware. The null inference engine remains in place because no production model has been selected. The offline `file://` dashboard, recovery path, raw CSV log, atomic JPEG persistence, and card audit tool are implemented and tested.
 
 Historical `run_000012` verified the JPEG-directory sharding design on the earlier VGA/2-FPS path: 2,384 completed records, dashboard entries, and JPEGs were present, with image-write time near 0.55 seconds through frame 2,300. The active pilot setting is now QXGA/JPEG-quality-12/1-FPS. Completed trial `run_000004` retained 120 QXGA images with a 1,000 ms median interval; QXGA/2-FPS captured only 171 of 240 expected images because JPEG writing exceeded the 500 ms budget. Remaining device work is the full 3,600-image endurance run, recovery, and browser-matrix validation. A formal one-hour battery-capacity profile is deprioritised; retain a short stability and power-removal smoke test with the intended USB battery pack.
 
@@ -16,11 +16,11 @@ The current development tranche includes a child-first dashboard and a decision-
 
 ## 1. Purpose and authority
 
-Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV3660 frames using a safe default of QXGA/JPEG-quality-12 at one image each second; the dashboard may set only approved interval, quality, and duration combinations for a later reboot. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
+Build firmware and a removable-microSD data product for an insect-enclosure pilot. A Seeed Studio XIAO ESP32S3 Sense captures and safely stores OV5640 frames using a safe default of QXGA/JPEG-quality-12 at one image each second; the dashboard may set only approved interval, quality, and duration combinations for a later reboot. A non-technical user powers off the device, removes the SD card, inserts it into a computer, and opens the offline dashboard on Windows or macOS without installing software, running a server, using a command line, or having internet access. The provisional model path analyses every retained image locally in that browser after the user explicitly starts it; this must pass the gates in `docs/browser-inference-plan.md` before it becomes production architecture.
 
 This file is the scope authority. Lower-level agents must not silently fill product gaps, broaden features, or change shared schemas. Items marked **decision gate** require owner/lead resolution before dependent work. Defaults permit safe platform development but do not turn an unresolved model into a real detector.
 
-The repository now contains a built and device-tested pilot firmware, offline dashboard, SD preparation/audit tools, and host-side contract checks. Hardware facts are authoritatively recorded in `docs/camera-spec.md`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV3660, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
+The repository now contains a built and device-tested pilot firmware, offline dashboard, SD preparation/audit tools, and host-side contract checks. Hardware facts are authoritatively recorded in `docs/camera-spec.md`: ESP32-S3R8 (dual-core Xtensa LX7, up to 240 MHz), OV5640, 8 MB PSRAM, 8 MB flash, onboard FAT microSD support up to 32 GB, and battery operation through the BAT input. The assembled case/heatsink is out of scope for this software project.
 
 Manufacturer references:
 
@@ -48,7 +48,7 @@ The pilot succeeds only if data remains intelligible after ordinary faults, real
 
 ### Must — pilot platform
 
-- Pinned, reproducible Arduino-ESP32/PlatformIO firmware for the confirmed XIAO ESP32S3 Sense and OV3660.
+- Pinned, reproducible Arduino-ESP32/PlatformIO firmware for the confirmed XIAO ESP32S3 Sense and OV5640.
 - Autonomous boot, safe default QXGA/JPEG-quality-12 capture at one image each second, approved configuration combinations, retention of every frame, structured logging, summary generation, and offline dashboard. During the current feasibility phase, the device records null inference and the dashboard may analyse every retained frame only after an explicit user action.
 - PSRAM detection and explicit failure/degraded behaviour.
 - Versioned configuration, event/data schemas, and migration policy.
@@ -90,7 +90,7 @@ These become mandatory only after the model decision gate is satisfied:
 
 The following are confirmed project decisions:
 
-1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV3660, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
+1. **Hardware:** ESP32-S3R8 XIAO ESP32S3 Sense with 8 MB PSRAM/flash, OV5640, onboard FAT microSD support, and battery power. Source: `docs/camera-spec.md`.
 2. **Model:** no production model exists yet. The device provides only the model interface and a `MODEL_UNAVAILABLE` null engine. FlatBug is the preferred candidate for the first browser feasibility test, not an approved production dependency. A deterministic fake engine is test-build-only and visibly marked `TEST DATA`.
 3. **Capture/inference:** by default capture and store every QXGA/JPEG-quality-12 frame at 1 FPS for a maximum one-hour session, or 3,600 retained frames. An optional experimental motion policy may retain fewer JPEGs while retaining a log row for every scheduled check. The provisional browser path offers post-session inference for every retained frame after an explicit user action. Browser analysis need not run at 1 FPS, but its measured wait time must be acceptable for the child-facing journey and it must never silently skip images. The ESP32 capture requirement remains independent of model speed.
 4. **Time:** session-relative only. `boot_id + monotonic_ms` is authoritative; date, hour, and “today” controls are unavailable rather than fabricated.
@@ -110,7 +110,7 @@ Remaining future gates: prove or reject the browser-inference architecture; sele
 2. Initialise serial diagnostics, validate PSRAM/hardware identity, and load configuration using documented defaults if missing.
 3. Mount and health-check SD. Never auto-format a card. Missing/unusable storage enters a visible error/retry state, not a reboot loop.
 4. Recover incomplete temporary files and malformed CSV tail records without discarding earlier committed data.
-5. Initialise OV3660 using a tested preset. Initialise the null inference adapter; do not require a production model to boot or capture during the browser feasibility phase.
+5. Initialise OV5640 using a tested preset. Initialise the null inference adapter; do not require a production model to boot or capture during the browser feasibility phase.
 6. Create a run/session record containing firmware, schema, config, model, board, sensor, and time-source facts.
 7. Start the monotonic capture schedule. Each due frame moves through capture, null-inference status, retention policy, image write, raw log, and summary/chunk update with explicit outcomes. Post-session browser inference is a separate user-initiated workflow.
 8. Periodically flush/commit within a documented data-loss window. On power-cable disconnection, files must be recoverable within the documented loss window. The user removes the SD card only after the device has lost power.
@@ -139,7 +139,7 @@ Preprocessing and postprocessing belong to the applicable device or browser mode
 
 ### Retention policy
 
-The default pilot saves every captured QXGA/JPEG-quality-12 frame: one image each second for no more than one hour (3,600 images). The dashboard configuration tool may instead select only the documented low-risk interval, quality, and duration combinations; an infinite session ends on power removal or a storage failure. There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV3660 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
+The default pilot saves every captured QXGA/JPEG-quality-12 frame: one image each second for no more than one hour (3,600 images). The dashboard configuration tool may instead select only the documented low-risk interval, quality, and duration combinations; an infinite session ends on power removal or a storage failure. There are no detection-only, threshold, cooldown, burst, or automatic deletion modes in this release. One original JPEG links to zero or more predictions; never duplicate a JPEG for each box. Capacity planning must measure actual OV5640 JPEG size and reserve enough free space to close the run safely. If the card becomes full, record the failure and stop collection rather than overwrite/delete retained observations.
 
 ## 6. Authoritative data model
 
@@ -173,7 +173,7 @@ Bounding boxes are normalised to `[0,1]` and empty for classification. JSON insi
 
 ### Run/configuration records
 
-Each run has a small versioned manifest with start/end or interrupted state, firmware/build, board revision, OV3660 PID, config hash/snapshot, model ID/hash, time-source status, counters, and fatal/degraded errors. Credentials or personal identity never belong in any record.
+Each run has a small versioned manifest with start/end or interrupted state, firmware/build, board revision, OV5640 PID, config hash/snapshot, model ID/hash, time-source status, counters, and fatal/degraded errors. Credentials or personal identity never belong in any record.
 
 Use sortable collision-free IDs independent of calendar time, for example persisted device/run counters plus boot-local capture sequence. Do not rely on an unset clock or assume atomic counter writes; use checksum/dual-slot or equivalent recovery.
 
@@ -262,7 +262,7 @@ Serial logs must be bounded/rate-limited and include IDs needed for correlation.
 
 Use PlatformIO with Arduino-ESP32 and exact versions pinned; “latest” is not reproducible. An ESP-IDF change requires an ADR with concrete benefit and migration cost. Use modern C++ appropriate to the pinned embedded toolchain, explicit ownership, small modules, and comments explaining hardware constraints/trade-offs rather than restating code. Doxygen-compatible public interfaces are useful; “extensive comments” is not a substitute for tests and clear names.
 
-Suggested source boundaries: application/state machine, OV3660 camera adapter, inference interface/backends, capture policy, storage/raw logger, dashboard chunk/summary writer, configuration, time/IDs, health/diagnostics, and utilities. Hardware calls must sit behind interfaces so scheduling, policies, schemas, recovery, and summaries can be host-tested. Every dependency needs version, licence, purpose, maintenance status, and measured flash/RAM/card impact.
+Suggested source boundaries: application/state machine, OV5640 camera adapter, inference interface/backends, capture policy, storage/raw logger, dashboard chunk/summary writer, configuration, time/IDs, health/diagnostics, and utilities. Hardware calls must sit behind interfaces so scheduling, policies, schemas, recovery, and summaries can be host-tested. Every dependency needs version, licence, purpose, maintenance status, and measured flash/RAM/card impact.
 
 Suggested repository:
 
@@ -296,7 +296,7 @@ The lead owns integration and shared contracts. Agents must read this brief plus
 
 ### WP0 — Physical feasibility and decisions (first)
 
-Confirm board revision, OV3660 PID, flash/PSRAM, pin map, supported SD cards/filesystems, battery supply/cable, camera focus/field of view, SD/button/LED access, and stable camera/SD examples. Produce `docs/hardware-validation.md`, measurement method, photos/identifiers where appropriate, and initial ADRs. Do not change physical assets.
+Confirm board revision, OV5640 PID, flash/PSRAM, pin map, supported SD cards/filesystems, battery supply/cable, camera focus/field of view, SD/button/LED access, and stable camera/SD examples. Produce `docs/hardware-validation.md`, measurement method, photos/identifiers where appropriate, and initial ADRs. Do not change physical assets.
 
 ### WP1 — Architecture, states, and schemas
 
@@ -304,7 +304,7 @@ Freeze component ownership, event/state/error model, config, CSV, run manifest, 
 
 ### WP2 — Camera and scheduler
 
-Own OV3660 lifecycle/presets, monotonic scheduling, frame-buffer ownership, rate/skip counters, and bounded delivery to inference. Provide host-testable scheduler logic and device tests. Do not implement model, SD schema, or UI.
+Own OV5640 lifecycle/presets, monotonic scheduling, frame-buffer ownership, rate/skip counters, and bounded delivery to inference. Provide host-testable scheduler logic and device tests. Do not implement model, SD schema, or UI.
 
 ### WP3 - Device and browser inference adapters
 
@@ -330,7 +330,7 @@ Dependency order: **WP0 → WP1 → WP2/WP3/WP4/WP6 in parallel → WP5 against 
 
 ## 12. Verification matrix and measurable budgets
 
-Every physical result records board revision, firmware commit/build, OV3660 PID/settings, model ID/hash, effective config hash, SD make/capacity/filesystem, supply/cable, enclosure state, ambient/case temperature, run ID, client OS/browser, and test result.
+Every physical result records board revision, firmware commit/build, OV5640 PID/settings, model ID/hash, effective config hash, SD make/capacity/filesystem, supply/cable, enclosure state, ambient/case temperature, run ID, client OS/browser, and test result.
 
 Required scenarios:
 
@@ -370,7 +370,7 @@ Deliver:
 - sample card image/archive containing only clearly marked synthetic data; and
 - checksummed release artifacts, licences/notices, and known limitations.
 
-The pilot platform is accepted only when a clean machine reproduces the build; actual board/OV3660 facts are recorded; autonomous collection and all fault states work in the enclosure; committed CSV survives the power-cycle tests; derived dashboard data reconciles to raw records; the offline dashboard passes the browser matrix without network/server; test data cannot be mistaken for observations; power/thermal/storage limits are documented; and a new facilitator can complete the primary journey from the guides.
+The pilot platform is accepted only when a clean machine reproduces the build; actual board/OV5640 facts are recorded; autonomous collection and all fault states work in the enclosure; committed CSV survives the power-cycle tests; derived dashboard data reconciles to raw records; the offline dashboard passes the browser matrix without network/server; test data cannot be mistaken for observations; power/thermal/storage limits are documented; and a new facilitator can complete the primary journey from the guides.
 
 A real field-detection release additionally requires acceptance of the browser architecture (or a documented replacement), the model gate, reference-output parity, representative validation, measured model package/memory/throughput, and owner-approved accuracy/label claims. Until then the deliverable is an instrumented logging/dashboard platform, not a scientifically validated species detector.
 

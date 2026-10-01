@@ -5,7 +5,7 @@ Update this record as evidence is collected. SD endurance and final cadence vali
 | Check | Required evidence | Result |
 | --- | --- | --- |
 | Board | ESP32-S3R8 XIAO ESP32S3 Sense; clean PlatformIO build and upload | Verified on physical board (COM4). Independently reproduced 9 September 2026 on a second, clean Windows 10 machine with no prior toolchain: `git clone` → `py -m pip install platformio` → `py -m platformio run` → upload → boot evidence → 1 FPS QXGA capture → clean `dev_bridge_client.py stop`. Setup-doc gaps found in that run are fixed in [setup-guide.md](setup-guide.md) / [next-session.md](next-session.md). |
-| Camera | OV3660 PID reported at boot | Verified at boot |
+| Camera | OV5640 PID reported at boot | Verified at boot (17 September 2026, this board's camera module was replaced - see the dated entry below). Earlier rows above cite OV3660, the sensor validated before that swap. |
 | PSRAM | `psramFound()` succeeds | Verified at boot |
 | SD | FAT32 card mounts and survives 3,600 QXGA writes | Two independent one-hour endurance runs, 28 August 2026: dark (`run_000041`, 3,589/3,600) and daylight (`run_000050`, 3,585/3,600). Both self-finished cleanly, no reboot, no storage error, no corruption. **Neither hit the exact 3,600 target** - see finding below; the shortfall is confirmed present regardless of lighting/JPEG size. Historical run 000012 retained 2,384 smaller JPEGs in 24 bounded shards; completed QXGA run 000004 retained 120 images. Card corruption observed once after normal battery-cable removal; see incident below. |
 | Capture | QXGA/JPEG-quality-12 frame every 1,000 ms | Dark run: 3,589/3,600 (99.7%). Daylight run: 3,585/3,600 (99.6%), `interval_mean_ms=1004`, `interval_max_ms=2363`. No reboot/crash in either. Completed QXGA run 000004 captured 120 images at a 1,000 ms median interval. QXGA/2-FPS was rejected (171/240 images; write time exceeded its budget). **Image-quality review done 28 August 2026** (daylight, `run_000050`) - see finding below: soft focus throughout, exposure acceptable, a colour-balance issue at session start that clears within ~30 minutes (a fix was attempted 28-29 August 2026; it did not resolve the issue - see finding below). |
@@ -154,5 +154,19 @@ The owner's own proposal, after the fast-warm-up result above: seed AWB from a k
 While prototyping the device control app ([ADR 0001](adr/0001-device-hosted-control-app.md)), two live motion-mode sessions with the SoftAP running showed a 100% save rate — every scheduled motion check triggered a save, with scores clustering just above the threshold of 5 (5.8–12) rather than the wide, mostly-sub-threshold spread seen in earlier motion-mode testing. A same-scene control run with Wi-Fi disabled (`WIFI_CONTROL_DISABLED_FOR_TEST` build flag) and everything else identical showed normal discrimination: 131 of 132 checks correctly returned `motion_not_detected`, scores maxing at 3.57. Only Wi-Fi differed between the two conditions, so this is a confirmed effect, not a lighting or environmental confound (an initial lighting hypothesis was raised and specifically ruled out by this control test).
 
 Suspected mechanism: SoftAP TX current draw introducing exposure micro-flicker that the motion score's whole-frame brightness correction does not fully cancel. Not yet confirmed at the electrical level. See [device-control-app-plan.md](device-control-app-plan.md) Phase 1 for mitigation options and current status — this blocks running Wi-Fi and motion-triggered capture concurrently until resolved. Retain-every-frame capture is unaffected.
+
+## Camera swap: OV3660 → OV5640 (17 September 2026)
+
+The camera module on the test board was physically replaced with an OV5640, on the same connector/pin header the OV3660 used. Verified via the firmware's serial dev-bridge `PROBE` command (`py tools\dev_bridge_client.py --port COM8 probe`, independent of the SD card - see [dev-bridge.md](dev-bridge.md)):
+
+```
+camera=ok detail=camera initialised: unexpected_pid_22080
+```
+
+`22080` decimal = `0x5640`, the OV5640's real PID - `esp_camera_init()` succeeds and the sensor answers over SCCB correctly; at that point this project's own code still only recognised `OV3660_PID` by name, hence `unexpected_pid_22080` instead of a friendly label. Fixed on the `camera/ov5640` branch (see `src/camera_service.cpp`).
+
+**Register compatibility confirmed from source, not assumed.** Fetched the real OV5640 driver (`sensors/ov5640.c`, `espressif/esp32-camera`, matching the same practice used for the original OV3660 investigation above) and confirmed it uses the *identical* manual-AWB-gain register layout: R/G/B gain at `0x3400`/`0x3402`/`0x3404`, manual/auto latch at `0x3406`, same `set_wb_mode`/`set_awb_gain` wiring, same SCCB address `0x3C`. So `CameraService::seedWhiteBalance()`/`manualGainStatus()` needed no register-address changes - only the sensor-identity check and comments citing where the numbers came from.
+
+**Open follow-up, not yet done:** the actual seed gain values (`kWhiteBalanceSeedRedGain/Green/BlueGain` = 1055/1024/2100 in `main.cpp`) were measured from OV3660's real-world colour response (see `run_000078`/`run_000082` above) and carried over unchanged to OV5640. The write mechanism is proven to work on the new sensor, but whether *these specific values* are still a good starting seed for OV5640's own colour response has not been checked - needs the same kind of real-hardware daylight capture-and-look trial this file already documents for OV3660, once a card and daylight session are available on the OV5640 board.
 
 The detailed component specification is in `docs/camera-spec.md`. The next validation actions are listed in `docs/next-session.md`.

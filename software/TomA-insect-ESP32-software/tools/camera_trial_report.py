@@ -1,4 +1,4 @@
-"""Summarise labelled OV3660 pilot and image-quality trial runs from a mounted card.
+"""Summarise labelled OV5640 pilot and image-quality trial runs from a mounted card.
 
 Usage: py tools\\camera_trial_report.py E:\\
 """
@@ -22,7 +22,7 @@ def maximum(values: list[float]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Summarise OV3660 pilot and quality-trial runs on an SD card.")
+    parser = argparse.ArgumentParser(description="Summarise OV5640 pilot and quality-trial runs on an SD card.")
     parser.add_argument("card_root", type=Path, help="Mounted SD-card root, for example E:\\")
     args = parser.parse_args()
     root = args.card_root.resolve()
