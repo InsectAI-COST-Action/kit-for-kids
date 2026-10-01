@@ -15,7 +15,7 @@ Read [operations.md](operations.md) once you are set up; it is the shorter day-t
 | Item | Notes |
 | --- | --- |
 | Seeed Studio XIAO ESP32S3 **Sense** | The "Sense" version is essential — it is the one with the camera connector and microSD slot |
-| OV3660 camera module | Usually supplied with the board |
+| OV5640 camera module | The board ships with an OV3660 by default; this project's firmware now targets a replacement OV5640 module instead (see `docs/hardware-validation.md`) |
 | microSD card, 32 GB or smaller | Must be 32 GB or under. Larger cards use a format the camera cannot read |
 | USB-C cable | Must be a **data** cable, not charge-only. See troubleshooting if the board is not detected |
 | USB battery pack | Any standard phone power bank |

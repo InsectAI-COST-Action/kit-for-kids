@@ -42,7 +42,7 @@ constexpr uint32_t kPerformanceSampleInterval = 97;
 // to iterate on. Two active-pump designs followed (see
 // docs/hardware-validation.md "Fix attempted"/"Seeded white balance" for
 // the full trail) before landing here. 31 August 2026: seed AWB directly
-// via CameraService::seedWhiteBalance() (real OV3660 register writes,
+// via CameraService::seedWhiteBalance() (real sensor register writes,
 // confirmed from driver source, not guessed) with a value measured from
 // this room's actual lighting, then pump briefly in the real capture mode
 // so AWB walks from that seed to whatever's optimal right now, rather than
@@ -64,6 +64,16 @@ constexpr uint32_t kCameraWarmupMs = 12000;
 // already close) but the seed itself may need remeasuring for a very
 // different environment - see docs/hardware-validation.md "Seeded white
 // balance" for how these were found and how to redo it.
+//
+// 17 September 2026: this project moved from OV3660 to OV5640. The register
+// mechanism carries over unchanged (confirmed from sensors/ov5640.c - see
+// camera_service.cpp), but these specific gain values were measured from
+// OV3660's colour response, not OV5640's. Kept as a starting point since the
+// write path is proven to work on the new sensor, but flagged here as an
+// open follow-up: redo the same real-hardware daylight measurement this
+// project already has a documented method for (docs/hardware-validation.md
+// "Seeded white balance") once a card and daylight session are available,
+// rather than assuming these numbers are still the right seed.
 constexpr uint16_t kWhiteBalanceSeedRedGain = 1055;
 constexpr uint16_t kWhiteBalanceSeedGreenGain = 1024;
 constexpr uint16_t kWhiteBalanceSeedBlueGain = 2100;
@@ -118,7 +128,7 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
 }
 
 bool refreshMotionBaseline(String& diagnostic) {
-  // Reinitialising the OV3660 after a JPEG changes auto exposure for its first
+  // Reinitialising the OV5640 after a JPEG changes auto exposure for its first
   // grayscale frames. Discard two of them, then compare future scheduled checks
   // against the settled preview rather than the pre-JPEG image.
   if (!camera.captureMotionPreview(current_motion_preview, diagnostic)) return false;

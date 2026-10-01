@@ -32,7 +32,7 @@ framesize_t CameraService::captureFrameSize() const {
 
 bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame_size, String& diagnostic) {
   // The ESP32 camera driver allocates DMA/frame buffers at esp_camera_init time.
-  // Changing only OV3660 sensor registers left JPEG-sized buffers active for a
+  // Changing only OV5640 sensor registers left JPEG-sized buffers active for a
   // grayscale QQVGA preview, causing fb_get timeouts on the XIAO. Recreate the
   // driver at each mode boundary so capture format and driver buffers agree.
   if (sensor_ != nullptr) {
@@ -77,7 +77,7 @@ bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame
     diagnostic = "camera reinitialised but sensor descriptor is unavailable";
     return false;
   }
-  sensor_id_ = sensor_->id.PID == OV3660_PID ? "OV3660" : "unexpected_pid_" + String(sensor_->id.PID);
+  sensor_id_ = sensor_->id.PID == OV5640_PID ? "OV5640" : "unexpected_pid_" + String(sensor_->id.PID);
   motion_preview_mode_ = pixel_format == PIXFORMAT_GRAYSCALE;
   // Explicit rather than trusting the driver's defaults: a green colour
   // cast that persists for the first ~30 minutes of a session (28 August
@@ -95,13 +95,13 @@ bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame
 
 bool CameraService::configureCaptureSensor(String& diagnostic) {
   if (!initialiseCamera(PIXFORMAT_JPEG, captureFrameSize(), diagnostic)) return false;
-  diagnostic = "OV3660 ready for retained JPEG capture";
+  diagnostic = "OV5640 ready for retained JPEG capture";
   return true;
 }
 
 bool CameraService::configurePreviewSensor(String& diagnostic) {
   if (!initialiseCamera(PIXFORMAT_GRAYSCALE, FRAMESIZE_QQVGA, diagnostic)) return false;
-  diagnostic = "OV3660 ready for grayscale motion preview";
+  diagnostic = "OV5640 ready for grayscale motion preview";
   return true;
 }
 
@@ -172,11 +172,15 @@ String CameraService::whiteBalanceStatus() const {
 }
 
 namespace {
-// Confirmed from sensors/ov3660.c in espressif/esp32-camera (31 August
-// 2026) - not guessed. 0x3400/0x3402/0x3404 are 16-bit R/G/B manual gain
-// registers; set_wb_mode()'s fixed presets (sunny/cloudy/office/home)
-// write these same three. 0x3406 is the manual/auto latch: bit 0 set
-// means "use the manual values below", clear means auto AWB drives them.
+// Confirmed from sensors/ov5640.c in espressif/esp32-camera (17 September
+// 2026, when this project moved from OV3660 to OV5640) - not guessed.
+// OV5640 uses the identical register layout OV3660 does (originally
+// confirmed from sensors/ov3660.c, 31 August 2026 - see
+// docs/hardware-validation.md "Seeded white balance"): 0x3400/0x3402/0x3404
+// are 16-bit R/G/B manual gain registers; set_wb_mode()'s fixed presets
+// (sunny/cloudy/office/home) write these same three. 0x3406 is the
+// manual/auto latch: bit 0 set means "use the manual values below", clear
+// means auto AWB drives them.
 constexpr int kRedGainReg = 0x3400;
 constexpr int kGreenGainReg = 0x3402;
 constexpr int kBlueGainReg = 0x3404;

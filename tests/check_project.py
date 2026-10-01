@@ -61,9 +61,9 @@ def check_pilot_configuration() -> None:
 def check_camera_contract() -> None:
     source = text("src/camera_service.cpp")
     for fragment in ("kXclkPin = 10", "kSccbSdaPin = 40", "kSccbSclPin = 39", "kY9Pin = 48"):
-        require(fragment in source, f"Missing expected XIAO OV3660 mapping: {fragment}")
+        require(fragment in source, f"Missing expected XIAO OV5640 mapping: {fragment}")
     require("psramFound()" in source, "Camera must reject missing PSRAM")
-    require("OV3660_PID" in source, "Camera must report the actual sensor PID")
+    require("OV5640_PID" in source, "Camera must report the actual sensor PID")
     require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
     require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source and "esp_camera_deinit()" in source, "Camera must reinitialise the bounded motion-preview mode with matching buffers")
 

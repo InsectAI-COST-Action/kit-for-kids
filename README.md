@@ -2,11 +2,11 @@
 
 > Part of the [InsectAI COST Action Kit-for-Kids](https://github.com/InsectAI-COST-Action/kit-for-kids) project, published at `software/TomA-insect-ESP32-software`. Licensed under the MIT licence of that repository; see its root `LICENSE`. Third-party components carry their own licences — Mediabunny is MPL-2.0 (`dashboard/vendor/mediabunny-LICENSE.txt`) and ONNX Runtime Web is MIT (`dashboard/ai/LICENSE-onnxruntime.txt`). FlatBug's own software is MIT, but its bundled model weights (`dashboard/ai/flatbug-n.onnx`) carry an accepted, not resolved, redistribution risk — see the decision recorded in `docs/model-card.md` before assuming this clears them for further redistribution.
 
-Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV3660 camera. The settled pilot captures and stores every QXGA (2048?1536), JPEG-quality-12 frame at 1 FPS for no more than one hour (3,600 images). Computer vision is deliberately a null adapter on the camera while an offline, browser-side inference path is evaluated.
+Firmware and an offline dashboard for the Seeed Studio XIAO ESP32S3 Sense with an OV5640 camera. The settled pilot captures and stores every QXGA (2048?1536), JPEG-quality-12 frame at 1 FPS for no more than one hour (3,600 images). Computer vision is deliberately a null adapter on the camera while an offline, browser-side inference path is evaluated.
 
 ## Development status
 
-The firmware has been built and uploaded to the physical XIAO ESP32S3 Sense. Boot evidence confirms PSRAM, the OV3660 camera, SD configuration loading, and the null inference adapter. The SD-card recovery path has also been exercised: removing battery power marks the previous run as `interrupted_power_removed`, promotes the open dashboard chunk on the next boot, and keeps the current chunk visible to the offline dashboard.
+The firmware has been built and uploaded to the physical XIAO ESP32S3 Sense. Boot evidence confirms PSRAM, the OV5640 camera, SD configuration loading, and the null inference adapter. The SD-card recovery path has also been exercised: removing battery power marks the previous run as `interrupted_power_removed`, promotes the open dashboard chunk on the next boot, and keeps the current chunk visible to the offline dashboard.
 
 Historical performance run `run_000012` is an important directory-sharding milestone. Its 2,384 smaller VGA captures used 24 bounded image directories, with all JPEGs and derived dashboard records present. Image-write times stayed effectively flat from 530 ms at frame 100 to 546 ms at frame 2,300; the earlier single-directory runs climbed above 1.7 seconds. It is retained as storage-design evidence, not as acceptance evidence for the settled QXGA/1-FPS pilot.
 
@@ -66,7 +66,7 @@ Do not remove the SD card while the camera is powered. Previous committed record
 - `tools/train_antai_beta.py`: reproducibly train/evaluate AntAI - Beta from the normalised Roboflow COCO export; weights remain ignored.
 - `datasets/ant-detector-rfdetr-v2/`: normalised one-class COCO annotations and provenance for the 49-image AntAI training export; images remain ignored.
 - `tools/install_dashboard_demo.py`: install a separate rehearsal presentation demo (real reference photos, fabricated run/timing data - not a real capture session).
-- `tools/configure_camera_trial.py`: install or restore a named, short OV3660 quality-trial configuration.
+- `tools/configure_camera_trial.py`: install or restore a named, short OV5640 quality-trial configuration.
 - `tools/camera_trial_report.py`: compare labelled trial-run image sizes, timing, and run state.
 - `docs/camera-quality-trial.md`: controlled OV3660 resolution/JPEG/rate comparison.
 - `docs/performance-experiment.md`: staged performance-instrumentation protocol.

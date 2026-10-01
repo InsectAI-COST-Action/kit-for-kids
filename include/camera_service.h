@@ -19,13 +19,14 @@ class CameraService {
   // alongside the 28 August 2026 white-balance fix so the trial run can
   // confirm what was actually applied, not just what was intended.
   String whiteBalanceStatus() const;
-  // Direct read of the OV3660's live manual-gain registers (0x3400 R,
+  // Direct read of the OV5640's live manual-gain registers (0x3400 R,
   // 0x3402 G, 0x3404 B - confirmed from the actual driver source,
-  // sensors/ov3660.c in espressif/esp32-camera, not guessed; these are the
+  // sensors/ov5640.c in espressif/esp32-camera, not guessed; these are the
   // same registers set_wb_mode()'s fixed presets write, and AWB itself
-  // writes here continuously while in auto mode). Added 31 August 2026 to
-  // find a real seed value from actual converged conditions, rather than
-  // inferring one from JPEG output.
+  // writes here continuously while in auto mode - identical layout to the
+  // OV3660 this project used before 17 September 2026). Added 31 August
+  // 2026 to find a real seed value from actual converged conditions, rather
+  // than inferring one from JPEG output.
   String manualGainStatus() const;
   // Writes a starting R/G/B gain (same 3 registers as above) then
   // immediately re-enables auto AWB - the seed becomes AWB's starting
