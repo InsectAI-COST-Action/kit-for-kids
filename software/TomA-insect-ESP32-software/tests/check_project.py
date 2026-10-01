@@ -5,6 +5,7 @@ Run with: py tests\check_project.py
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -61,9 +62,38 @@ def check_pilot_configuration() -> None:
 def check_camera_contract() -> None:
     source = text("src/camera_service.cpp")
     for fragment in ("kXclkPin = 10", "kSccbSdaPin = 40", "kSccbSclPin = 39", "kY9Pin = 48"):
-        require(fragment in source, f"Missing expected XIAO OV5640 mapping: {fragment}")
+        require(fragment in source, f"Missing expected XIAO camera-connector mapping: {fragment}")
     require("psramFound()" in source, "Camera must reject missing PSRAM")
-    require("OV5640_PID" in source, "Camera must report the actual sensor PID")
+    # Both the stock OV3660 and the OV5640 replacement module are supported on
+    # the same connector; each needs its own profile and identity string.
+    # The last field is has_autofocus: only the OV5640 has a voice-coil lens.
+    for pid, name, autofocus in (("OV3660_PID", "OV3660", "false"), ("OV5640_PID", "OV5640", "true")):
+        require(re.search(r"\{" + pid + r',\s*"' + name + r'",\s*\d+,\s*\d+,\s*\d+,\s*(true|false),\s*' + autofocus + r"\}", source) is not None,
+                f"Camera must carry a sensor profile for {name} with has_autofocus={autofocus}")
+    require("kAfCmdContinuous" in source and "startAutofocus(af_diagnostic)" in source,
+            "OV5640 must start continuous autofocus after each capture-mode init")
+    require('"off in motion-trigger mode"' in source,
+            "Autofocus must be reported off, not silently missing, in motion-trigger mode")
+    require("camera.autofocusStatus()" in text("src/main.cpp"), "Boot report must include the autofocus state")
+    # Vendored third-party firmware: pin the exact file so an accidental edit
+    # fails here, and require its provenance and licence to stay alongside it.
+    # Hashes the firmware bytes, not the file, so checkout line-ending
+    # conversion cannot cause a false failure.
+    firmware = text("include/vendor/ov5640_af_firmware.h")
+    firmware_bytes = bytes(int(value, 16) for value in re.findall(r"0x[0-9a-fA-F]{2}\b", firmware[firmware.index("{"):firmware.rindex("}")]))
+    require(len(firmware_bytes) == 4077 and hashlib.sha256(firmware_bytes).hexdigest() == "439245623bc99f3b0d8c44d47baed3cc17cad01b9191509c89bb8d92a98949c9",
+            "OV5640 AF firmware must be the unchanged espressif/esp32-camera 1d73d881b payload")
+    require((ROOT / "include" / "vendor" / "esp32-camera-LICENSE.txt").is_file() and "1d73d881b" in text("include/vendor/README.md"),
+            "OV5640 AF firmware must keep its Apache-2.0 licence and provenance note")
+    require('"unexpected_pid_"' in source, "Camera must report an unrecognised sensor PID rather than mislabel it")
+    require("profile_ == nullptr" in source and "not writing its registers" in source,
+            "White-balance seeding must refuse an unrecognised sensor rather than write its registers")
+    require("seed_measured" in source and "provisional seed" in source,
+            "Boot report must say when a sensor's white-balance seed is provisional")
+    require(not re.search(r'"OV(3660|5640) ready', source),
+            "Camera mode diagnostics must name the detected sensor, not a hard-coded one")
+    main = text("src/main.cpp")
+    require("kWhiteBalanceSeed" not in main, "White-balance seeds belong to the per-sensor profiles, not main.cpp")
     require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
     require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source and "esp_camera_deinit()" in source, "Camera must reinitialise the bounded motion-preview mode with matching buffers")
 
@@ -188,7 +218,7 @@ def check_dashboard_contract() -> None:
     require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
     scheduler = text("src/main.cpp")
     require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
-    require("kCameraWarmupMs = 12000" in scheduler and "seedWhiteBalance" in scheduler and "kWhiteBalanceSeedRedGain" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
+    require("kCameraWarmupMs = 12000" in scheduler and "camera.seedWhiteBalance(seed_diagnostic)" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
     require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
     control_server = text("src/control_server.cpp")
     require("const LOCALES = [" in control_server and "const TRANSLATIONS = {" in control_server and "'control.takeAPeek'" in control_server and "'control.finishAdventure'" in control_server, "Phone control app must offer a language registry, not a hardcoded English-only page")

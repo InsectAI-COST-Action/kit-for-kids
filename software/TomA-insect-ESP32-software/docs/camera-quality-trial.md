@@ -1,6 +1,6 @@
 # OV3660 image-quality decision and trial record
 
-> **17 September 2026:** this project's camera moved from OV3660 to OV5640 (see `docs/hardware-validation.md`). The trial and measurements below were run on OV3660 specifically and are kept as that historical record. The settled defaults they produced (QXGA/quality-12/1fps) carry over unchanged to the OV5640 build; whether they're still the right choice on the new sensor hasn't been re-tested.
+> **17 September 2026:** the test board's camera was swapped from OV3660 to OV5640, and from 1 October 2026 the firmware supports both (see `docs/hardware-validation.md`). The trial and measurements below were run on OV3660 specifically and are kept as that historical record. The settled defaults they produced (QXGA/quality-12/1fps) apply unchanged to OV5640 boards; whether they're still the right choice on the new sensor hasn't been re-tested.
 
 ## Settled pilot setting
 

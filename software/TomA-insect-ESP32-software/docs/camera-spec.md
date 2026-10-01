@@ -1,4 +1,4 @@
-> **Camera note (17 September 2026):** the spec sheet below is Seeed's own published XIAO ESP32S3 Sense page, which lists the board's stock camera, OV3660. This project's deployment replaces that stock module with an OV5640 camera on the same connector; the firmware and docs elsewhere in this repo now target OV5640. See `docs/hardware-validation.md` for the swap confirmation and `sensors/ov5640.c` register findings. This vendor page is left as-is below rather than edited to avoid misrepresenting what Seeed actually publishes.
+> **Camera note (17 September 2026):** the spec sheet below is Seeed's own published XIAO ESP32S3 Sense page, which lists the board's stock camera, OV3660. The firmware supports both that stock OV3660 and a replacement OV5640 module on the same connector (dual-sensor support added 1 October 2026), detecting which is fitted at boot. See `docs/hardware-validation.md` for the swap confirmation and `sensors/ov5640.c` register findings. This vendor page is left as-is below rather than edited to avoid misrepresenting what Seeed actually publishes.
 
 Specifications
 Processor	ESP32-S3R8

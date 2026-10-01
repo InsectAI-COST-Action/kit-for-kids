@@ -1,4 +1,4 @@
-"""Create a short, labelled OV5640 image-quality trial configuration on an SD card.
+"""Create a short, labelled camera (OV3660 or OV5640) image-quality trial configuration on an SD card.
 
 Examples:
   py tools\\configure_camera_trial.py E:\\ --list
@@ -33,7 +33,7 @@ def write_json(path: Path, value: dict[str, object]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Configure a short OV5640 image-quality trial.")
+    parser = argparse.ArgumentParser(description="Configure a short OV3660/OV5640 image-quality trial.")
     parser.add_argument("destination", type=Path, help="Mounted SD-card root, for example E:\\")
     parser.add_argument("--preset", choices=PRESETS, help="Named camera preset to install")
     parser.add_argument("--seconds", type=int, default=120, help="Trial duration: 30-600 seconds (default: 120)")

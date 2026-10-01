@@ -1,4 +1,4 @@
-"""Summarise labelled OV5640 pilot and image-quality trial runs from a mounted card.
+"""Summarise labelled camera (OV3660 or OV5640) pilot and image-quality trial runs from a mounted card.
 
 Usage: py tools\\camera_trial_report.py E:\\
 """
@@ -22,7 +22,7 @@ def maximum(values: list[float]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Summarise OV5640 pilot and quality-trial runs on an SD card.")
+    parser = argparse.ArgumentParser(description="Summarise OV3660/OV5640 pilot and quality-trial runs on an SD card.")
     parser.add_argument("card_root", type=Path, help="Mounted SD-card root, for example E:\\")
     args = parser.parse_args()
     root = args.card_root.resolve()
@@ -57,7 +57,7 @@ def main() -> int:
         with path.open(newline="", encoding="utf-8-sig") as handle:
             performance[run_id].extend(csv.DictReader(handle))
 
-    columns = ["run", "preset", "fps", "configured_size", "captured_px", "jpeg_q", "completed", "median_kib", "median_interval_ms", "max_interval_ms", "median_write_ms", "max_write_ms", "max_start_lag_ms", "state"]
+    columns = ["run", "sensor", "preset", "fps", "configured_size", "captured_px", "jpeg_q", "completed", "median_kib", "median_interval_ms", "max_interval_ms", "median_write_ms", "max_write_ms", "max_start_lag_ms", "state"]
     rows: list[list[str]] = []
     for run_id, manifest in sorted(runs.items()):
         completed = [row for row in captures[run_id] if row.get("outcome") == "completed"]
@@ -70,6 +70,7 @@ def main() -> int:
         lag_ms = [float(row["start_lag_ms"]) for row in performance[run_id] if row.get("start_lag_ms", "").isdigit()]
         rows.append([
             run_id,
+            str(manifest.get("sensor", "-")),
             str(manifest.get("camera_preset", "-")),
             str(manifest.get("capture_fps", "-")),
             str(manifest.get("frame_size", "-")),
@@ -86,7 +87,7 @@ def main() -> int:
     print("  ".join("-" * width for width in widths))
     for row in rows:
         print("  ".join(value.ljust(width) for value, width in zip(row, widths)))
-    print("\nLower JPEG-quality numbers usually mean less compression and larger files. Choose visual quality first, then reject any preset with unreliable cadence, unacceptable write time, or excessive storage use.")
+    print("\nLower JPEG-quality numbers usually mean less compression and larger files. Choose visual quality first, then reject any preset with unreliable cadence, unacceptable write time, or excessive storage use. Compare presets only between runs from the same sensor: OV3660 and OV5640 differ in colour response and JPEG size.")
     return 0
 
 

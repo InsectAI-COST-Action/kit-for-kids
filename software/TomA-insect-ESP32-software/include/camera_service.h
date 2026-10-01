@@ -6,6 +6,26 @@
 #include "app_config.h"
 #include "motion_detector.h"
 
+// Per-sensor facts for each camera module this firmware supports. Both the
+// XIAO's stock OV3660 and the OV5640 replacement module fit the same
+// connector and answer on the same pins; they differ only in identity and in
+// the white-balance starting gain measured for each one's colour response.
+// The table lives in camera_service.cpp.
+struct SensorProfile {
+  uint16_t pid;
+  const char* name;
+  uint16_t seed_red_gain;
+  uint16_t seed_green_gain;
+  uint16_t seed_blue_gain;
+  // false = the seed is borrowed from another sensor as a starting point and
+  // has not yet been measured on this one (reported at boot so trial runs
+  // can tell the difference).
+  bool seed_measured;
+  // true = the module has a voice-coil lens and the firmware runs the
+  // sensor's continuous autofocus (OV5640 only; the OV3660 is fixed-focus).
+  bool has_autofocus;
+};
+
 class CameraService {
  public:
   bool begin(const AppConfig& config, String& diagnostic);
@@ -15,36 +35,48 @@ class CameraService {
   bool restoreMotionPreview(String& diagnostic);
   void release(camera_fb_t* frame);
   const String& sensorId() const;
+  // nullptr until begin() succeeds, or when the attached sensor is not one
+  // of the supported modules.
+  const SensorProfile* sensorProfile() const;
   // Current AWB-related register state, for the boot diagnostic - added
   // alongside the 28 August 2026 white-balance fix so the trial run can
   // confirm what was actually applied, not just what was intended.
   String whiteBalanceStatus() const;
-  // Direct read of the OV5640's live manual-gain registers (0x3400 R,
-  // 0x3402 G, 0x3404 B - confirmed from the actual driver source,
-  // sensors/ov5640.c in espressif/esp32-camera, not guessed; these are the
-  // same registers set_wb_mode()'s fixed presets write, and AWB itself
-  // writes here continuously while in auto mode - identical layout to the
-  // OV3660 this project used before 17 September 2026). Added 31 August
-  // 2026 to find a real seed value from actual converged conditions, rather
-  // than inferring one from JPEG output.
+  // Direct read of the sensor's live manual-gain registers (0x3400 R,
+  // 0x3402 G, 0x3404 B - confirmed from the actual driver sources,
+  // sensors/ov3660.c and sensors/ov5640.c in espressif/esp32-camera, not
+  // guessed; both use this identical layout, the same registers
+  // set_wb_mode()'s fixed presets write, and AWB itself writes here
+  // continuously while in auto mode). Added 31 August 2026 to find a real
+  // seed value from actual converged conditions, rather than inferring one
+  // from JPEG output.
   String manualGainStatus() const;
-  // Writes a starting R/G/B gain (same 3 registers as above) then
-  // immediately re-enables auto AWB - the seed becomes AWB's starting
-  // point to adjust from, not a locked value. Briefly toggles the manual/
-  // auto latch at 0x3406 so the written values actually take; see
+  // Writes the attached sensor's profile seed R/G/B gain (same 3 registers
+  // as above) then immediately re-enables auto AWB - the seed becomes AWB's
+  // starting point to adjust from, not a locked value. Briefly toggles the
+  // manual/auto latch at 0x3406 so the written values actually take; see
   // docs/hardware-validation.md "Seeded white balance" for why this
   // sequence (manual write, then auto) rather than writing while already
-  // in auto mode.
-  bool seedWhiteBalance(uint16_t r_gain, uint16_t g_gain, uint16_t b_gain, String& diagnostic);
+  // in auto mode. Refuses on an unrecognised sensor rather than writing
+  // registers whose meaning on that part is unknown.
+  bool seedWhiteBalance(String& diagnostic);
+  // One-line autofocus state for the boot report: "fixed focus",
+  // "continuous, focused", "continuous, focusing", "off in motion-trigger
+  // mode", or why starting it failed.
+  String autofocusStatus() const;
 
  private:
   bool initialiseCamera(pixformat_t pixel_format, framesize_t frame_size, String& diagnostic);
   bool configureCaptureSensor(String& diagnostic);
   bool configurePreviewSensor(String& diagnostic);
+  bool startAutofocus(String& diagnostic);
   framesize_t captureFrameSize() const;
 
   AppConfig config_;
   sensor_t* sensor_ = nullptr;
   bool motion_preview_mode_ = false;
   String sensor_id_ = "uninitialised";
+  const SensorProfile* profile_ = nullptr;
+  bool autofocus_running_ = false;
+  String autofocus_note_ = "fixed focus";
 };
