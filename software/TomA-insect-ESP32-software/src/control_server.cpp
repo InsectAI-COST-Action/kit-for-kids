@@ -3,9 +3,52 @@
 #include <WiFi.h>
 #include <esp_heap_caps.h>
 #include <esp_mac.h>
+#include <esp_jpg_decode.h>
+#include <img_converters.h>
 
 namespace {
 constexpr uint8_t kDnsPort = 53;
+constexpr wifi_power_t kApTxPower = WIFI_POWER_8_5dBm;
+
+// Peek preview decode: esp_jpg_decode() with our own callbacks rather than
+// jpg2rgb565(), so the long decode can pause every ~50 ms. Without pauses a
+// ~2.4 s decode on core 0 starved the idle task and the task watchdog reset
+// the board; running the whole worker at idle priority instead fixed that
+// but doubled the decode to ~4.5 s, so previews were always stale (2
+// October 2026).
+struct PreviewDecode {
+  const uint8_t* source;
+  size_t source_length;
+  uint8_t* rgb;  // RGB888, width * height * 3
+  uint16_t width;
+  uint16_t height;
+  uint32_t last_pause_ms;
+};
+
+size_t previewRead(void* arg, size_t index, uint8_t* buf, size_t len) {
+  const PreviewDecode& job = *static_cast<PreviewDecode*>(arg);
+  if (index >= job.source_length) return 0;
+  if (len > job.source_length - index) len = job.source_length - index;
+  if (buf != nullptr) memcpy(buf, job.source + index, len);
+  return len;
+}
+
+bool previewWrite(void* arg, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t* data) {
+  PreviewDecode& job = *static_cast<PreviewDecode*>(arg);
+  if (data == nullptr) return true;  // start/end markers
+  // Decoder output is RGB888 in R,G,B order, which fmt2jpg's RGB888 input
+  // takes as-is.
+  for (uint16_t row = 0; row < h && y + row < job.height; ++row) {
+    const uint16_t copy = (x + w <= job.width) ? w : job.width - x;
+    memcpy(job.rgb + (static_cast<size_t>(y + row) * job.width + x) * 3, data + static_cast<size_t>(row) * w * 3,
+           static_cast<size_t>(copy) * 3);
+  }
+  if (millis() - job.last_pause_ms >= 50) {
+    vTaskDelay(1);  // lets core 0's idle task run so the task watchdog stays fed
+    job.last_pause_ms = millis();
+  }
+  return true;
+}
 
 // The last 4 hex digits (last two bytes) of the chip's factory-programmed,
 // permanently unique MAC-derived ID - stable across reflashes, needs no
@@ -268,6 +311,7 @@ const TRANSLATIONS = {
     'control.elapsedMinutes': (m) => `${m} minute${m === 1 ? '' : 's'}`,
     'control.elapsedSeconds': (s) => `${s} second${s === 1 ? '' : 's'}`,
     'control.noPictureYet': 'No picture yet — check back in a moment.',
+    'control.gettingPicture': 'Getting a fresh picture…',
     'control.recentPictureAlt': 'The most recent picture your camera took',
     'control.couldNotLoadPicture': 'Could not load a picture right now.',
     'control.describeInterval': (seconds) => (seconds === 60 ? 'one picture every 1 minute' : `one picture every ${seconds}${seconds === 1 ? ' second' : ' seconds'}`),
@@ -352,6 +396,7 @@ const TRANSLATIONS = {
     'control.elapsedMinutes': (m) => `${m} minuto${m === 1 ? '' : 's'}`,
     'control.elapsedSeconds': (s) => `${s} segundo${s === 1 ? '' : 's'}`,
     'control.noPictureYet': 'Todavía no hay foto — vuelve a mirar en un momento.',
+    'control.gettingPicture': 'Preparando una foto nueva…',
     'control.recentPictureAlt': 'La foto más reciente que hizo tu cámara',
     'control.couldNotLoadPicture': 'No se ha podido cargar una foto ahora mismo.',
     'control.describeInterval': (seconds) => (seconds === 60 ? 'una foto cada 1 minuto' : `una foto cada ${seconds}${seconds === 1 ? ' segundo' : ' segundos'}`),
@@ -450,17 +495,32 @@ function updateMotionMeter(scores) {
 }
 
 async function loadPeek() {
+  // 202 means the camera is still shrinking a fresh picture for the phone
+  // (about 2 s, in the background); keep the old picture and retry.
   const stage = document.getElementById('peekStage');
+  const button = document.getElementById('btnPeek');
+  button.disabled = true;
   try {
-    const response = await fetch('/api/peek?' + Date.now());
-    if (response.status !== 200) { stage.innerHTML = '<p class="peek-empty">' + t('control.noPictureYet') + '</p>'; return; }
-    const blob = await response.blob();
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(blob);
-    img.alt = t('control.recentPictureAlt');
-    stage.replaceChildren(img);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const response = await fetch('/api/peek?' + Date.now());
+      if (response.status === 202) {
+        if (!stage.querySelector('img')) stage.innerHTML = '<p class="peek-empty">' + t('control.gettingPicture') + '</p>';
+        await new Promise(resolve => setTimeout(resolve, 700));
+        continue;
+      }
+      if (response.status !== 200) { stage.innerHTML = '<p class="peek-empty">' + t('control.noPictureYet') + '</p>'; return; }
+      const blob = await response.blob();
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(blob);
+      img.alt = t('control.recentPictureAlt');
+      stage.replaceChildren(img);
+      return;
+    }
+    stage.innerHTML = '<p class="peek-empty">' + t('control.couldNotLoadPicture') + '</p>';
   } catch (error) {
     stage.innerHTML = '<p class="peek-empty">' + t('control.couldNotLoadPicture') + '</p>';
+  } finally {
+    button.disabled = !peekAvailable;
   }
 }
 document.getElementById('btnPeek').addEventListener('click', loadPeek);
@@ -641,6 +701,11 @@ bool ControlServer::begin(String& diagnostic) {
     diagnostic = "failed to start Wi-Fi access point " + ap_ssid_;
     return false;
   }
+  // Transmit power cut from the ~20 dBm default (built to reach across a
+  // building) to 8.5 dBm: the phone is a metre or two away, and the radio
+  // is on for the whole session, so it was a large share of the main
+  // board's heat (owner request, 2 October 2026). Must follow softAP().
+  const bool tx_power_set = WiFi.setTxPower(kApTxPower);
 
   // Captive-portal redirect: answer every DNS query with our own address so
   // phones that probe connectivity (Android's connectivitycheck, iOS's
@@ -658,8 +723,19 @@ bool ControlServer::begin(String& diagnostic) {
   server_.onNotFound([this]() { handleRoot(); });  // any unrecognised path also lands on the app, for captive-portal probes
   server_.begin();
   started_ = true;
+  // Preview worker: core 0 (the Arduino loop and capture run on core 1).
+  // Priority 1, below Wi-Fi and the network stack. Its decode pauses every
+  // ~50 ms (previewWrite) so core 0's idle task still runs: an unpaused
+  // decode at this priority tripped the task watchdog (2 October 2026,
+  // run_000025), and idle priority instead made previews too slow.
+  peek_mutex_ = xSemaphoreCreateMutex();
+  if (peek_mutex_ == nullptr ||
+      xTaskCreatePinnedToCore(previewTaskEntry, "peek_preview", 8192, this, 1, &preview_task_, 0) != pdPASS) {
+    preview_task_ = nullptr;
+  }
   diagnostic = "control app ready at http://" + WiFi.softAPIP().toString() + " (network: " + ap_ssid_ +
-               ", password: " + ap_password_ + ")";
+               ", password: " + ap_password_ + ", tx power " +
+               (tx_power_set ? String(static_cast<int>(WiFi.getTxPower()) / 4.0f, 1) + " dBm" : String("default, set failed")) + ")";
   return true;
 }
 
@@ -705,16 +781,125 @@ void ControlServer::handleStart() {
   ESP.restart();
 }
 
-bool ControlServer::updatePeek(const uint8_t* data, size_t length) {
-  if (data == nullptr || length == 0 || length > kPeekBufferCapacity) return false;
-  const int write_index = (peek_active_index_ == 0) ? 1 : 0;
-  if (peek_buffers_[write_index] == nullptr) {
-    peek_buffers_[write_index] = static_cast<uint8_t*>(heap_caps_malloc(kPeekBufferCapacity, MALLOC_CAP_SPIRAM));
-    if (peek_buffers_[write_index] == nullptr) return false;
+bool ControlServer::updatePeek(const uint8_t* data, size_t length, uint16_t width, uint16_t height) {
+  if (data == nullptr || length == 0 || length > kPeekBufferCapacity || peek_mutex_ == nullptr) return false;
+  // Pick a slot the worker cannot be reading: not the latest (it may pin
+  // that at any moment) and not the pinned one. With three slots there is
+  // always one free.
+  xSemaphoreTake(peek_mutex_, portMAX_DELAY);
+  int slot = -1;
+  for (int candidate = 0; candidate < kPeekSlots; ++candidate) {
+    if (candidate != peek_latest_slot_ && candidate != peek_pinned_slot_) {
+      slot = candidate;
+      break;
+    }
   }
-  memcpy(peek_buffers_[write_index], data, length);
-  peek_lengths_[write_index] = length;
-  peek_active_index_ = write_index;
+  xSemaphoreGive(peek_mutex_);
+  if (slot < 0) return false;
+  PeekFrame& frame = peek_frames_[slot];
+  if (frame.data == nullptr) {
+    frame.data = static_cast<uint8_t*>(heap_caps_malloc(kPeekBufferCapacity, MALLOC_CAP_SPIRAM));
+    if (frame.data == nullptr) return false;
+  }
+  memcpy(frame.data, data, length);
+  xSemaphoreTake(peek_mutex_, portMAX_DELAY);
+  frame.length = length;
+  frame.width = width;
+  frame.height = height;
+  frame.sequence = peek_next_sequence_++;
+  frame.captured_ms = millis();
+  peek_latest_slot_ = slot;
+  xSemaphoreGive(peek_mutex_);
+  return true;
+}
+
+void ControlServer::previewTaskEntry(void* self) { static_cast<ControlServer*>(self)->previewTaskLoop(); }
+
+void ControlServer::previewTaskLoop() {
+  while (true) {
+    // Woken by each peek request, otherwise polls slowly. Idle (no decoding,
+    // no extra heat or PSRAM traffic) unless someone has peeked recently.
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250));
+    if (peek_last_request_ms_ == 0 || millis() - peek_last_request_ms_ > kPeekActiveWindowMs) continue;
+
+    xSemaphoreTake(peek_mutex_, portMAX_DELAY);
+    const int slot = peek_latest_slot_;
+    const bool stale = slot >= 0 && peek_frames_[slot].sequence != preview_sequence_;
+    if (stale) peek_pinned_slot_ = slot;
+    xSemaphoreGive(peek_mutex_);
+    if (!stale) continue;
+
+    uint8_t* jpeg = nullptr;
+    size_t jpeg_length = 0;
+    String error;
+    const bool built = buildPeekPreview(slot, jpeg, jpeg_length, error);
+
+    xSemaphoreTake(peek_mutex_, portMAX_DELAY);
+    peek_pinned_slot_ = -1;
+    uint8_t* replaced = nullptr;
+    if (built) {
+      replaced = preview_jpeg_;
+      preview_jpeg_ = jpeg;
+      preview_jpeg_length_ = jpeg_length;
+      preview_sequence_ = peek_frames_[slot].sequence;
+      preview_captured_ms_ = peek_frames_[slot].captured_ms;
+    }
+    xSemaphoreGive(peek_mutex_);
+    free(replaced);
+    if (!built) {
+      Serial.println("[insect-logger] peek preview failed: " + error);
+      vTaskDelay(pdMS_TO_TICKS(1000));  // do not spin on a frame that will not decode
+    } else {
+      // A breather between builds: a new frame arrives every second, so
+      // without it the worker would decode flat out for as long as anyone
+      // keeps peeking.
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
+  }
+}
+
+bool ControlServer::buildPeekPreview(int slot, uint8_t*& jpeg_out, size_t& length_out, String& error) {
+  // Runs on the worker with `slot` pinned, so the frame cannot change under it.
+  const PeekFrame& frame = peek_frames_[slot];
+  uint8_t scale_shift = 0;
+  for (uint8_t shift = 3; shift > 0; --shift) {
+    if ((frame.width >> shift) >= kPeekPreviewMinWidth) {
+      scale_shift = shift;
+      break;
+    }
+  }
+  const jpg_scale_t scales[] = {JPG_SCALE_NONE, JPG_SCALE_2X, JPG_SCALE_4X, JPG_SCALE_8X};
+  const uint16_t width = frame.width >> scale_shift;
+  const uint16_t height = frame.height >> scale_shift;
+  const size_t rgb_bytes = static_cast<size_t>(width) * height * 3;
+  if (width == 0 || height == 0) {
+    error = "frame size unknown";
+    return false;
+  }
+  if (rgb_bytes > preview_rgb_capacity_) {
+    heap_caps_free(preview_rgb_);
+    preview_rgb_ = static_cast<uint8_t*>(heap_caps_malloc(rgb_bytes, MALLOC_CAP_SPIRAM));
+    preview_rgb_capacity_ = preview_rgb_ == nullptr ? 0 : rgb_bytes;
+    if (preview_rgb_ == nullptr) {
+      error = "no memory for preview";
+      return false;
+    }
+  }
+  const uint32_t started = millis();
+  PreviewDecode job{frame.data, frame.length, preview_rgb_, width, height, millis()};
+  if (esp_jpg_decode(frame.length, scales[scale_shift], previewRead, previewWrite, &job) != ESP_OK) {
+    error = "could not decode frame";
+    return false;
+  }
+  const uint32_t decoded_ms = millis() - started;
+  if (!fmt2jpg(preview_rgb_, rgb_bytes, width, height, PIXFORMAT_RGB888, kPeekPreviewQuality, &jpeg_out, &length_out)) {
+    error = "could not encode preview";
+    return false;
+  }
+  Serial.println("[insect-logger] peek preview " + String(width) + "x" + String(height) + " " +
+                 String(static_cast<unsigned long>(length_out)) + " bytes from " +
+                 String(static_cast<unsigned long>(frame.length)) + " in " + String(millis() - started) +
+                 " ms (decode " + String(decoded_ms) + " ms, core " + String(xPortGetCoreID()) + ")");
   return true;
 }
 
@@ -785,12 +970,38 @@ void ControlServer::handleConfigWrite() {
 }
 
 void ControlServer::handlePeek() {
-  const int index = peek_active_index_;
-  if (index < 0 || peek_buffers_[index] == nullptr) {
+  // Never decodes here: this runs in the main loop between captures, and a
+  // decode costs ~2 s. Wake the core-0 worker and answer at once with the
+  // newest finished preview if it is fresh, otherwise 202 so the page retries.
+  peek_last_request_ms_ = millis();
+  if (preview_task_ != nullptr) xTaskNotifyGive(preview_task_);
+  if (peek_mutex_ == nullptr) {
     server_.send(204, "text/plain", "");
     return;
   }
-  server_.send_P(200, "image/jpeg", reinterpret_cast<PGM_P>(peek_buffers_[index]), peek_lengths_[index]);
+  xSemaphoreTake(peek_mutex_, portMAX_DELAY);
+  const bool have_frame = peek_latest_slot_ >= 0;
+  const bool fresh = preview_jpeg_ != nullptr && millis() - preview_captured_ms_ <= kPeekMaxAgeMs;
+  size_t length = 0;
+  if (fresh) {
+    if (preview_jpeg_length_ > peek_send_capacity_) {
+      heap_caps_free(peek_send_buffer_);
+      peek_send_buffer_ = static_cast<uint8_t*>(heap_caps_malloc(preview_jpeg_length_, MALLOC_CAP_SPIRAM));
+      peek_send_capacity_ = peek_send_buffer_ == nullptr ? 0 : preview_jpeg_length_;
+    }
+    if (peek_send_buffer_ != nullptr) {
+      memcpy(peek_send_buffer_, preview_jpeg_, preview_jpeg_length_);
+      length = preview_jpeg_length_;
+    }
+  }
+  xSemaphoreGive(peek_mutex_);
+  if (length == 0) {
+    server_.send(have_frame ? 202 : 204, "text/plain", "");
+    return;
+  }
+  const uint32_t send_started = millis();
+  server_.send_P(200, "image/jpeg", reinterpret_cast<PGM_P>(peek_send_buffer_), length);
+  Serial.println("[insect-logger] peek sent in " + String(millis() - send_started) + " ms");
 }
 
 void ControlServer::handleStatus() {
@@ -809,7 +1020,7 @@ void ControlServer::handleStatus() {
       ",\"sdMounted\":" + String(status_.sd_mounted ? "true" : "false") +
       ",\"error\":\"" + status_.error +
       "\",\"errorCode\":\"" + status_.error_code +
-      "\",\"hasPeek\":" + String(peek_active_index_ >= 0 ? "true" : "false") +
+      "\",\"hasPeek\":" + String(peek_latest_slot_ >= 0 ? "true" : "false") +
       ",\"motionRecent\":" + motion_recent +
       ",\"freeHeap\":" + String(ESP.getFreeHeap()) + "}";
   server_.send(200, "application/json", json);

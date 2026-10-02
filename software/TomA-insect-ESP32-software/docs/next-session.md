@@ -1,5 +1,9 @@
 # Next session checklist
 
+## Status after the 2 October 2026 daylight session
+
+Autofocus confirmed working; phone peek reworked and passed (`run_000034`: 707/707 frames with 38 peeks); OV5640 now at 10 MHz XCLK and 8.5 dBm SoftAP for heat (see hardware-validation.md "Daylight session"). Next, in order: **white balance** - images look slightly purple; the borrowed OV3660 seed (blue 2100) is barely moved by AWB in the 15 warm-up frames at 10 MHz (after warm-up ~1075/1024/2015). Log the gain registers every 30 s during capture, run ~10 min in the light the kits will really be used in with something white/grey in view, check the peek looks neutral, then adopt the settled values as the OV5640 seed (`seed_measured=true`); if it settles still purple, look at OV5640 AWB tuning instead; image review via card reader; one-hour run - **only once the physical heat redesign is in, or with someone checking temperature**. Owner is handling camera heat physically, not in software.
+
 ## Next: OV5640 daylight session (planned 2 October 2026)
 
 Branch `wip/camera-ov5640` (uncommitted work as of 1 October 2026 evening), board on COM4, firmware already flashed. Autofocus loads and runs but could not be judged in the dark - see [hardware-validation.md](hardware-validation.md) "OV5640 continuous autofocus". In daylight:

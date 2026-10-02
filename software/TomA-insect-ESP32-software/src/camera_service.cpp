@@ -41,9 +41,15 @@ constexpr int kPclkPin = 13;
 // Autofocus: the OV5640 module has a voice-coil lens; the OV3660 is
 // fixed-focus. Continuous rather than single-shot because children may pick
 // the camera up and move it mid-session (owner decision, 1 October 2026).
+//
+// XCLK: OV3660 keeps the 20 MHz all its validation ran at. OV5640 at 20 MHz
+// streamed ~2.3 QXGA frames/s and its module got hot enough to melt a rubber
+// band with a heatsink fitted (2 October 2026), so it runs at 10 MHz to
+// stream roughly half as many frames - see docs/hardware-validation.md
+// "OV5640 heat".
 constexpr SensorProfile kSensorProfiles[] = {
-    {OV3660_PID, "OV3660", 1055, 1024, 2100, true, false},
-    {OV5640_PID, "OV5640", 1055, 1024, 2100, false, true},
+    {OV3660_PID, "OV3660", 1055, 1024, 2100, true, false, 20000000},
+    {OV5640_PID, "OV5640", 1055, 1024, 2100, false, true, 10000000},
 };
 
 const SensorProfile* findSensorProfile(uint16_t pid) {
@@ -89,7 +95,7 @@ bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame
   camera_config.pin_sccb_scl = kSccbSclPin;
   camera_config.pin_pwdn = kPwdnPin;
   camera_config.pin_reset = kResetPin;
-  camera_config.xclk_freq_hz = 20000000;
+  camera_config.xclk_freq_hz = xclk_hz_;
   camera_config.pixel_format = pixel_format;
   camera_config.frame_size = frame_size;
   camera_config.jpeg_quality = config_.jpeg_quality;
@@ -109,6 +115,14 @@ bool CameraService::initialiseCamera(pixformat_t pixel_format, framesize_t frame
   }
   profile_ = findSensorProfile(sensor_->id.PID);
   sensor_id_ = profile_ != nullptr ? String(profile_->name) : "unexpected_pid_" + String(sensor_->id.PID);
+  // The sensor can only be identified after an init, so the first init uses
+  // the default clock; if its profile wants another, start again once at
+  // that clock. Every later init (motion mode re-inits per frame) already
+  // uses the right one.
+  if (profile_ != nullptr && profile_->xclk_hz != xclk_hz_) {
+    xclk_hz_ = profile_->xclk_hz;
+    return initialiseCamera(pixel_format, frame_size, diagnostic);
+  }
   motion_preview_mode_ = pixel_format == PIXFORMAT_GRAYSCALE;
   // Explicit rather than trusting the driver's defaults: a green colour
   // cast that persists for the first ~30 minutes of a session (28 August
@@ -171,7 +185,7 @@ bool CameraService::begin(const AppConfig& config, String& diagnostic) {
   const bool ready = config_.motion_trigger_enabled ? configurePreviewSensor(diagnostic) : configureCaptureSensor(diagnostic);
   if (ready) {
     diagnostic = "camera initialised: " + sensor_id_ + (config_.motion_trigger_enabled ? " (motion preview ready)" : "") +
-                 ", autofocus " + autofocus_note_;
+                 ", xclk " + String(xclk_hz_ / 1000000) + " MHz, autofocus " + autofocus_note_;
   }
   return ready;
 }

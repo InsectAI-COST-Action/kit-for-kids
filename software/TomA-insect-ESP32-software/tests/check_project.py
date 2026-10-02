@@ -66,10 +66,19 @@ def check_camera_contract() -> None:
     require("psramFound()" in source, "Camera must reject missing PSRAM")
     # Both the stock OV3660 and the OV5640 replacement module are supported on
     # the same connector; each needs its own profile and identity string.
-    # The last field is has_autofocus: only the OV5640 has a voice-coil lens.
+    # Last two fields: has_autofocus (only the OV5640 has a voice-coil lens)
+    # and XCLK. OV3660 stays at its validated 20 MHz; OV5640 runs slower
+    # because at 20 MHz it overheated (2 October 2026). Datasheet floor ~6 MHz.
     for pid, name, autofocus in (("OV3660_PID", "OV3660", "false"), ("OV5640_PID", "OV5640", "true")):
-        require(re.search(r"\{" + pid + r',\s*"' + name + r'",\s*\d+,\s*\d+,\s*\d+,\s*(true|false),\s*' + autofocus + r"\}", source) is not None,
-                f"Camera must carry a sensor profile for {name} with has_autofocus={autofocus}")
+        match = re.search(r"\{" + pid + r',\s*"' + name + r'",\s*\d+,\s*\d+,\s*\d+,\s*(true|false),\s*' + autofocus + r",\s*(\d+)\}", source)
+        require(match is not None, f"Camera must carry a sensor profile for {name} with has_autofocus={autofocus}")
+        xclk = int(match.group(2))
+        require(6_000_000 <= xclk <= 27_000_000, f"{name} XCLK {xclk} Hz is outside the sensor's 6-27 MHz input range")
+        if name == "OV3660":
+            require(xclk == 20_000_000, "OV3660 XCLK must stay at the 20 MHz its validation ran at")
+        else:
+            require(xclk < 20_000_000, "OV5640 XCLK must stay below the 20 MHz that overheated it")
+    require("camera_config.xclk_freq_hz = xclk_hz_;" in source, "Camera init must use the detected sensor's XCLK")
     require("kAfCmdContinuous" in source and "startAutofocus(af_diagnostic)" in source,
             "OV5640 must start continuous autofocus after each capture-mode init")
     require('"off in motion-trigger mode"' in source,
@@ -223,6 +232,26 @@ def check_dashboard_contract() -> None:
     control_server = text("src/control_server.cpp")
     require("const LOCALES = [" in control_server and "const TRANSLATIONS = {" in control_server and "'control.takeAPeek'" in control_server and "'control.finishAdventure'" in control_server, "Phone control app must offer a language registry, not a hardcoded English-only page")
     require("errorCode" in control_server and "adventure_in_progress" in control_server and "no_card_mounted" in control_server, "Phone control app's fixed error responses must carry a stable, translatable error code")
+    # Peek: holds OV5640 daylight frames (up to ~445 KB measured) and sends a
+    # downscaled preview rather than the full frame over the SoftAP.
+    control_header = text("include/control_server.h")
+    capacity = re.search(r"kPeekBufferCapacity = (\d+) \* 1024", control_header)
+    require(capacity is not None and int(capacity.group(1)) >= 512, "Peek buffer must hold a full OV5640 daylight frame (>= 512 KB)")
+    require("esp_jpg_decode(" in control_server and "fmt2jpg(" in control_server and "buildPeekPreview(slot, jpeg, jpeg_length, error)" in control_server,
+            "Peek must send a downscaled preview, not the full frame")
+    # The ~2 s decode must stay off the capture loop: built by a core-0 worker,
+    # and the request handler must never decode.
+    handler = control_server[control_server.index("void ControlServer::handlePeek()"):control_server.index("void ControlServer::handleStatus()")]
+    require("xTaskCreatePinnedToCore(previewTaskEntry" in control_server and "jpg2rgb565" not in handler and "buildPeekPreview" not in handler,
+            "Peek preview must be built off the capture loop, never in the request handler")
+    write_callback = control_server[control_server.index("bool previewWrite("):control_server.index("}  // namespace") if "}  // namespace" in control_server else len(control_server)]
+    require("vTaskDelay(1)" in write_callback, "Peek decode must pause periodically, or its long decodes trip the task watchdog")
+    require("kPeekSlots = 3" in control_header and "peek_pinned_slot_" in control_server,
+            "Peek frame slots must keep the frame being decoded from being overwritten")
+    # SoftAP transmit power is cut for heat: the phone is within a metre or two.
+    require("kApTxPower = WIFI_POWER_8_5dBm" in control_server and control_server.index("WiFi.setTxPower(") > control_server.index("WiFi.softAP("),
+            "SoftAP must run at reduced transmit power, set after softAP() starts")
+    require("peek not updated" in text("src/main.cpp"), "A frame too large for the peek must be reported, not skipped silently")
     dev_bridge = text("src/dev_bridge.cpp")
     require('verb == "WIPE"' in dev_bridge and 'argument != "CONFIRM"' in dev_bridge and 'remove("/config.json")' not in dev_bridge, "The remote card-wipe command must refuse without an explicit confirmation and must never itself remove config.json")
     require("wipe" in text("tools/dev_bridge_client.py") and "--confirm" in text("tools/dev_bridge_client.py"), "The dev-bridge client must require its own --confirm before sending WIPE")

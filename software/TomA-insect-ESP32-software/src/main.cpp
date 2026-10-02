@@ -247,7 +247,16 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   const uint32_t image_write_started = millis();
   const bool image_saved = storage.writeBinaryAtomicCreate(record.image_path, frame->buf, frame->len, diagnostic);
   timing.image_write_ms = millis() - image_write_started;
-  control_server.updatePeek(frame->buf, frame->len);
+  if (!control_server.updatePeek(frame->buf, frame->len, frame->width, frame->height)) {
+    // Once per boot: the peek keeps showing an older frame, which is worth
+    // knowing but not worth a line every second.
+    static bool reported_peek_skip = false;
+    if (!reported_peek_skip) {
+      report("peek not updated: frame of " + String(static_cast<unsigned long>(frame->len)) +
+             " bytes exceeds the peek buffer");
+      reported_peek_skip = true;
+    }
+  }
   camera.release(frame);
   {
     // Serial-only trace of autofocus state changes (one SCCB read per frame),

@@ -24,6 +24,12 @@ struct SensorProfile {
   // true = the module has a voice-coil lens and the firmware runs the
   // sensor's continuous autofocus (OV5640 only; the OV3660 is fixed-focus).
   bool has_autofocus;
+  // Master clock (XCLK) fed to the sensor. It paces readout, so it sets how
+  // many frames per second the sensor streams - and the sensor streams
+  // continuously whether or not a frame is kept, so it also sets how much
+  // heat it makes. Must leave comfortably more than 1 frame/s for the 1 FPS
+  // schedule. OV5640 datasheet input range is about 6-27 MHz.
+  uint32_t xclk_hz;
 };
 
 class CameraService {
@@ -77,6 +83,9 @@ class CameraService {
   bool motion_preview_mode_ = false;
   String sensor_id_ = "uninitialised";
   const SensorProfile* profile_ = nullptr;
+  // XCLK for the next init: the default until the sensor is identified,
+  // then its profile's value.
+  uint32_t xclk_hz_ = 20000000;
   bool autofocus_running_ = false;
   String autofocus_note_ = "fixed focus";
 };
