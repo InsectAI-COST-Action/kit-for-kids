@@ -46,10 +46,13 @@ ssid="InsectCam-$suffix"
 raspi-config nonint do_wifi_country GB          # Wi-Fi stays off until a country is set
 nmcli -t -f NAME connection show | grep -qx insectcam-hotspot && nmcli connection delete insectcam-hotspot >/dev/null
 nmcli connection add type wifi ifname wlan0 con-name insectcam-hotspot autoconnect yes \
-  ssid "$ssid" 802-11-wireless.mode ap 802-11-wireless.band bg \
+  ssid "$ssid" 802-11-wireless.mode ap 802-11-wireless.band bg 802-11-wireless.channel 6 \
   ipv4.method shared ipv4.addresses 192.168.4.1/24 ipv6.method disabled \
   wifi-sec.key-mgmt wpa-psk wifi-sec.psk antcamera wifi-sec.proto rsn \
-  wifi-sec.pairwise ccmp wifi-sec.group ccmp >/dev/null
+  wifi-sec.pairwise ccmp wifi-sec.group ccmp wifi-sec.pmf disable >/dev/null
+# WPA2 only, protected management frames off: NetworkManager otherwise adds
+# WPA3 (SAE) alongside, and on 14 October 2026 a Pixel 8 joined and dropped
+# off again within ~3 s until the network was WPA2-only.
 # Captive portal, as on the XIAO: every name resolves to the camera, so a
 # phone joining the network is sent straight to the control app.
 install -d /etc/NetworkManager/dnsmasq-shared.d
