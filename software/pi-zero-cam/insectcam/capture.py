@@ -31,18 +31,15 @@ Differences from the ESP32, all deliberate:
   - Time stays session-relative (uptime_ms since this process started,
     captured_at_utc empty), as on the ESP32: a kit has no internet clock.
 
-Run:  python3 -m insectcam.capture --data-root /srv/insectcam
-Stop: Ctrl+C or SIGTERM (systemd); the run is then marked "finished".
+This module holds the storage formats and session bookkeeping; the camera,
+service loop and entry point are in service.py, the phone app in control.py.
+Run:  python3 -m insectcam.service --data-root /srv/insectcam
 """
 
 from __future__ import annotations
 
-import argparse
-import io
 import json
 import os
-import signal
-import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,7 +61,11 @@ PERFORMANCE_HEADER = (
     "capture_id,scheduled_ms,start_lag_ms,capture_ms,encode_ms,image_write_ms,raw_csv_ms,dashboard_ms,"
     "total_ms,jpeg_bytes,outcome,cpu_temp_c,throttled")
 
-FRAME_SIZES = {"3MP": (2304, 1296), "12MP": (4608, 2592)}
+FRAME_SIZES = {"1MP": (1536, 864), "3MP": (2304, 1296), "12MP": (4608, 2592)}
+# The phone app's two quality choices (its page is shared with the XIAO, where
+# they mean QXGA/q12 and VGA/q24).
+QUALITY_PRESETS = {"high": ("3MP", 85), "low": ("1MP", 70)}
+PEEK_SIZE = (640, 360)
 
 
 # --------------------------------------------------------------------------- config
@@ -325,171 +326,3 @@ class Session:
         self.storage.write_atomic(f"raw/runs/{self.run_id}.json", json.dumps(manifest, indent=2) + "\n")
 
 
-# --------------------------------------------------------------------------- camera
-
-class Camera:
-    def __init__(self, config: Config) -> None:
-        from libcamera import controls  # imported here so --help works without a camera stack
-        from picamera2 import Picamera2
-        self.picam = Picamera2()
-        self.size = FRAME_SIZES[config.frame_size]
-        frame_us = int(1_000_000 / config.sensor_fps)
-        camera_config = self.picam.create_still_configuration(
-            main={"size": self.size, "format": "RGB888"},
-            buffer_count=2,
-            controls={"FrameDurationLimits": (frame_us, frame_us),
-                      "AfMode": controls.AfModeEnum.Continuous})
-        self.picam.configure(camera_config)
-        self.picam.options["quality"] = config.jpeg_quality
-        self.picam.start()
-        model = self.picam.camera_properties.get("Model", "unknown")
-        self.sensor_id = str(model).upper()
-
-    def warm_up(self, seconds: float) -> dict:
-        deadline = time.monotonic() + seconds
-        metadata = {}
-        while time.monotonic() < deadline:
-            metadata = self.picam.capture_metadata()
-        return metadata
-
-    def capture_jpeg(self) -> tuple[bytes, int, int]:
-        """Returns (jpeg bytes, capture_ms, encode_ms)."""
-        started = time.monotonic()
-        request = self.picam.capture_request()
-        captured = time.monotonic()
-        try:
-            buffer = io.BytesIO()
-            request.save("main", buffer, format="jpeg")
-        finally:
-            request.release()
-        encoded = time.monotonic()
-        return buffer.getvalue(), int((captured - started) * 1000), int((encoded - captured) * 1000)
-
-    def status(self) -> str:
-        md = self.picam.capture_metadata()
-        return (f"AfState={md.get('AfState')} lens={md.get('LensPosition', 0):.2f} "
-                f"exposure_us={md.get('ExposureTime')} gain={md.get('AnalogueGain', 0):.2f} "
-                f"colour_gains={tuple(round(g, 2) for g in md.get('ColourGains', ()))} "
-                f"sensor_temp={md.get('SensorTemperature')}")
-
-    def close(self) -> None:
-        self.picam.stop()
-        self.picam.close()
-
-
-def soc_health() -> tuple[str, str]:
-    try:
-        millidegrees = int(Path("/sys/class/thermal/thermal_zone0/temp").read_text().strip())
-        temperature = f"{millidegrees / 1000:.1f}"
-    except (OSError, ValueError):
-        temperature = ""
-    try:
-        import subprocess
-        throttled = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True,
-                                   timeout=2).stdout.strip().split("=")[-1]
-    except (OSError, subprocess.SubprocessError):
-        throttled = ""
-    return temperature, throttled
-
-
-# --------------------------------------------------------------------------- main loop
-
-def report(message: str) -> None:
-    print(f"[insect-logger] {message}", flush=True)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Pi Zero 2 W insect camera capture service")
-    parser.add_argument("--data-root", type=Path, default=Path("/srv/insectcam"))
-    parser.add_argument("--warmup-s", type=float, default=3.0, help="let AF/AE/AWB settle before the first capture")
-    args = parser.parse_args()
-
-    stop = {"requested": False}
-
-    def request_stop(signum, frame):  # noqa: ARG001 - signal handler signature
-        stop["requested"] = True
-    signal.signal(signal.SIGTERM, request_stop)
-    signal.signal(signal.SIGINT, request_stop)
-
-    storage = Storage(args.data_root)
-    storage.ensure_dir("system")
-    config, note = Config.load(storage.path("config.json"))
-    report(f"firmware {FIRMWARE_VERSION} starting; data root {args.data_root}")
-    report(note)
-    camera = Camera(config)
-    report(f"camera initialised: {camera.sensor_id} {camera.size[0]}x{camera.size[1]} "
-           f"q{config.jpeg_quality}, sensor {config.sensor_fps:g} fps, autofocus continuous")
-    boot_id = f"boot_{int(time.time() * 1000) % 10**9}"
-    session = Session(storage, config, camera.sensor_id, boot_id)
-    for line in session.begin():
-        report(line)
-    performance_path = f"system/performance_{session.run_id}.csv"
-    if not storage.path(performance_path).is_file():
-        storage.append_line(performance_path, PERFORMANCE_HEADER)
-
-    camera.warm_up(args.warmup_s)
-    report(f"camera warm-up complete ({args.warmup_s:g} s): {camera.status()}")
-
-    interval = config.capture_interval_ms / 1000
-    session_start = time.monotonic()
-    next_due = session_start
-    try:
-        while not stop["requested"]:
-            if config.max_session_seconds and time.monotonic() - session_start >= config.max_session_seconds:
-                report("maximum session length reached")
-                break
-            delay = next_due - time.monotonic()
-            if delay > 0:
-                time.sleep(min(delay, 0.5))
-                continue
-            total_start = time.monotonic()
-            scheduled_ms = int((next_due - session.started) * 1000)
-            start_lag_ms = int((total_start - next_due) * 1000)
-            capture_id = session.next_capture_id()
-            image_path = session.image_path(capture_id)
-            outcome, save_outcome, error_code = "completed", "saved", ""
-            jpeg, capture_ms, encode_ms, write_ms = b"", 0, 0, 0
-            try:
-                jpeg, capture_ms, encode_ms = camera.capture_jpeg()
-            except Exception as error:  # camera faults must not stop the session
-                outcome, save_outcome, error_code, image_path = "capture_error", "not_attempted", type(error).__name__, ""
-                report(f"capture failed: {error}")
-            if outcome == "completed":
-                write_start = time.monotonic()
-                try:
-                    storage.write_atomic(image_path, jpeg)
-                except OSError as error:
-                    outcome, save_outcome, error_code, image_path = "storage_error", "failed", "image_write_failed", ""
-                    report(f"image write failed: {error}")
-                write_ms = int((time.monotonic() - write_start) * 1000)
-            uptime_ms = session.uptime_ms()
-            raw_ms = dashboard_ms = 0
-            try:
-                raw_ms, dashboard_ms = session.record(
-                    capture_id=capture_id, uptime_ms=uptime_ms, scheduled_ms=scheduled_ms, outcome=outcome,
-                    width=camera.size[0] if jpeg else 0, height=camera.size[1] if jpeg else 0,
-                    jpeg_bytes=len(jpeg), capture_ms=capture_ms + encode_ms, image_path=image_path,
-                    save_outcome=save_outcome, error_code=error_code)
-            except OSError as error:
-                report(f"capture log failure: {error}")
-            total_ms = int((time.monotonic() - total_start) * 1000)
-            if session.sequence % PERFORMANCE_SAMPLE_INTERVAL == 0:
-                temperature, throttled = soc_health()
-                storage.append_line(performance_path, ",".join(map(str, [
-                    capture_id, scheduled_ms, start_lag_ms, capture_ms, encode_ms, write_ms, raw_ms, dashboard_ms,
-                    total_ms, len(jpeg), outcome, temperature, throttled])))
-                report(f"performance {capture_id}: total {total_ms} ms (encode {encode_ms}, write {write_ms}), "
-                       f"soc {temperature} C, throttled {throttled}; {camera.status()}")
-            next_due += interval
-            if time.monotonic() > next_due + interval:
-                report("capture cadence overrun; schedule rebased without backlog")
-                next_due = time.monotonic() + interval
-    finally:
-        session.finish()
-        camera.close()
-        report(f"session complete: {session.run_id}, {session.sequence} captures")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
