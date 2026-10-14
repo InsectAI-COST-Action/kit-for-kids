@@ -18,6 +18,23 @@ Branch `Pi-zero-cam3`, started 14 October 2026. An alternative to the XIAO ESP32
 
 Full 12 MP (4608x2592) is available (`"frame_size": "12MP"` in `config.json`): ~400 ms encode, ~950 KB per photo.
 
+### Getting photos off: the Pi appears as a USB drive
+
+Owner decision (14 October 2026): plug the Pi into a computer and it shows up as a drive named **INSECT-AI** holding the dashboard and photos - the same files and drive name as a XIAO card, opened the same way, with no card to remove.
+
+`pi/insectcam-drive` (install to `/usr/local/sbin/`) manages it. The photos live in a FAT32 disk image, `/srv/insectcam-card.img`. In capture mode the Pi mounts it at `/srv/insectcam`; in transfer mode it unmounts it and presents it over USB with Linux's `g_mass_storage`. **Never both at once**: two writers on one FAT filesystem corrupt it. The script refuses to switch to transfer mode while the capture service runs, and runs `fsck.vfat` before remounting in case the computer was unplugged mid-copy.
+
+```
+sudo insectcam-drive create 2048        # once
+sudo insectcam-drive mount
+# copy the dashboard in: prepare_card() from ../TomA-insect-ESP32-software/tools/prepare_sd.py
+sudo insectcam-drive transfer-test 180  # development: drive for 3 min, then back to USB networking
+```
+
+Verified 14 October 2026: after a 56-photo capture into the image, Windows showed `D: INSECT-AI` (FAT32, 2 GB) within 11 s; `audit_card.py D:\` reported CLEAN; the Pi then returned to USB networking and remounted with all 56 photos intact.
+
+Still to build: choosing the mode automatically at start-up (computer attached on the data port: drive; power bank or no computer: capture).
+
 ### Running the capture service by hand
 
 ```

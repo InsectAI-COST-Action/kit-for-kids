@@ -1,0 +1,92 @@
+#!/bin/sh
+# insectcam-drive: the Pi's photo "card" - a FAT32 disk image that is either
+# mounted on the Pi (capture mode) or handed to a computer as a USB drive
+# (transfer mode), never both at once (both writing to one FAT filesystem
+# corrupts it).
+#
+#   insectcam-drive create SIZE_MB   make the image (once, at provisioning)
+#   insectcam-drive mount            mount it at $MOUNT for the capture service
+#   insectcam-drive unmount
+#   insectcam-drive transfer         unmount, then present it over USB as a drive
+#   insectcam-drive network          stop being a drive, return to the USB network
+#                                    link (rpi-usb-gadget's g_ether) and remount
+#   insectcam-drive transfer-test S  transfer for S seconds, then network (development:
+#                                    keeps SSH-over-USB reachable afterwards)
+#   insectcam-drive status
+#
+# The volume label is INSECT-AI because the dashboard tells children to pick
+# the drive by that name (see prepare_sd.py in the ESP32 project).
+set -eu
+
+IMAGE=${INSECTCAM_IMAGE:-/srv/insectcam-card.img}
+MOUNT=${INSECTCAM_MOUNT:-/srv/insectcam}
+LABEL=INSECT-AI
+OWNER_UID=$(id -u pi)
+OWNER_GID=$(id -g pi)
+
+log() { echo "[insectcam-drive] $*"; }
+
+is_mounted() { mountpoint -q "$MOUNT"; }
+
+do_mount() {
+  is_mounted && return 0
+  mkdir -p "$MOUNT"
+  # fsck first: the computer may have been unplugged mid-copy in transfer mode.
+  fsck.vfat -a "$IMAGE" >/dev/null 2>&1 || true
+  mount -o loop,uid="$OWNER_UID",gid="$OWNER_GID",umask=022,flush "$IMAGE" "$MOUNT"
+  log "mounted $IMAGE at $MOUNT"
+}
+
+do_unmount() {
+  is_mounted || return 0
+  sync
+  umount "$MOUNT"
+  log "unmounted $MOUNT"
+}
+
+do_transfer() {
+  # Anchored: an unanchored match also hits any shell whose command line
+  # merely mentions the module (e.g. the SSH command that launched this).
+  if pgrep -f '^python3 -m insectcam\.capture' >/dev/null; then
+    log "capture service is running; stop it first"; exit 1
+  fi
+  do_unmount
+  modprobe -r g_ether 2>/dev/null || true
+  # removable=1: the computer may eject it; stall=0 for Windows compatibility.
+  modprobe g_mass_storage file="$IMAGE" removable=1 ro=0 stall=0 \
+    iManufacturer="InsectAI" iProduct="Insect camera" idVendor=0x2E8A idProduct=0x0014
+  log "presenting $IMAGE to the computer as drive $LABEL"
+}
+
+do_network() {
+  modprobe -r g_mass_storage 2>/dev/null || true
+  modprobe g_ether
+  do_mount
+  log "back to USB network link"
+}
+
+case "${1:-status}" in
+  create)
+    size_mb=${2:?size in MB}
+    [ -e "$IMAGE" ] && { log "$IMAGE already exists; not overwriting"; exit 1; }
+    fallocate -l "${size_mb}M" "$IMAGE"
+    mkfs.vfat -F 32 -n "$LABEL" "$IMAGE" >/dev/null
+    log "created ${size_mb} MB FAT32 image $IMAGE labelled $LABEL"
+    ;;
+  mount) do_mount ;;
+  unmount) do_unmount ;;
+  transfer) do_transfer ;;
+  network) do_network ;;
+  transfer-test)
+    seconds=${2:-120}
+    do_transfer
+    sleep "$seconds"
+    do_network
+    ;;
+  status)
+    is_mounted && log "mounted at $MOUNT" || log "not mounted"
+    lsmod | grep -qE '^g_mass_storage' && log "USB: drive" || log "USB: network"
+    log "USB link state: $(cat /sys/class/udc/*/state 2>/dev/null)"
+    ;;
+  *) echo "usage: $0 create SIZE_MB|mount|unmount|transfer|network|transfer-test SECONDS|status"; exit 2 ;;
+esac
