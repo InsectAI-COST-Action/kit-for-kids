@@ -1,0 +1,3 @@
+# Files here run on the Pi (Linux): keep LF line endings even on a Windows
+# checkout with core.autocrlf, or shell scripts fail with ": not found".
+* text=auto eol=lf
