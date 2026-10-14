@@ -4,7 +4,28 @@ Branch `Pi-zero-cam3`, started 14 October 2026. An alternative to the XIAO ESP32
 
 **Why:** the OV5640 on the XIAO Sense board overheats (it melted a rubber band through its heatsink, even at a 5 s capture interval). The XIAO Sense board supplies the OV5640 core from a 1.3 V regulator, below the sensor's 1.425-1.575 V range, so the sensor falls back on its internal regulator, which OmniVision's datasheet warns causes "a potential heat issue". That is a hardware problem, not fixable in firmware. See `../TomA-insect-ESP32-software/docs/hardware-validation.md` on branch `wip/camera-ov5640`.
 
-**Status:** setting up. The plan is: (1) connect to the board, (2) confirm the camera works, (3) port the ESP32 camera's behaviour (1 FPS capture to card, run manifests, phone control app with peek, offline dashboard) to the Pi.
+**Status (14 October 2026):** (1) connected over USB and (2) camera confirmed. (3) Porting: the capture loop is done (`insectcam/capture.py`); still to port are the phone hotspot and control app with peek, and how the photos reach the dashboard (the Pi's card is Linux-formatted, so Windows cannot just open it the way it opens the XIAO's FAT card).
+
+### First results
+
+10-minute run, 1 photo/s, 2304x1296 JPEG q85, sensor streaming at 5 fps with continuous autofocus, bare board in open air:
+
+- **606/606 photos**, interval mean 1,000 ms, max 1,154 ms; run `finished`.
+- **~140 ms of work per photo** (JPEG encode ~99 ms, card write ~33 ms) - against 600-690 ms on the XIAO/OV5640.
+- **Processor 39.7 -> 40.8 C, flat after 4 minutes; camera sensor 28 -> 37 C**, levelling off; never throttled; CPU load ~0. The OV5640 melted a rubber band.
+- Photos 284-306 KB; autofocus held focused (`AfState 2`) throughout.
+- The ESP32 project's `tools/audit_card.py`, run on Windows against the Pi's data, reports CLEAN. (Run it on Windows: it converts paths with backslashes, so on Linux it cannot find the dashboard chunks.)
+
+Full 12 MP (4608x2592) is available (`"frame_size": "12MP"` in `config.json`): ~400 ms encode, ~950 KB per photo.
+
+### Running the capture service by hand
+
+```
+scp -r insectcam pi@insectcam.local:/opt/insectcam/
+ssh pi@insectcam.local "cd /opt/insectcam && python3 -m insectcam.capture --data-root /srv/insectcam"
+```
+
+Needs `python3-picamera2` (`sudo apt install python3-picamera2`; the Lite image does not include it). For internet on the Pi during development, Windows Internet Connection Sharing from Wi-Fi to the Pi's USB adapter works and the Pi switches to it automatically.
 
 ## Preparing a card without the Imager GUI
 
