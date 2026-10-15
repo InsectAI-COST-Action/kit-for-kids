@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import sys
 import statistics
 import subprocess
 import time
@@ -31,73 +31,8 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image
 
-
-def letterbox(image: Image.Image, size: int) -> tuple[np.ndarray, float, int, int]:
-    """Resize keeping aspect ratio onto a grey size x size canvas. Returns (CHW float32, scale, pad_x, pad_y)."""
-    width, height = image.size
-    scale = min(size / width, size / height)
-    new_w, new_h = round(width * scale), round(height * scale)
-    resized = image.resize((new_w, new_h), Image.BILINEAR)
-    canvas = Image.new("RGB", (size, size), (114, 114, 114))
-    pad_x, pad_y = (size - new_w) // 2, (size - new_h) // 2
-    canvas.paste(resized, (pad_x, pad_y))
-    array = np.asarray(canvas, dtype=np.float32).transpose(2, 0, 1) / 255.0
-    return array[None], scale, pad_x, pad_y
-
-
-def iou(a: np.ndarray, b: np.ndarray) -> float:
-    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
-    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
-    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
-    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter / union if union > 0 else 0.0
-
-
-def nms(boxes: np.ndarray, scores: np.ndarray, threshold: float = 0.7) -> list[int]:
-    order = scores.argsort()[::-1]
-    keep: list[int] = []
-    while order.size:
-        i = int(order[0])
-        keep.append(i)
-        order = np.array([j for j in order[1:] if iou(boxes[i], boxes[j]) < threshold], dtype=int)
-    return keep
-
-
-def decode(output: np.ndarray, conf: float, scale: float, pad_x: int, pad_y: int,
-           width: int, height: int) -> list[tuple[np.ndarray, float]]:
-    """Model output -> [(xyxy in original image pixels, score)] above the confidence floor.
-
-    Two layouts: [1, 4+nc, N] (centre x/y, w, h, class scores; needs NMS) and the
-    end-to-end [1, K, 6] of YOLO26's default export (x1, y1, x2, y2, score, class;
-    the network has already removed duplicates, so no NMS here).
-    """
-    if output.ndim == 3 and output.shape[2] == 6 and output.shape[1] > output.shape[2]:
-        rows = output[0]
-        rows = rows[rows[:, 4] >= conf]
-        result = []
-        for x1, y1, x2, y2, score, _ in rows:
-            box = np.array([(x1 - pad_x) / scale, (y1 - pad_y) / scale, (x2 - pad_x) / scale, (y2 - pad_y) / scale])
-            box[[0, 2]] = box[[0, 2]].clip(0, width)
-            box[[1, 3]] = box[[1, 3]].clip(0, height)
-            result.append((box, float(score)))
-        return result
-    predictions = output[0].T  # N x (4+nc)
-    scores = predictions[:, 4:].max(axis=1)
-    mask = scores >= conf
-    if not mask.any():
-        return []
-    predictions, scores = predictions[mask], scores[mask]
-    cx, cy, w, h = predictions[:, 0], predictions[:, 1], predictions[:, 2], predictions[:, 3]
-    boxes = np.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=1)
-    keep = nms(boxes, scores)
-    result = []
-    for i in keep:
-        x1, y1, x2, y2 = boxes[i]
-        box = np.array([(x1 - pad_x) / scale, (y1 - pad_y) / scale, (x2 - pad_x) / scale, (y2 - pad_y) / scale])
-        box[[0, 2]] = box[[0, 2]].clip(0, width)
-        box[[1, 3]] = box[[1, 3]].clip(0, height)
-        result.append((box, float(scores[i])))
-    return result
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from insectcam.detector import decode, iou, letterbox  # noqa: E402 - one copy of the pre/post-processing
 
 
 def read_labels(path: Path, width: int, height: int) -> list[np.ndarray]:
@@ -209,7 +144,7 @@ def main() -> int:
             truth = read_labels(args.labels / (path.stem + ".txt"), *image.size)
             matched: set[int] = set()
             hits = 0
-            for box, score in found:
+            for box, score, _ in found:
                 best, best_j = 0.0, -1
                 for j, label in enumerate(truth):
                     if j in matched:
@@ -229,7 +164,7 @@ def main() -> int:
                     hits += hit
             labels_total += len(truth)
             per_image.append({"image": path.name[:28], "labels": len(truth),
-                              "found_at_conf": sum(1 for _, s in found if s >= args.conf), "matched": int(hits)})
+                              "found_at_conf": sum(1 for _, s, _ in found if s >= args.conf), "matched": int(hits)})
         tp_at_conf, fp_at_conf = int(tp_at_conf), int(fp_at_conf)
         precision = tp_at_conf / max(tp_at_conf + fp_at_conf, 1)
         recall = tp_at_conf / max(labels_total, 1)
