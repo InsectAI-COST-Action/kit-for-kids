@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import os
 import signal
 import subprocess
 import sys
@@ -17,7 +18,12 @@ from pathlib import Path
 
 from insectcam.capture import (FIRMWARE_VERSION, FRAME_SIZES, PEEK_SIZE, PERFORMANCE_HEADER,
                                PERFORMANCE_SAMPLE_INTERVAL, Config, Session, Storage)
+from insectcam.detector import MODEL_STATUS, Detector, DetectorWorker, yuv420_to_rgb
 from insectcam.motion import MotionDetector, preview_from_luma
+
+# Installed models live on the read-only system, not on the child's drive (docs/edge-model-test.md).
+MODEL_DIR = Path(os.environ.get("INSECTCAM_MODEL_DIR", "/opt/insectcam/models"))
+DETECTOR_THREADS = 3  # of 4 cores: capture, the camera pipeline and the web server share the rest
 
 
 # --------------------------------------------------------------------------- camera
@@ -47,8 +53,10 @@ class Camera:
         while time.monotonic() < deadline:
             self.picam.capture_metadata()
 
-    def capture(self, motion: "MotionDetector | None" = None) -> tuple[bytes, bytes, int, int, float]:
-        """One frame: (photo JPEG, peek JPEG, capture_ms, encode_ms, motion score).
+    def capture(self, motion: "MotionDetector | None" = None, want_rgb: bool = False):
+        """One frame: (photo JPEG, peek JPEG, capture_ms, encode_ms, motion score, RGB frame or None).
+
+        The RGB frame (640x360, for the detector) is only built for a photo that is being kept.
 
         The peek is ~20 KB and ~7 ms. With a motion detector, the frame is only
         JPEG-encoded (~100 ms) when the scene changed; otherwise the photo is
@@ -70,9 +78,10 @@ class Camera:
                 request.save("main", buffer, format="jpeg")
                 photo = buffer.getvalue()
             encoded = time.monotonic()
+            rgb = yuv420_to_rgb(yuv, *PEEK_SIZE) if (want_rgb and photo) else None
         finally:
             request.release()
-        return photo, peek, int((captured - started) * 1000), int((encoded - captured) * 1000), score
+        return photo, peek, int((captured - started) * 1000), int((encoded - captured) * 1000), score, rgb
 
     @staticmethod
     def _peek_jpeg(yuv) -> bytes:
@@ -203,7 +212,10 @@ class Service:
             return
         report(f"camera initialised: {camera.sensor_id} {camera.size[0]}x{camera.size[1]} "
                f"q{config.jpeg_quality}, sensor {config.sensor_fps:g} fps, autofocus continuous")
-        session = Session(self.storage, config, camera.sensor_id, self.boot_id)
+        worker = self.start_detector(config)
+        session = Session(self.storage, config, camera.sensor_id, self.boot_id,
+                          model_sha256=worker.detector.sha256 if worker else "",
+                          model_status=MODEL_STATUS if worker else "")
         report(self.storage.tidy_root())
         try:
             for line in session.begin():
@@ -218,8 +230,10 @@ class Service:
             with self.lock:
                 self.state = "capturing"
                 self.session_started = time.monotonic()
-            self.capture_loop(camera, session, config, performance_path)
+            self.capture_loop(camera, session, config, performance_path, worker)
         finally:
+            if worker is not None:
+                worker.stop()
             session.finish()
             camera.close()
             with self.lock:
@@ -228,7 +242,25 @@ class Service:
                     self.state = "safe_to_remove"
             report(f"session complete: {session.run_id}, {session.sequence} captures; safe to remove")
 
-    def capture_loop(self, camera: Camera, session: Session, config: Config, performance_path: str) -> None:
+    def start_detector(self, config: Config) -> "DetectorWorker | None":
+        """Load the configured model, if any. A missing or broken model never stops capture:
+        the rows are then recorded with outcome model_unavailable."""
+        if not config.detection_enabled:
+            return None
+        path = MODEL_DIR / f"{config.model_id}.onnx"
+        try:
+            detector = Detector(path, threads=DETECTOR_THREADS, confidence=config.detection_confidence)
+        except Exception as error:
+            report(f"detection requested but model {path} cannot be loaded ({error}); recording model_unavailable")
+            return None
+        worker = DetectorWorker(detector)
+        worker.start()
+        report(f"detection on: {config.model_id} ({detector.size}px, sha256 {detector.sha256[:12]}), "
+               f"status {MODEL_STATUS}, confidence {config.detection_confidence}")
+        return worker
+
+    def capture_loop(self, camera: Camera, session: Session, config: Config, performance_path: str,
+                     worker: "DetectorWorker | None" = None) -> None:
         interval = config.capture_interval_ms / 1000
         # Motion mode: every scheduled check costs a row; only a changed scene costs a photo.
         detector = MotionDetector(config.motion_threshold) if config.motion_trigger_enabled else None
@@ -249,8 +281,9 @@ class Service:
             image_path = session.image_path(capture_id)
             outcome, save_outcome, error_code = "completed", "saved", ""
             jpeg, peek, capture_ms, encode_ms, write_ms, motion_score = b"", b"", 0, 0, 0, -1.0
+            rgb = detection = None
             try:
-                jpeg, peek, capture_ms, encode_ms, motion_score = camera.capture(detector)
+                jpeg, peek, capture_ms, encode_ms, motion_score, rgb = camera.capture(detector, want_rgb=worker is not None)
                 if detector is not None and not jpeg:
                     # A completed check with no photo, as on the XIAO.
                     outcome, save_outcome, image_path = "motion_not_detected", "not_saved", ""
@@ -265,13 +298,19 @@ class Service:
                     outcome, save_outcome, error_code, image_path = "storage_error", "failed", "image_write_failed", ""
                     report(f"image write failed: {error}")
                 write_ms = int((time.monotonic() - write_start) * 1000)
+            # After the photo is safely written: detect on the frame of a photo that was kept. Never
+            # changes whether or how the photo is saved (ADR 0002).
+            if worker is not None and outcome == "completed" and rgb is not None:
+                detection = worker.detect_for_capture(rgb)
+                if detection.outcome != "ok":
+                    report(f"detection {detection.outcome} for {capture_id}")
             raw_ms = dashboard_ms = 0
             try:
                 raw_ms, dashboard_ms = session.record(
                     capture_id=capture_id, uptime_ms=session.uptime_ms(), scheduled_ms=scheduled_ms, outcome=outcome,
                     width=camera.size[0] if jpeg else 0, height=camera.size[1] if jpeg else 0,
                     jpeg_bytes=len(jpeg), capture_ms=capture_ms + encode_ms, image_path=image_path,
-                    save_outcome=save_outcome, error_code=error_code, motion_score=motion_score)
+                    save_outcome=save_outcome, error_code=error_code, motion_score=motion_score, detection=detection)
             except OSError as error:
                 report(f"capture log failure: {error}")
             with self.lock:

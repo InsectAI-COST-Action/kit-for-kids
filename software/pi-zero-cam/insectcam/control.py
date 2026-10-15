@@ -38,7 +38,8 @@ def page_view(config: Config) -> dict:
             "camera_preset": config.camera_preset, "motion_trigger_enabled": config.motion_trigger_enabled,
             "motion_threshold": config.motion_threshold,
             "frame_size": "VGA" if low else "QXGA", "jpeg_quality": 24 if low else 12,
-            "model_id": config.model_id, "pi_frame_size": config.frame_size, "pi_jpeg_quality": config.jpeg_quality}
+            "model_id": config.model_id, "detection_confidence": config.detection_confidence,
+            "pi_frame_size": config.frame_size, "pi_jpeg_quality": config.jpeg_quality}
 
 
 def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPServer:
@@ -117,6 +118,13 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
                       "camera_preset": preset, "frame_size": frame_size, "jpeg_quality": quality,
                       "motion_trigger_enabled": motion, "motion_threshold": 5, "model_id": "none",
                       "log_level": "info"}
+            # The page only knows the settings above. Keep the detection settings it does not touch (they used
+            # to be reset to "none" by every save), whether or not the old file was valid.
+            try:
+                previous = json.loads(storage.path("config.json").read_text(encoding="utf-8-sig"))
+            except (OSError, ValueError):
+                previous = {}
+            config.update({key: previous[key] for key in ("model_id", "detection_confidence") if key in previous})
             storage.write_atomic("config.json", json.dumps(config, indent=2) + "\n")
             self.send_json(202, {"accepted": True})
 

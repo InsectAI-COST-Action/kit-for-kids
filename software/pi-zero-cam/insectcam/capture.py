@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -79,9 +80,14 @@ class Config:
     sensor_fps: float = 5.0               # streaming rate; AF/AE need frames, heat scales with it
     capture_mode: str = "pilot"
     camera_preset: str = "imx708_3mp_q85_1fps"
-    model_id: str = "none"
+    model_id: str = "none"                # "none" = no detection; otherwise the file name (without .onnx) of an installed model
+    detection_confidence: float = 0.25    # minimum score for a recorded prediction
     motion_trigger_enabled: bool = False  # save only when the scene changes (see motion.py)
     motion_threshold: int = 5             # fixed at 5, as on the XIAO
+
+    @property
+    def detection_enabled(self) -> bool:
+        return self.model_id not in ("", "none")
 
     @classmethod
     def load(cls, path: Path) -> tuple["Config", str]:
@@ -100,6 +106,8 @@ class Config:
                 setattr(config, key, str(data[key]))
         if "sensor_fps" in data:
             config.sensor_fps = float(data["sensor_fps"])
+        if "detection_confidence" in data:
+            config.detection_confidence = float(data["detection_confidence"])
         if "motion_trigger_enabled" in data:
             config.motion_trigger_enabled = bool(data["motion_trigger_enabled"])
         if "motion_threshold" in data:
@@ -119,6 +127,11 @@ class Config:
             problems.append("sensor_fps")
         if config.motion_threshold != 5:
             problems.append("motion_threshold")
+        # model_id becomes a file name, so it must be a plain identifier (no paths).
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", config.model_id) or config.model_id.startswith("."):
+            problems.append("model_id")
+        if not 0.05 <= config.detection_confidence <= 0.95:
+            problems.append("detection_confidence")
         if problems:
             return cls(), f"config.json has unsupported {', '.join(problems)}; using defaults"
         return config, f"config.json loaded: {config.capture_mode}/{config.camera_preset}"
@@ -321,6 +334,8 @@ class Session:
     sequence: int = 0
     dashboard: DashboardWriter | None = None
     started: float = field(default_factory=time.monotonic)
+    model_sha256: str = ""       # of the installed model file, when detection is enabled
+    model_status: str = ""       # e.g. placeholder_unvalidated; copied into every prediction row
 
     def begin(self) -> list[str]:
         notes = []
@@ -364,24 +379,45 @@ class Session:
 
     def record(self, *, capture_id: str, uptime_ms: int, scheduled_ms: int, outcome: str, width: int, height: int,
                jpeg_bytes: int, capture_ms: int, image_path: str, save_outcome: str, error_code: str = "",
-               motion_score: float = -1.0) -> tuple[int, int]:
+               motion_score: float = -1.0, detection=None) -> tuple[int, int]:
+        """`detection`: None when no model ran for this check (disabled, or a frame that was not kept),
+        else an object with outcome, elapsed_ms, predictions (class_id, label, confidence, x, y, w, h) and
+        max_confidence (insectcam.detector.DetectionResult)."""
         motion_on = self.config.motion_trigger_enabled
         threshold = self.config.motion_threshold if motion_on else 0
+        inference_outcome = "model_unavailable"   # no model, or no inference for this check (as on the XIAO)
+        inference_ms, predictions, max_confidence = 0, [], 0.0
+        if detection is not None:
+            inference_outcome = detection.outcome
+            inference_ms = detection.elapsed_ms
+            predictions = list(detection.predictions)
+            max_confidence = detection.max_confidence
         row = ",".join([
             str(SCHEMA_VERSION), "device_000001", csv_escape(self.run_id), self.boot_id, csv_escape(capture_id), "",
             str(uptime_ms), str(scheduled_ms), outcome, str(width), str(height), str(jpeg_bytes), str(capture_ms),
-            "0", csv_escape(self.config.model_id), "0", "0.0000", csv_escape(image_path),
+            str(inference_ms), csv_escape(self.config.model_id), str(len(predictions)), f"{max_confidence:.4f}",
+            csv_escape(image_path),
             "motion_trigger" if motion_on else "every_frame",
             save_outcome, f"{motion_score:.3f}", str(threshold), csv_escape(error_code)])
         started = time.monotonic()
         self.storage.append_line("raw/captures.csv", row)
+        # Predictions after the capture row: a power cut can then lose predictions but never leave a
+        # prediction for a capture that has no row.
+        metadata = csv_escape(json.dumps({"model_status": self.model_status or "unspecified",
+                                          "model_sha256": self.model_sha256}, separators=(",", ":")))
+        for index, prediction in enumerate(predictions):
+            self.storage.append_line("raw/detections.csv", ",".join([
+                str(SCHEMA_VERSION), csv_escape(self.run_id), csv_escape(capture_id), str(index),
+                str(prediction.class_id), csv_escape(prediction.label), f"{prediction.confidence:.4f}",
+                f"{prediction.x:.5f}", f"{prediction.y:.5f}", f"{prediction.w:.5f}", f"{prediction.h:.5f}",
+                csv_escape(self.config.model_id), metadata]))
         raw_ms = int((time.monotonic() - started) * 1000)
         started = time.monotonic()
         assert self.dashboard is not None
         self.dashboard.append({
             "runId": self.run_id, "captureId": capture_id, "uptimeMs": uptime_ms, "outcome": outcome,
             "imagePath": image_path, "width": width, "height": height, "jpegBytes": jpeg_bytes,
-            "captureMs": capture_ms, "inferenceMs": 0, "inferenceOutcome": "model_unavailable",
+            "captureMs": capture_ms, "inferenceMs": inference_ms, "inferenceOutcome": inference_outcome,
             "motionScore": round(motion_score, 3), "motionThreshold": float(threshold)})
         return raw_ms, int((time.monotonic() - started) * 1000)
 
@@ -395,7 +431,8 @@ class Session:
         c = self.config
         manifest = {
             "schema_version": SCHEMA_VERSION, "run_id": self.run_id, "state": state, "sensor": self.sensor_id,
-            "model_id": c.model_id, "capture_mode": c.capture_mode, "camera_preset": c.camera_preset,
+            "model_id": c.model_id, "model_sha256": self.model_sha256, "model_status": self.model_status,
+            "detection_confidence": c.detection_confidence, "capture_mode": c.capture_mode, "camera_preset": c.camera_preset,
             "capture_fps": 1, "capture_interval_ms": c.capture_interval_ms,
             "max_session_seconds": c.max_session_seconds, "motion_trigger_enabled": c.motion_trigger_enabled,
             "motion_threshold": c.motion_threshold,
