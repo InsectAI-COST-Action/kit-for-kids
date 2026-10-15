@@ -2,13 +2,44 @@
 # Install or update the insect camera on a Pi Zero 2 W prepared by
 # tools/flash_card.py. Run on the Pi as root from a copy of this folder:
 #
-#   sudo sh pi/install.sh            (from software/pi-zero-cam)
+#   sudo sh pi/install.sh               (from software/pi-zero-cam)
+#   sudo sh pi/install.sh --read-only   same, then make the system read-only
 #
 # Idempotent: safe to re-run after changing the code. Needs internet the first
 # time (packages). Leaves existing photos alone.
 set -eu
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 log() { echo "[install] $*"; }
+
+READ_ONLY=no
+[ "${1:-}" = "--read-only" ] && READ_ONLY=yes
+
+# --- card layout: boot | system (ROOT_GIB, read-only capable) | INSECT-AI photos (rest of the card)
+# tools/flash_card.py removes the image's "resize" boot option, so the system
+# partition has not been grown to fill the card. Grow it to a fixed size and
+# put a FAT32 photo partition after it. Online, with partx telling the kernel;
+# only runs once (when no INSECT-AI partition exists yet).
+DISK=/dev/mmcblk0
+ROOT_GIB=4
+if ! blkid -L INSECT-AI >/dev/null 2>&1; then
+  total=$(cat /sys/class/block/mmcblk0/size)
+  start2=$(cat /sys/class/block/mmcblk0p2/start)
+  size2=$(cat /sys/class/block/mmcblk0p2/size)
+  want=$(( ROOT_GIB * 1024 * 1024 * 1024 / 512 ))
+  data_start=$(( start2 + want ))
+  [ $(( total - data_start )) -gt $(( 2 * 1024 * 1024 * 1024 / 512 )) ] || { log "card too small for ${ROOT_GIB} GB system + 2 GB photos"; exit 1; }
+  [ "$size2" -le "$want" ] || { log "system partition is already larger than ${ROOT_GIB} GB; re-flash with tools/flash_card.py"; exit 1; }
+  log "growing the system partition to ${ROOT_GIB} GB and adding the photo partition"
+  echo ",${want}" | sfdisk --no-reread --no-tell-kernel -N 2 "$DISK" >/dev/null
+  partx -u "$DISK"
+  resize2fs /dev/mmcblk0p2 >/dev/null 2>&1
+  echo "start=${data_start}, type=0c" | sfdisk --no-reread --no-tell-kernel --append "$DISK" >/dev/null
+  partx -a --nr 3 "$DISK"
+  udevadm settle
+  mkfs.vfat -F 32 -n INSECT-AI /dev/mmcblk0p3 >/dev/null
+  udevadm settle
+  log "photo partition ready: $(lsblk -no SIZE /dev/mmcblk0p3 | tr -d ' ') FAT32 INSECT-AI"
+fi
 
 # --- packages (python3-picamera2 is not in the Lite image)
 if ! python3 -c "import picamera2, simplejpeg" 2>/dev/null || ! command -v mkfs.vfat >/dev/null; then
@@ -24,13 +55,7 @@ install -m 755 "$HERE"/pi/insectcam-drive /usr/local/sbin/insectcam-drive
 install -m 755 "$HERE"/pi/insectcam-boot /usr/local/sbin/insectcam-boot
 log "application installed in /opt/insectcam"
 
-# --- photo drive (a FAT32 image named INSECT-AI; see pi/insectcam-drive)
-if [ ! -e /srv/insectcam-card.img ]; then
-  free_mb=$(df -m --output=avail /srv | tail -n1)
-  size_mb=$(( free_mb - 512 ))      # leave room for the system
-  [ "$size_mb" -gt 1024 ] || { log "not enough space for a photo drive (${free_mb} MB free)"; exit 1; }
-  /usr/local/sbin/insectcam-drive create "$size_mb"
-fi
+# --- photo drive
 /usr/local/sbin/insectcam-drive mount
 if [ -d "$HERE/card" ]; then
   # Dashboard files staged by prepare_card() (see README); never overwrites photos or config.
@@ -95,4 +120,12 @@ UNIT
 systemctl daemon-reload
 systemctl enable insectcam-boot.service >/dev/null 2>&1
 log "services installed (insectcam-boot enabled; it starts insectcam.service in capture mode)"
+if [ "$READ_ONLY" = yes ]; then
+  # Overlay file system: the system partition is never written (changes live in
+  # RAM and vanish at power-off) and the boot partition is mounted read-only,
+  # so pulling the plug cannot corrupt the system. Only INSECT-AI is written.
+  raspi-config nonint enable_overlayfs
+  raspi-config nonint enable_bootro
+  log "read-only system enabled; takes effect at the next boot"
+fi
 log "done"

@@ -35,7 +35,7 @@ dev_flag_on_drive() {
   # and replug to get the USB network link back.
   mnt=$(mktemp -d)
   found=1
-  if mount -o loop,ro /srv/insectcam-card.img "$mnt" 2>/dev/null; then
+  if mount -o ro "${INSECTCAM_DEVICE:-/dev/disk/by-label/INSECT-AI}" "$mnt" 2>/dev/null; then
     [ -e "$mnt/insectcam-dev" ] && found=0
     umount "$mnt"
   fi

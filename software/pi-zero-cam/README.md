@@ -4,7 +4,7 @@ Branch `Pi-zero-cam3`, started 14 October 2026. An alternative to the XIAO ESP32
 
 **Why:** the OV5640 on the XIAO Sense board overheats (it melted a rubber band through its heatsink, even at a 5 s capture interval). The XIAO Sense board supplies the OV5640 core from a 1.3 V regulator, below the sensor's 1.425-1.575 V range, so the sensor falls back on its internal regulator, which OmniVision's datasheet warns causes "a potential heat issue". That is a hardware problem, not fixable in firmware. See `../TomA-insect-ESP32-software/docs/hardware-validation.md` on branch `wip/camera-ov5640`.
 
-**Status (14 October 2026):** (1) connected over USB and (2) camera confirmed. (3) Porting: the capture loop is done (`insectcam/capture.py`); still to port are the phone hotspot and control app with peek, and how the photos reach the dashboard (the Pi's card is Linux-formatted, so Windows cannot just open it the way it opens the XIAO's FAT card).
+**Status (15 October 2026):** working end to end on one Pi. Capture, phone hotspot and control app (peek, finish, start again, settings), the INSECT-AI USB drive, automatic mode choice at power-up, and a read-only system partition are all built and tested. Not built: motion mode, the master image for batch setup, one-click flashing.
 
 ### First results
 
@@ -18,31 +18,30 @@ Branch `Pi-zero-cam3`, started 14 October 2026. An alternative to the XIAO ESP32
 
 Full 12 MP (4608x2592) is available (`"frame_size": "12MP"` in `config.json`): ~400 ms encode, ~950 KB per photo.
 
-### Getting photos off: the Pi appears as a USB drive
-
-Owner decision (14 October 2026): plug the Pi into a computer and it shows up as a drive named **INSECT-AI** holding the dashboard and photos - the same files and drive name as a XIAO card, opened the same way, with no card to remove.
-
-`pi/insectcam-drive` (install to `/usr/local/sbin/`) manages it. The photos live in a FAT32 disk image, `/srv/insectcam-card.img`. In capture mode the Pi mounts it at `/srv/insectcam`; in transfer mode it unmounts it and presents it over USB with Linux's `g_mass_storage`. **Never both at once**: two writers on one FAT filesystem corrupt it. The script refuses to switch to transfer mode while the capture service runs, and runs `fsck.vfat` before remounting in case the computer was unplugged mid-copy.
+### Card layout and getting photos off
 
 ```
-sudo insectcam-drive create 2048        # once
-sudo insectcam-drive mount
-# copy the dashboard in: prepare_card() from ../TomA-insect-ESP32-software/tools/prepare_sd.py
-sudo insectcam-drive transfer-test 180  # development: drive for 3 min, then back to USB networking
+boot (512 MB, FAT32, read-only)  |  system (4 GB, ext4, read-only overlay)  |  INSECT-AI (rest of the card, FAT32, writable)
 ```
 
-Verified 14 October 2026: after a 56-photo capture into the image, Windows showed `D: INSECT-AI` (FAT32, 2 GB) within 11 s; `audit_card.py D:\` reported CLEAN; the Pi then returned to USB networking and remounted with all 56 photos intact.
+Owner decisions (14-15 October 2026): plugging the Pi into a computer makes it show up as a drive named **INSECT-AI** holding the dashboard and photos - the same files and drive name as a XIAO card, opened the same way, with no card to remove; and the system must survive the plug being pulled.
 
-Still to build: choosing the mode automatically at start-up (computer attached on the data port: drive; power bank or no computer: capture).
+- **The photo partition is the drive.** `pi/insectcam-drive` mounts it at `/srv/insectcam` for capture, or unmounts it and hands the raw partition to a computer over USB (Linux `g_mass_storage`). **Never both at once**: two writers on one FAT filesystem corrupt it. It refuses transfer mode while the capture service runs and runs `fsck.vfat` before every mount.
+- **Read-only system.** `sudo sh pi/install.sh --read-only` turns on Raspberry Pi's overlay file system (`raspi-config nonint enable_overlayfs` and `enable_bootro`): the system partition is mounted read-only underneath a RAM overlay (208 MB) whose changes vanish at power-off, and `/boot/firmware` is read-only. Only INSECT-AI is ever written, and the capture service writes every file atomically (temporary file, fsync, rename).
+- **Automatic mode at power-up** (`pi/insectcam-boot`): it presents the drive and waits 12 s for a computer to configure it. A computer on the data port: the Pi stays a drive and does not capture. Otherwise (power bank, PWR socket): it mounts the photos and starts the camera service. An `insectcam-dev` file on the boot partition (or at the top of INSECT-AI) skips this and keeps the USB network link for SSH.
+- **To change the software on a read-only Pi:** `sudo raspi-config nonint disable_overlayfs; sudo raspi-config nonint disable_bootro; sudo reboot`, run `install.sh`, then `install.sh --read-only` and reboot.
+
+Verified 15 October 2026 on a fresh card: layout built by `install.sh` (boot 512 MB / system 4 GB / INSECT-AI 3 GB on an 8 GB card); capture starts by itself at power-up; with the overlay on, the real system partition is mounted `ro`, `/boot/firmware` is `ro`, writes land in tmpfs and INSECT-AI is writable; a clean reboot mid-capture marks the run `finished`; an immediate reboot with no sync (`echo b > /proc/sysrq-trigger`, equivalent to pulling the plug as far as the software is concerned) mid-capture kept all 62 photos of that run, left no `.tmp` files, passed `fsck.vfat`, marked the run `interrupted_power_removed` and started a new one; `audit_card.py` on Windows over the USB drive reported CLEAN for 3,959 photos across 6 runs. (A literal cable pull has not yet been tested on the read-only build: the one attempt shut down gracefully.)
 
 ### Running the capture service by hand
 
-```
-scp -r insectcam pi@insectcam.local:/opt/insectcam/
-ssh pi@insectcam.local "cd /opt/insectcam && python3 -m insectcam.capture --data-root /srv/insectcam"
-```
+On a read-write Pi: `cd /opt/insectcam && python3 -m insectcam.service --data-root /srv/insectcam --http-port 8080` (`--once` runs a single session). Stop the systemd service first (`sudo systemctl stop insectcam`) if it is running.
 
-Needs `python3-picamera2` (`sudo apt install python3-picamera2`; the Lite image does not include it). For internet on the Pi during development, Windows Internet Connection Sharing from Wi-Fi to the Pi's USB adapter works and the Pi switches to it automatically.
+Needs `python3-picamera2` (the Lite image does not include it; `install.sh` installs it). For internet on the Pi during development, Windows Internet Connection Sharing from Wi-Fi to the Pi's USB adapter works and the Pi switches to it automatically.
+
+### Phone hotspot
+
+`InsectCam-<last 4 hex digits of the Pi's serial>` / `antcamera`, the same scheme as the XIAO cameras. WPA2 only on channel 6: NetworkManager's default adds WPA3, and a Pixel 8 then joined and dropped within about 3 s. Address-assignment and name resolution are NetworkManager's shared mode plus a catch-all DNS entry, so phones are sent straight to the control app. `insectcam/control_app.html` is extracted from the ESP32 firmware (`tools/extract_control_app.py`), so both cameras serve the same page and translations. Motion mode is not supported yet; the Pi refuses it with a message.
 
 ## Preparing a card without the Imager GUI
 
@@ -53,7 +52,7 @@ py tools\flash_card.py --list
 py tools\flash_card.py --disk 1 --hostname insectcam
 ```
 
-It downloads and checksum-verifies the image once (cached in `%LOCALAPPDATA%\insectcam\images`), writes it with Raspberry Pi Imager's command-line mode (one Windows administrator prompt per card; Imager re-reads the card to verify), then writes cloud-init `user-data` and `network-config` onto the card's boot partition:
+It downloads and checksum-verifies the image once (cached in `%LOCALAPPDATA%\insectcam\images`), writes it with Raspberry Pi Imager's command-line mode (Windows administrator prompts: one to write, one to give the boot partition a drive letter afterwards; Imager re-reads the card to verify), then writes cloud-init `user-data` and `network-config` onto the card's boot partition:
 
 - hostname (`<hostname>.local` on the USB link);
 - user `pi`, **SSH key only**, no password (the key is this PC's `~/.ssh/id_ed25519.pub` or `id_rsa.pub`);
@@ -61,6 +60,8 @@ It downloads and checksum-verifies the image once (cached in `%LOCALAPPDATA%\ins
 - Raspberry Pi's official USB gadget mode (`rpi: enable_usb_gadget: true`, package [`rpi-usb-gadget`](https://github.com/raspberrypi/rpi-usb-gadget), Apache-2.0, preinstalled in the image).
 
 No Wi-Fi password goes on the card unless `--wifi-ssid` is given (password from the `INSECTCAM_WIFI_PASSWORD` environment variable). This keeps the Pi's own Wi-Fi free for the children's phone hotspot later.
+
+Things learned flashing a second card: Imager exits after a second with code 1 and no message if Windows has given the card's Linux partition a drive letter (a card from an earlier flash), so the tool releases the card's drive letters first; Imager ejects the card when it finishes, so the card must be taken out and put back before its boot partition is visible again; and the tool removes `resize` from the kernel command line, because the image otherwise expands the system partition over the whole card on first boot, leaving no room for the photo partition.
 
 Formats follow Raspberry Pi's [Cloud-init on Raspberry Pi OS](https://www.raspberrypi.com/news/cloud-init-on-raspberry-pi-os/) and the `rpi-usb-gadget` README. The installed Imager (1.8) has no cloud-init options on its command line, which is why the tool writes those files itself after the image.
 

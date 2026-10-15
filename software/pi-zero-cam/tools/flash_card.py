@@ -31,6 +31,7 @@ Pi's USB gadget driver (see ../README.md).
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import lzma
@@ -115,20 +116,38 @@ def fetch_image() -> Path:
     return image
 
 
+def run_elevated(inner: str) -> int:
+    """Run PowerShell text in an elevated PowerShell (one Windows administrator prompt)."""
+    encoded = base64.b64encode(inner.encode("utf-16-le")).decode("ascii")
+    script = (f"$p = Start-Process powershell -Verb RunAs -Wait -PassThru "
+              f"-ArgumentList '-NoProfile','-EncodedCommand','{encoded}'; exit $p.ExitCode")
+    return subprocess.run(["powershell", "-NoProfile", "-Command", script]).returncode
+
+
 def write_image(image: Path, disk_number: int) -> None:
     if not IMAGER.is_file():
         sys.exit(f"Raspberry Pi Imager not found at {IMAGER}")
     target = rf"\\.\PhysicalDrive{disk_number}"
     print(f"Writing {image.name} to {target} with Raspberry Pi Imager (approve the Windows prompt) ...")
-    # Imager is a GUI-subsystem program that demands elevation, so it is
-    # started through PowerShell with RunAs and waited on; its own console
-    # output is not visible here, only its exit code.
-    arguments = f"'--cli','--quiet','{image}','{target}'"
-    script = (f"$p = Start-Process -FilePath '{IMAGER}' -ArgumentList {arguments} "
-              f"-Verb RunAs -Wait -PassThru; exit $p.ExitCode")
-    result = subprocess.run(["powershell", "-NoProfile", "-Command", script])
-    if result.returncode != 0:
-        sys.exit(f"Raspberry Pi Imager failed or was cancelled (exit code {result.returncode}).")
+    # Imager is a GUI-subsystem program that demands elevation, so everything
+    # runs in one elevated PowerShell (one administrator prompt) that is waited
+    # on; Imager's own output is not visible here, only its exit code.
+    #
+    # The card's drive letters are released first: a card previously written by
+    # this tool has a Linux partition that Windows shows as an unformatted
+    # volume with a drive letter, and with that letter in place Imager exits
+    # after a second with code 1 and no message (14 October 2026). A blank card
+    # has no such volume, which is why the first card worked.
+    inner = (
+        f"foreach ($part in Get-Partition -DiskNumber {disk_number} -ErrorAction SilentlyContinue) {{ "
+        f"if ($part.DriveLetter) {{ Remove-PartitionAccessPath -DiskNumber {disk_number} "
+        f"-PartitionNumber $part.PartitionNumber -AccessPath ($part.DriveLetter + ':\\') -ErrorAction SilentlyContinue }} }}; "
+        f"Start-Sleep 2; "
+        f"$p = Start-Process -FilePath '{IMAGER}' -ArgumentList '--cli','--quiet','\"{image}\"','{target}' "
+        f"-WorkingDirectory '{IMAGER.parent}' -Wait -PassThru -NoNewWindow; exit $p.ExitCode")
+    code = run_elevated(inner)
+    if code != 0:
+        sys.exit(f"Raspberry Pi Imager failed or was cancelled (exit code {code}).")
     print("Image written and verified by Imager.")
 
 
@@ -150,6 +169,14 @@ def find_boot_partition(disk_number: int, timeout_s: int = 600) -> Path:
                 "Select-Object PartitionNumber,DriveLetter,Size")
         except subprocess.CalledProcessError:
             parts = []
+        if parts and not any(str(part.get("DriveLetter") or "").strip().strip("\x00") for part in parts):
+            # write_image() released the card's drive letters so Imager could lock
+            # it, and Windows does not hand them back by itself. Partition 1 is
+            # the FAT32 boot partition. Needs administrator rights.
+            print("Giving the boot partition a drive letter (approve the Windows prompt) ...", flush=True)
+            run_elevated(f"Add-PartitionAccessPath -DiskNumber {disk_number} -PartitionNumber 1 -AssignDriveLetter")
+            time.sleep(3)
+            continue
         for part in parts:
             letter = str(part.get("DriveLetter") or "").strip()
             if letter and letter != "\u0000" and (Path(f"{letter}:/") / "cmdline.txt").is_file():
@@ -217,13 +244,25 @@ def network_config(wifi_ssid: str | None, wifi_password: str | None) -> str:
 """
 
 
-def configure(boot: Path, hostname: str, key: str, wifi_ssid: str | None, wifi_password: str | None) -> None:
+def configure(boot: Path, hostname: str, key: str, wifi_ssid: str | None, wifi_password: str | None,
+              dev: bool = False) -> None:
     if not (boot / "user-data").is_file() and not (boot / "meta-data").is_file():
         print("Warning: no cloud-init files on this card's boot partition; this image may not support cloud-init.")
     (boot / "user-data").write_text(user_data(hostname, key), encoding="utf-8", newline="\n")
     (boot / "network-config").write_text(network_config(wifi_ssid, wifi_password), encoding="utf-8", newline="\n")
+    # Keep the system partition at the image's own size: the image's first boot
+    # would otherwise expand it to fill the card ("resize" on the kernel command
+    # line), leaving no room for the separate photo partition that pi/install.sh
+    # adds (so that the system partition can be read-only).
+    cmdline = boot / "cmdline.txt"
+    tokens = cmdline.read_text(encoding="utf-8").split()
+    cmdline.write_text(" ".join(t for t in tokens if t != "resize") + "\n", encoding="utf-8", newline="\n")
+    if dev:
+        # Development: keep the USB network link (SSH over USB) instead of
+        # presenting the photo drive at power-up. See pi/insectcam-boot.
+        (boot / "insectcam-dev").write_text("", encoding="utf-8")
     print(f"Configured {boot}: hostname {hostname}, user pi (SSH key only), USB gadget on"
-          + (f", Wi-Fi {wifi_ssid}" if wifi_ssid else ", no Wi-Fi") + ".")
+          + (f", Wi-Fi {wifi_ssid}" if wifi_ssid else ", no Wi-Fi") + (", development flag" if dev else "") + ".")
 
 
 def main() -> int:
@@ -233,6 +272,7 @@ def main() -> int:
     parser.add_argument("--hostname", default="insectcam", help="network name; reach it as <hostname>.local")
     parser.add_argument("--ssh-key", type=Path, help="public key file (default: ~/.ssh/id_ed25519.pub or id_rsa.pub)")
     parser.add_argument("--wifi-ssid", help="optional Wi-Fi for development; password from INSECTCAM_WIFI_PASSWORD")
+    parser.add_argument("--dev", action="store_true", help="development card: keep SSH over USB at power-up")
     parser.add_argument("--configure-only", action="store_true", help="skip writing the image; only write cloud-init files")
     parser.add_argument("--yes", action="store_true", help="do not ask for confirmation before erasing the card")
     args = parser.parse_args()
@@ -262,7 +302,7 @@ def main() -> int:
             print("Cancelled.")
             return 1
         write_image(fetch_image(), args.disk)
-    configure(find_boot_partition(args.disk), args.hostname, key, args.wifi_ssid, wifi_password)
+    configure(find_boot_partition(args.disk), args.hostname, key, args.wifi_ssid, wifi_password, args.dev)
     print(f"Done. Put the card in the Pi, connect the micro-USB port next to the mini-HDMI to this PC, "
           f"wait a few minutes for first boot, then: ssh pi@{args.hostname}.local")
     return 0
