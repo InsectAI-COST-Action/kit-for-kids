@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -26,6 +27,8 @@ from urllib.parse import parse_qs, urlparse
 from insectcam.capture import QUALITY_PRESETS, Config, Storage
 
 PAGE = (Path(__file__).with_name("control_app.html")).read_bytes()
+LIVE_BOUNDARY = "insectframe"
+LIVE_MAX_SECONDS = 600   # one viewing session; limits CPU and heat if a phone is left open
 ALLOWED_INTERVALS_MS = (1000, 2000, 30000, 60000)   # the page's choices, as on the XIAO
 ALLOWED_DURATIONS_S = (60, 300, 1800, 3600, 0)
 
@@ -45,6 +48,9 @@ def page_view(config: Config) -> dict:
 def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         server_version = "insectcam"
+        # Socket timeout for every request, including writes: a phone that disappears mid-stream (Wi-Fi
+        # drop, no FIN) must not hold a live-view slot or a thread forever.
+        timeout = 15
 
         def log_message(self, format, *args):  # noqa: A002 - quiet; the service logs what matters
             pass
@@ -71,6 +77,8 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
             elif path == "/api/config":
                 config, _ = Config.load(storage.path("config.json"))
                 self.send_json(200, page_view(config))
+            elif path == "/api/live":
+                self.stream_live()
             else:
                 self.send(200, PAGE, "text/html; charset=utf-8")
 
@@ -89,6 +97,35 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
                 self.save_config()
             else:
                 self.send_json(404, {"error": "Not found."})
+
+        def stream_live(self) -> None:
+            """multipart/x-mixed-replace MJPEG of detector-annotated frames (HTTP/1.0: ends when we close)."""
+            error = service.live.open()
+            if error is not None:
+                self.send_json(409 if error != "live_busy" else 503, {"error": error, "errorCode": error})
+                return
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={LIVE_BOUNDARY}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                deadline = time.monotonic() + LIVE_MAX_SECONDS
+                seq = 0
+                while time.monotonic() < deadline:
+                    item = service.live.next_frame(seq, timeout=2.0)
+                    if item is None:
+                        if not service.live.active() or service.live.error:
+                            break
+                        continue
+                    seq, jpeg = item
+                    header = f"--{LIVE_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\n\r\n"
+                    self.wfile.write(header.encode("ascii"))
+                    self.wfile.write(jpeg)
+                    self.wfile.write(b"\r\n")
+            except OSError:
+                pass  # the phone went away (BrokenPipe, ConnectionReset, timeout)
+            finally:
+                service.live.close()
 
         def save_config(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)

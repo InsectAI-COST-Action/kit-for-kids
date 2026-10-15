@@ -232,6 +232,11 @@ class DetectorWorker(threading.Thread):
         assert ticket.result is not None
         return ticket.result
 
+    def idle(self) -> bool:
+        """True when a live-view frame would be accepted right now (lets a producer skip grabbing frames)."""
+        with self._condition:
+            return not (self._busy or self._capture_job is not None or self._live_job is not None)
+
     def try_detect_live(self, image: Image.Image) -> _Ticket | None:
         with self._condition:
             if self._busy or self._capture_job is not None or self._live_job is not None:

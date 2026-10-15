@@ -19,6 +19,7 @@ from pathlib import Path
 from insectcam.capture import (FIRMWARE_VERSION, FRAME_SIZES, PEEK_SIZE, PERFORMANCE_HEADER,
                                PERFORMANCE_SAMPLE_INTERVAL, Config, Session, Storage)
 from insectcam.detector import MODEL_STATUS, Detector, DetectorWorker, yuv420_to_rgb
+from insectcam.live import LiveView
 from insectcam.motion import MotionDetector, preview_from_luma
 
 # Installed models live on the read-only system, not on the child's drive (docs/edge-model-test.md).
@@ -82,6 +83,14 @@ class Camera:
         finally:
             request.release()
         return photo, peek, int((captured - started) * 1000), int((encoded - captured) * 1000), score, rgb
+
+    def grab_rgb(self):
+        """The newest 640x360 frame as an RGB image (for the live view). Safe to call from another thread."""
+        request = self.picam.capture_request()
+        try:
+            return yuv420_to_rgb(request.make_array("lores"), *PEEK_SIZE)
+        finally:
+            request.release()
 
     @staticmethod
     def _peek_jpeg(yuv) -> bytes:
@@ -150,6 +159,8 @@ class Service:
         self.session_ended = 0.0  # freezes elapsedMs once a session finishes
         self.peek = b""
         self.motion_recent: list[float] = []
+        self.live = LiveView(MODEL_DIR)
+        self.detection_enabled = False
         self.stop_requested = threading.Event()
         self.start_requested = threading.Event()
         self.shutdown = threading.Event()
@@ -163,7 +174,11 @@ class Service:
             return {"state": self.state, "runId": self.run_id, "captureCount": self.capture_count,
                     "savedCount": self.saved_count, "elapsedMs": elapsed,
                     "sdMounted": self.storage.root.is_dir(), "error": self.error, "errorCode": self.error_code,
-                    "hasPeek": bool(self.peek), "motionRecent": list(self.motion_recent)}
+                    "hasPeek": bool(self.peek), "motionRecent": list(self.motion_recent),
+                    # Pi-only extras the injected page section reads (the shared page ignores them).
+                    "features": ["live", "detect"], "liveAvailable": self.live.available(),
+                    "liveClients": self.live.clients, "modelInstalled": self.live.model_installed(),
+                    "detectionEnabled": self.detection_enabled}
 
     def latest_peek(self) -> bytes:
         with self.lock:
@@ -217,6 +232,8 @@ class Service:
                           model_sha256=worker.detector.sha256 if worker else "",
                           model_status=MODEL_STATUS if worker else "")
         report(self.storage.tidy_root())
+        self.detection_enabled = config.detection_enabled
+        self.live.attach(camera, config, worker)
         try:
             for line in session.begin():
                 report(line)
@@ -232,6 +249,7 @@ class Service:
                 self.session_started = time.monotonic()
             self.capture_loop(camera, session, config, performance_path, worker)
         finally:
+            self.live.detach()   # viewers' streams end before the camera and the detector go away
             if worker is not None:
                 worker.stop()
             session.finish()
