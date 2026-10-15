@@ -33,6 +33,12 @@ Owner decisions (14-15 October 2026): plugging the Pi into a computer makes it s
 
 Verified 15 October 2026 on a fresh card: layout built by `install.sh` (boot 512 MB / system 4 GB / INSECT-AI 3 GB on an 8 GB card); capture starts by itself at power-up; with the overlay on, the real system partition is mounted `ro`, `/boot/firmware` is `ro`, writes land in tmpfs and INSECT-AI is writable; a clean reboot mid-capture marks the run `finished`; an immediate reboot with no sync (`echo b > /proc/sysrq-trigger`, equivalent to pulling the plug as far as the software is concerned) mid-capture kept all 62 photos of that run, left no `.tmp` files, passed `fsck.vfat`, marked the run `interrupted_power_removed` and started a new one; `audit_card.py` on Windows over the USB drive reported CLEAN for 3,959 photos across 6 runs. (A literal cable pull has not yet been tested on the read-only build: the one attempt shut down gracefully.)
 
+### The drive looks tidy
+
+Only `dashboard.html` and `images` are visible at the top of INSECT-AI; the dashboard's support files, `data`, `raw` and `system` carry the FAT hidden attribute (`insectcam.capture.Storage.tidy_root`, run at every mount, before the drive is handed to a computer, and at each session start; the attribute survives atomic rewrites). The same tidy deletes `FSCK####.REC` files: `fsck.vfat -a` salvages photos cut off mid-save into them after every unclean stop, and 33 (9.7 MB) had piled up during power-cut testing. Nothing is moved, so the dashboard loads its files by the same paths as on a XIAO card.
+
+Verified 15 October 2026: dashboard opened from the Pi's drive and checked by the owner - works, including after hiding; on the read-only Pi, tidy removed a planted fragment, hid a stray file, and a rewritten `manifest.js` stayed hidden.
+
 ### Running the capture service by hand
 
 On a read-write Pi: `cd /opt/insectcam && python3 -m insectcam.service --data-root /srv/insectcam --http-port 8080` (`--once` runs a single session). Stop the systemd service first (`sudo systemctl stop insectcam`) if it is running.
