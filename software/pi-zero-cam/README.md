@@ -31,7 +31,7 @@ Owner decisions (14-15 October 2026): plugging the Pi into a computer makes it s
 - **Automatic mode at power-up** (`pi/insectcam-boot`): it presents the drive and waits 12 s for a computer to configure it. A computer on the data port: the Pi stays a drive and does not capture. Otherwise (power bank, PWR socket): it mounts the photos and starts the camera service. An `insectcam-dev` file on the boot partition (or at the top of INSECT-AI) skips this and keeps the USB network link for SSH.
 - **To change the software on a read-only Pi:** `sudo raspi-config nonint disable_overlayfs; sudo raspi-config nonint disable_bootro; sudo reboot`, run `install.sh`, then `install.sh --read-only` and reboot.
 
-Verified 15 October 2026 on a fresh card: layout built by `install.sh` (boot 512 MB / system 4 GB / INSECT-AI 3 GB on an 8 GB card); capture starts by itself at power-up; with the overlay on, the real system partition is mounted `ro`, `/boot/firmware` is `ro`, writes land in tmpfs and INSECT-AI is writable; a clean reboot mid-capture marks the run `finished`; an immediate reboot with no sync (`echo b > /proc/sysrq-trigger`, equivalent to pulling the plug as far as the software is concerned) mid-capture kept all 62 photos of that run, left no `.tmp` files, passed `fsck.vfat`, marked the run `interrupted_power_removed` and started a new one; `audit_card.py` on Windows over the USB drive reported CLEAN for 3,959 photos across 6 runs. (A literal cable pull has not yet been tested on the read-only build: the one attempt shut down gracefully.)
+Verified 15 October 2026 on a fresh card: layout built by `install.sh` (boot 512 MB / system 4 GB / INSECT-AI 3 GB on an 8 GB card); capture starts by itself at power-up; with the overlay on, the real system partition is mounted `ro`, `/boot/firmware` is `ro`, writes land in tmpfs and INSECT-AI is writable; a clean reboot mid-capture marks the run `finished`; an immediate reboot with no sync (`echo b > /proc/sysrq-trigger`, equivalent to pulling the plug as far as the software is concerned) mid-capture kept all 62 photos of that run, left no `.tmp` files, passed `fsck.vfat`, marked the run `interrupted_power_removed` and started a new one; `audit_card.py` on Windows over the USB drive reported CLEAN for 3,959 photos across 6 runs. (That check counted photos; a later one that opens them found a bug, fixed 15 October: each photo is now fsynced again after the rename. A literal cable pull has not yet been tested on the read-only build: the one attempt shut down gracefully.)
 
 ### The drive looks tidy
 
@@ -50,6 +50,10 @@ Verified 15 October 2026 (test copy run from RAM on the read-only Pi, motion swi
 On a read-write Pi: `cd /opt/insectcam && python3 -m insectcam.service --data-root /srv/insectcam --http-port 8080` (`--once` runs a single session). Stop the systemd service first (`sudo systemctl stop insectcam`) if it is running.
 
 Needs `python3-picamera2` (the Lite image does not include it; `install.sh` installs it). For internet on the Pi during development, Windows Internet Connection Sharing from Wi-Fi to the Pi's USB adapter works and the Pi switches to it automatically.
+
+### Ant detection and live view (experimental)
+
+Needs the detector installed (`pi/install.sh`, with a model staged in the gitignored `models/` folder; without one the controls say "no model installed"). The only model so far is a **placeholder** that finds dark specks, not ants, and everything it produces is labelled as such. **Live view** (button beside Take a peek) shows annotated frames, about 2 per second, only after the detector has run. **Ant detection** (settings) records predictions for each saved photo in `raw/detections.csv`; it is off by default and never changes which photos are kept. Details and measurements: `docs/edge-model-test.md`.
 
 ### Phone hotspot
 
