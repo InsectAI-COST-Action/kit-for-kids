@@ -277,7 +277,7 @@ def draw_detections(image: Image.Image, result: DetectionResult, banner: str = P
     frame = image.copy()
     draw = ImageDraw.Draw(frame)
     width, height = frame.size
-    font = ImageFont.load_default(size=max(11, height // 28))
+    font = ImageFont.load_default(size=max(16, height // 15))   # shown at about half size on a phone
     for prediction in result.predictions:
         x1, y1 = prediction.x * width, prediction.y * height
         x2, y2 = x1 + prediction.w * width, y1 + prediction.h * height

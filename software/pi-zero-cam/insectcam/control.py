@@ -18,17 +18,62 @@ Any other path serves the page, so a phone's captive-portal check opens it.
 from __future__ import annotations
 
 import json
+import re
 import threading
-import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from insectcam.capture import QUALITY_PRESETS, Config, Storage
 
-PAGE = (Path(__file__).with_name("control_app.html")).read_bytes()
-LIVE_BOUNDARY = "insectframe"
-LIVE_MAX_SECONDS = 600   # one viewing session; limits CPU and heat if a phone is left open
+
+# The page is shared with the XIAO (extracted from its firmware by tools/extract_control_app.py). Pi-only
+# features are spliced in here, at serve time, from pi_extras.html, so the shared page and the XIAO build
+# stay untouched. Each section goes at a fixed anchor of the shared page.
+EXTRAS_MARKER = re.compile(r"<!-- @@([a-z-]+) -->\n")
+INSERT_AFTER = {
+    "after-peek-button": '<button class="btn-peek" id="btnPeek" data-i18n="control.takeAPeek">&#x1F441;&#xFE0F; Take a peek</button>',
+    "after-motion-setting": '<label class="settings-check"><input type="checkbox" id="cfgMotion"> <span data-i18n="control.motionLabel">Save pictures only when something moves</span></label>',
+}
+INSERT_BEFORE = {"before-body-end": "</body>"}
+
+
+def split_extras(extras: str) -> dict:
+    """{marker name: html} for the sections of pi_extras.html (the text before the first marker is a comment)."""
+    pieces = EXTRAS_MARKER.split(extras)
+    return {pieces[i]: pieces[i + 1] for i in range(1, len(pieces) - 1, 2)}
+
+
+def build_page(page: str, extras: str) -> str:
+    """The shared page with the Pi-only sections inserted. Raises RuntimeError if an anchor has moved."""
+    sections = split_extras(extras)
+    for name, anchor in {**INSERT_AFTER, **INSERT_BEFORE}.items():
+        if name not in sections:
+            raise RuntimeError(f"pi_extras.html has no section {name!r}")
+        if page.count(anchor) != 1:
+            raise RuntimeError(f"shared page anchor for {name!r} found {page.count(anchor)} times (expected 1); "
+                               "re-extracting the page from the firmware probably changed it")
+    for name, anchor in INSERT_AFTER.items():
+        page = page.replace(anchor, anchor + sections[name])
+    for name, anchor in INSERT_BEFORE.items():
+        page = page.replace(anchor, sections[name] + anchor)
+    return page
+
+
+def load_page() -> bytes:
+    page = Path(__file__).with_name("control_app.html").read_text(encoding="utf-8")
+    try:
+        extras = Path(__file__).with_name("pi_extras.html").read_text(encoding="utf-8")
+        return build_page(page, extras).encode("utf-8")
+    except (OSError, RuntimeError) as error:
+        # Never let a cosmetic mismatch stop the camera: serve the shared page without the Pi extras.
+        print(f"[insect-logger] phone page: Pi extras not added ({error})", flush=True)
+        return page.encode("utf-8")
+
+
+PAGE = load_page()
+LIVE_WAIT_S = 2.5                          # how long a frame request waits for a newer frame
+VIEWER_ID = re.compile(r"[A-Za-z0-9]{6,32}")  # the page makes one up per live-view session
 ALLOWED_INTERVALS_MS = (1000, 2000, 30000, 60000)   # the page's choices, as on the XIAO
 ALLOWED_DURATIONS_S = (60, 300, 1800, 3600, 0)
 
@@ -55,11 +100,13 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
         def log_message(self, format, *args):  # noqa: A002 - quiet; the service logs what matters
             pass
 
-        def send(self, code: int, body: bytes = b"", content_type: str = "application/json") -> None:
+        def send(self, code: int, body: bytes = b"", content_type: str = "application/json", headers: dict | None = None) -> None:
             self.send_response(code)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             if body:
                 self.wfile.write(body)
@@ -77,8 +124,8 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
             elif path == "/api/config":
                 config, _ = Config.load(storage.path("config.json"))
                 self.send_json(200, page_view(config))
-            elif path == "/api/live":
-                self.stream_live()
+            elif path == "/api/live/frame":
+                self.live_frame()
             else:
                 self.send(200, PAGE, "text/html; charset=utf-8")
 
@@ -95,37 +142,67 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
                                          "errorCode": "adventure_in_progress"})
             elif path == "/api/config":
                 self.save_config()
+            elif path == "/api/model":
+                self.save_model()
+            elif path == "/api/live/stop":
+                self.live_stop()
             else:
                 self.send_json(404, {"error": "Not found."})
 
-        def stream_live(self) -> None:
-            """multipart/x-mixed-replace MJPEG of detector-annotated frames (HTTP/1.0: ends when we close)."""
-            error = service.live.open()
-            if error is not None:
-                self.send_json(409 if error != "live_busy" else 503, {"error": error, "errorCode": error})
+        def live_frame(self) -> None:
+            """GET /api/live/frame?id=<viewer>&after=<seq>: the next annotated frame (long-poll, one JPEG).
+
+            200 image/jpeg with X-Seq; 204 if nothing newer arrives within LIVE_WAIT_S (ask again); 409 / 503 with
+            an errorCode for the page when live view is not possible (not running, no model, two viewers already,
+            ten minutes used). The request itself is the viewer's heartbeat (see insectcam/live.py).
+            """
+            query = parse_qs(urlparse(self.path).query)
+            viewer = (query.get("id") or [""])[0]
+            if not VIEWER_ID.fullmatch(viewer):
+                self.send_json(400, {"error": "Bad viewer id.", "errorCode": "bad_request"})
                 return
             try:
-                self.send_response(200)
-                self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={LIVE_BOUNDARY}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                deadline = time.monotonic() + LIVE_MAX_SECONDS
-                seq = 0
-                while time.monotonic() < deadline:
-                    item = service.live.next_frame(seq, timeout=2.0)
-                    if item is None:
-                        if not service.live.active() or service.live.error:
-                            break
-                        continue
-                    seq, jpeg = item
-                    header = f"--{LIVE_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\n\r\n"
-                    self.wfile.write(header.encode("ascii"))
-                    self.wfile.write(jpeg)
-                    self.wfile.write(b"\r\n")
-            except OSError:
-                pass  # the phone went away (BrokenPipe, ConnectionReset, timeout)
-            finally:
-                service.live.close()
+                after = int((query.get("after") or ["0"])[0])
+            except ValueError:
+                after = 0
+            error = service.live.touch(viewer)
+            if error is not None:
+                self.send_json(503 if error == "live_busy" else 409, {"error": error, "errorCode": error})
+                return
+            item = service.live.next_frame(after, LIVE_WAIT_S)
+            if item is None:
+                self.send(204)
+                return
+            seq, jpeg = item
+            self.send(200, jpeg, "image/jpeg", {"X-Seq": str(seq)})
+
+        def live_stop(self) -> None:
+            query = parse_qs(urlparse(self.path).query)
+            viewer = (query.get("id") or [""])[0]
+            if VIEWER_ID.fullmatch(viewer):
+                service.live.leave(viewer)
+            self.send(204)
+
+        def save_model(self) -> None:
+            """Switch recording of detections on or off for the next session (the model that is installed)."""
+            length = int(self.headers.get("Content-Length") or 0)
+            form = {k: v[0] for k, v in parse_qs(self.rfile.read(length).decode("utf-8")).items()}
+            if not storage.root.is_dir():
+                self.send_json(409, {"error": "No camera card is mounted right now.", "errorCode": "no_card_mounted"})
+                return
+            model = "none"
+            if form.get("enabled") == "true":
+                model = service.live.default_model_id()
+                if model is None:
+                    self.send_json(409, {"error": "No detection model is installed.", "errorCode": "no_model_installed"})
+                    return
+            try:
+                config = json.loads(storage.path("config.json").read_text(encoding="utf-8-sig"))
+            except (OSError, ValueError):
+                config = {}
+            config["model_id"] = model
+            storage.write_atomic("config.json", json.dumps(config, indent=2) + "\n")
+            self.send_json(202, {"accepted": True, "model_id": model})
 
         def save_config(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)
