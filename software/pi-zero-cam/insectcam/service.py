@@ -188,6 +188,7 @@ class Service:
         report(f"camera initialised: {camera.sensor_id} {camera.size[0]}x{camera.size[1]} "
                f"q{config.jpeg_quality}, sensor {config.sensor_fps:g} fps, autofocus continuous")
         session = Session(self.storage, config, camera.sensor_id, self.boot_id)
+        report(self.storage.tidy_root())
         try:
             for line in session.begin():
                 report(line)

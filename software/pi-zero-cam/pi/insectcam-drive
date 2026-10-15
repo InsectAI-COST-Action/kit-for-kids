@@ -40,6 +40,14 @@ do_mount() {
   fsck.vfat -a "$DEVICE" >/dev/null 2>&1 || true
   mount -o uid="$OWNER_UID",gid="$OWNER_GID",umask=022,flush "$DEVICE" "$MOUNT"
   log "mounted $DEVICE at $MOUNT"
+  tidy
+}
+
+# fsck.vfat -a salvages the cluster chains of photos cut off mid-save as
+# FSCK####.REC files at the top of the drive; delete them, and keep everything
+# but the dashboard page and the photos folder hidden.
+tidy() {
+  (cd /opt/insectcam && python3 -m insectcam.tidy "$MOUNT") || log "tidy failed (continuing)"
 }
 
 do_unmount() {
@@ -55,6 +63,9 @@ do_transfer() {
   if pgrep -f '^python3 -m insectcam\.service' >/dev/null; then
     log "capture service is running; stop it first"; exit 1
   fi
+  # Mount first (this runs fsck and tidies) so the computer is handed a clean
+  # drive, then give the partition up.
+  do_mount
   do_unmount
   modprobe -r g_ether 2>/dev/null || true
   # removable=1: the computer may eject it; stall=0 for Windows compatibility.

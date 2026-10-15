@@ -118,9 +118,71 @@ class Config:
 
 # --------------------------------------------------------------------------- storage
 
+# FAT "hidden" attribute, set through the kernel's FAT ioctls. Windows and macOS
+# hide such entries by default, so the INSECT-AI drive shows a child only what
+# they should open. Nothing is moved: the dashboard loads its support files by
+# the same paths on a Pi card as on a XIAO card.
+FAT_IOCTL_GET_ATTRIBUTES = 0x80047210
+FAT_IOCTL_SET_ATTRIBUTES = 0x40047211
+FAT_ATTR_HIDDEN = 0x02
+VISIBLE_AT_ROOT = {"dashboard.html", "images", "System Volume Information"}
+
+
+def fat_hidden(path: Path) -> bool | None:
+    """True/False for a FAT file or directory, None if this is not a FAT filesystem."""
+    try:
+        import fcntl
+        import struct
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            raw = fcntl.ioctl(fd, FAT_IOCTL_GET_ATTRIBUTES, struct.pack("I", 0))
+        finally:
+            os.close(fd)
+        return bool(struct.unpack("I", raw)[0] & FAT_ATTR_HIDDEN)
+    except (OSError, ImportError):
+        return None
+
+
+def set_fat_hidden(path: Path, hidden: bool = True) -> bool:
+    try:
+        import fcntl
+        import struct
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            current = struct.unpack("I", fcntl.ioctl(fd, FAT_IOCTL_GET_ATTRIBUTES, struct.pack("I", 0)))[0]
+            wanted = (current | FAT_ATTR_HIDDEN) if hidden else (current & ~FAT_ATTR_HIDDEN)
+            if wanted != current:
+                fcntl.ioctl(fd, FAT_IOCTL_SET_ATTRIBUTES, struct.pack("I", wanted))
+        finally:
+            os.close(fd)
+        return True
+    except (OSError, ImportError):
+        return False
+
+
 class Storage:
     def __init__(self, root: Path) -> None:
         self.root = root
+
+    def tidy_root(self) -> str:
+        """Keep the top of the drive uncluttered for a child or teacher.
+
+        Deletes FSCK####.REC files (fragments of photos cut off mid-save, which
+        fsck.vfat salvages after every unclean stop) and hides everything at the
+        root except the dashboard page and the photos folder.
+        """
+        removed = 0
+        for leftover in self.root.glob("FSCK[0-9][0-9][0-9][0-9].REC"):
+            try:
+                leftover.unlink()
+                removed += 1
+            except OSError:
+                pass
+        hidden = 0
+        for entry in self.root.iterdir():
+            if entry.name not in VISIBLE_AT_ROOT and fat_hidden(entry) is False and set_fat_hidden(entry):
+                hidden += 1
+        return f"drive tidied: {removed} recovered fragment(s) removed, {hidden} support item(s) hidden"
 
     def path(self, relative: str) -> Path:
         return self.root / relative.lstrip("/")
@@ -133,11 +195,16 @@ class Storage:
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(target.name + ".tmp")
         payload = data.encode("utf-8") if isinstance(data, str) else data
+        # Replacing a file creates a new directory entry, which would lose the
+        # hidden attribute of the manifest.js/summary.js/config.json being replaced.
+        was_hidden = fat_hidden(target) if target.exists() else False
         with open(temporary, "wb") as handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, target)
+        if was_hidden:
+            set_fat_hidden(target)
         self._sync_dir(target.parent)
 
     def append_line(self, relative: str, line: str) -> None:
