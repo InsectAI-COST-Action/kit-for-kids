@@ -181,6 +181,7 @@ class LiveView:
             worker.stop()
 
     def _loop(self) -> None:
+        pending = None
         try:
             while True:
                 with self._cond:
@@ -199,19 +200,37 @@ class LiveView:
                             self._thread = None
                             self._cond.notify_all()
                         return
-                if not worker.idle():
-                    time.sleep(0.02)
-                    continue
+                # Pipelined: while frame N is in the detector, grab and convert frame N+1; the moment N is done,
+                # start N+1 and only then draw and encode N. The detector (the slow part) never waits for the rest.
+                if pending is None:
+                    if not worker.idle():
+                        time.sleep(0.02)
+                        continue
+                    try:
+                        image = camera.grab_rgb()
+                    except Exception:
+                        time.sleep(0.2)
+                        continue
+                    ticket = worker.try_detect_live(image)
+                    if ticket is None:
+                        continue
+                    pending = (image, ticket)
+                image, ticket = pending
                 try:
-                    image = camera.grab_rgb()
+                    following = camera.grab_rgb()
                 except Exception:
-                    time.sleep(0.2)
-                    continue
-                ticket = worker.try_detect_live(image)
-                if ticket is None or not ticket.done.wait(RESULT_TIMEOUT_S) or ticket.result is None:
+                    following = None
+                finished = ticket.done.wait(RESULT_TIMEOUT_S)
+                result = ticket.result if finished else None
+                pending = None
+                if following is not None and worker.idle():
+                    next_ticket = worker.try_detect_live(following)
+                    if next_ticket is not None:
+                        pending = (following, next_ticket)
+                if result is None:
                     continue
                 buffer = io.BytesIO()
-                draw_detections(image, ticket.result).save(buffer, "JPEG", quality=JPEG_QUALITY)
+                draw_detections(image, result).save(buffer, "JPEG", quality=JPEG_QUALITY)
                 with self._cond:
                     self._seq += 1
                     self._jpeg = buffer.getvalue()
