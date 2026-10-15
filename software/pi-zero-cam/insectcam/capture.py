@@ -226,6 +226,10 @@ class Storage:
         os.replace(temporary, target)
         if was_hidden:
             set_fat_hidden(target)
+        # Linux FAT writes the renamed file's directory entry with size 0 and only fills in the size at the next
+        # inode writeback (up to ~30 s later): a power cut in that window leaves a named, zero-length file
+        # (measured 15 October 2026: 33 of 36 photos). fsync the file again, now under its final name, to flush it.
+        self._sync_file(target)
         self._sync_dir(target.parent)
 
     def append_line(self, relative: str, line: str) -> None:
@@ -239,6 +243,19 @@ class Storage:
     def read_text(self, relative: str) -> str:
         target = self.path(relative)
         return target.read_text(encoding="utf-8").strip() if target.is_file() else ""
+
+    @staticmethod
+    def _sync_file(path: Path) -> None:
+        try:
+            fd = os.open(path, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(fd)
+        except OSError:     # Windows (development PC) cannot fsync a read-only handle
+            pass
+        finally:
+            os.close(fd)
 
     @staticmethod
     def _sync_dir(directory: Path) -> None:
