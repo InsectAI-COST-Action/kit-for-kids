@@ -1,0 +1,12 @@
+# Python packages for the detector (live view and recording detections), installed into /opt/insectcam/venv
+# by pi/install.sh with `pip install --no-deps --require-hashes --only-binary=:all:`.
+#
+# PyPI wheels, not Debian's python3-onnxruntime: that package (1.21.0+dfsg-1, trixie) dies with "Illegal
+# instruction" on the Pi Zero 2 W (Cortex-A53 has no asimddp/fphp; tested 15 October 2026). The wheels below are the
+# exact files benchmarked in docs/edge-model-test.md (onnxruntime 1.31.0, cp313 aarch64). numpy, Pillow and
+# picamera2 come from apt through the venv's system site packages. coloredlogs and sympy, which onnxruntime lists
+# as dependencies, are only used by its optional tools and are not installed.
+onnxruntime==1.31.0 --hash=sha256:ad663106f6eeff3d454f24a786450459d07f30e74863851104fc1b8b3f368127
+flatbuffers==25.12.19 --hash=sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4
+protobuf==7.36.2 --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e
+packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c

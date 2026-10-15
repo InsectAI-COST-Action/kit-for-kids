@@ -60,7 +60,8 @@ do_unmount() {
 do_transfer() {
   # Anchored: an unanchored match also hits any shell whose command line
   # merely mentions the module (e.g. the SSH command that launched this).
-  if pgrep -f '^python3 -m insectcam\.service' >/dev/null; then
+  # The service runs under the venv's python (systemd); a hand-started one is found by its command line.
+  if systemctl is-active --quiet insectcam.service || pgrep -f '(^|/)python3? -m insectcam\.service' >/dev/null; then
     log "capture service is running; stop it first"; exit 1
   fi
   # Mount first (this runs fsck and tidies) so the computer is handed a clean

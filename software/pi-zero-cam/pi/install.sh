@@ -42,15 +42,40 @@ if ! blkid -L INSECT-AI >/dev/null 2>&1; then
 fi
 
 # --- packages (python3-picamera2 is not in the Lite image)
-if ! python3 -c "import picamera2, simplejpeg" 2>/dev/null || ! command -v mkfs.vfat >/dev/null; then
+if ! python3 -c "import picamera2, simplejpeg" 2>/dev/null || ! command -v mkfs.vfat >/dev/null \
+   || ! command -v pip3 >/dev/null || ! python3 -c "import venv, ensurepip" 2>/dev/null; then
   log "installing packages"
   apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-picamera2 dosfstools
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+    python3-picamera2 python3-venv python3-pip dosfstools
+fi
+
+# --- onnxruntime for the ant detector (live view, recording detections), in a venv that also sees the apt
+# packages (picamera2, numpy, Pillow). NOT Debian's python3-onnxruntime: it dies with "Illegal instruction" on the
+# Pi Zero 2 W. Pinned wheels with checksums: pi/requirements-edge.txt, docs/edge-model-test.md.
+VENV=/opt/insectcam/venv
+if ! "$VENV/bin/python" -c "import onnxruntime, picamera2" 2>/dev/null; then
+  log "installing onnxruntime into $VENV"
+  rm -rf "$VENV"
+  python3 -m venv --system-site-packages "$VENV"
+  "$VENV/bin/pip" install --quiet --no-deps --require-hashes --only-binary=:all: -r "$HERE/pi/requirements-edge.txt"
+  "$VENV/bin/python" -c "import onnxruntime, numpy, PIL, picamera2; print('[install] onnxruntime', onnxruntime.__version__)"
 fi
 
 # --- application
 install -d -o pi -g pi /opt/insectcam/insectcam
-install -m 644 -o pi -g pi "$HERE"/insectcam/*.py "$HERE"/insectcam/control_app.html /opt/insectcam/insectcam/
+install -m 644 -o pi -g pi "$HERE"/insectcam/*.py "$HERE"/insectcam/control_app.html "$HERE"/insectcam/pi_extras.html /opt/insectcam/insectcam/
+# --- detection models: copied from a gitignored models/ folder next to this script's parent (weights are never
+# committed - ADR 0002 - so stage them by hand, e.g. the int8 480 model from tools/edge_models.py, named
+# <model_id>.onnx). They live on the read-only system, not on the child's drive. Without any, live view and
+# the detection switch report "no model installed" and nothing else changes.
+install -d -o pi -g pi /opt/insectcam/models
+if ls "$HERE"/models/*.onnx >/dev/null 2>&1; then
+  install -m 644 -o pi -g pi "$HERE"/models/*.onnx /opt/insectcam/models/
+  log "models installed: $(ls /opt/insectcam/models | tr '\n' ' ')"
+else
+  log "no models staged in $HERE/models; detection stays unavailable"
+fi
 install -m 755 "$HERE"/pi/insectcam-drive /usr/local/sbin/insectcam-drive
 install -m 755 "$HERE"/pi/insectcam-boot /usr/local/sbin/insectcam-boot
 log "application installed in /opt/insectcam"
@@ -95,7 +120,7 @@ After=network.target
 [Service]
 User=pi
 WorkingDirectory=/opt/insectcam
-ExecStart=/usr/bin/python3 -m insectcam.service --data-root /srv/insectcam --http-port 80
+ExecStart=/opt/insectcam/venv/bin/python -m insectcam.service --data-root /srv/insectcam --http-port 80
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 # SIGINT lets the session finish cleanly (run manifest "finished").
 KillSignal=SIGINT
