@@ -80,6 +80,8 @@ class Config:
     capture_mode: str = "pilot"
     camera_preset: str = "imx708_3mp_q85_1fps"
     model_id: str = "none"
+    motion_trigger_enabled: bool = False  # save only when the scene changes (see motion.py)
+    motion_threshold: int = 5             # fixed at 5, as on the XIAO
 
     @classmethod
     def load(cls, path: Path) -> tuple["Config", str]:
@@ -98,6 +100,10 @@ class Config:
                 setattr(config, key, str(data[key]))
         if "sensor_fps" in data:
             config.sensor_fps = float(data["sensor_fps"])
+        if "motion_trigger_enabled" in data:
+            config.motion_trigger_enabled = bool(data["motion_trigger_enabled"])
+        if "motion_threshold" in data:
+            config.motion_threshold = int(data["motion_threshold"])
         # Same spirit as the ESP32's safety bounds: refuse values that cannot
         # be delivered rather than silently doing something else.
         problems = []
@@ -111,6 +117,8 @@ class Config:
             problems.append("jpeg_quality")
         if not 1.0 <= config.sensor_fps <= 15.0:
             problems.append("sensor_fps")
+        if config.motion_threshold != 5:
+            problems.append("motion_threshold")
         if problems:
             return cls(), f"config.json has unsupported {', '.join(problems)}; using defaults"
         return config, f"config.json loaded: {config.capture_mode}/{config.camera_preset}"
@@ -355,12 +363,16 @@ class Session:
         return f"/images/{self.run_id}/shard_{shard:04d}/{capture_id}.jpg"
 
     def record(self, *, capture_id: str, uptime_ms: int, scheduled_ms: int, outcome: str, width: int, height: int,
-               jpeg_bytes: int, capture_ms: int, image_path: str, save_outcome: str, error_code: str = "") -> tuple[int, int]:
+               jpeg_bytes: int, capture_ms: int, image_path: str, save_outcome: str, error_code: str = "",
+               motion_score: float = -1.0) -> tuple[int, int]:
+        motion_on = self.config.motion_trigger_enabled
+        threshold = self.config.motion_threshold if motion_on else 0
         row = ",".join([
             str(SCHEMA_VERSION), "device_000001", csv_escape(self.run_id), self.boot_id, csv_escape(capture_id), "",
             str(uptime_ms), str(scheduled_ms), outcome, str(width), str(height), str(jpeg_bytes), str(capture_ms),
-            "0", csv_escape(self.config.model_id), "0", "0.0000", csv_escape(image_path), "every_frame",
-            save_outcome, "-1.000", "0", csv_escape(error_code)])
+            "0", csv_escape(self.config.model_id), "0", "0.0000", csv_escape(image_path),
+            "motion_trigger" if motion_on else "every_frame",
+            save_outcome, f"{motion_score:.3f}", str(threshold), csv_escape(error_code)])
         started = time.monotonic()
         self.storage.append_line("raw/captures.csv", row)
         raw_ms = int((time.monotonic() - started) * 1000)
@@ -370,7 +382,7 @@ class Session:
             "runId": self.run_id, "captureId": capture_id, "uptimeMs": uptime_ms, "outcome": outcome,
             "imagePath": image_path, "width": width, "height": height, "jpegBytes": jpeg_bytes,
             "captureMs": capture_ms, "inferenceMs": 0, "inferenceOutcome": "model_unavailable",
-            "motionScore": -1.0, "motionThreshold": 0.0})
+            "motionScore": round(motion_score, 3), "motionThreshold": float(threshold)})
         return raw_ms, int((time.monotonic() - started) * 1000)
 
     def finish(self) -> None:
@@ -385,7 +397,8 @@ class Session:
             "schema_version": SCHEMA_VERSION, "run_id": self.run_id, "state": state, "sensor": self.sensor_id,
             "model_id": c.model_id, "capture_mode": c.capture_mode, "camera_preset": c.camera_preset,
             "capture_fps": 1, "capture_interval_ms": c.capture_interval_ms,
-            "max_session_seconds": c.max_session_seconds, "motion_trigger_enabled": False, "motion_threshold": 5,
+            "max_session_seconds": c.max_session_seconds, "motion_trigger_enabled": c.motion_trigger_enabled,
+            "motion_threshold": c.motion_threshold,
             "frame_size": c.frame_size, "jpeg_quality": c.jpeg_quality, "time_source": "session_relative",
             "platform": "raspberry_pi_zero_2_w", "firmware": FIRMWARE_VERSION, "sensor_fps": c.sensor_fps}
         # Key order and "key": value spacing match the ESP32's manifests, which

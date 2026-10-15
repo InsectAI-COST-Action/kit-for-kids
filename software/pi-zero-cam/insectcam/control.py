@@ -35,7 +35,8 @@ def page_view(config: Config) -> dict:
     low = (config.frame_size, config.jpeg_quality) == QUALITY_PRESETS["low"]
     return {"schema_version": 1, "capture_fps": 1, "capture_interval_ms": config.capture_interval_ms,
             "max_session_seconds": config.max_session_seconds, "capture_mode": config.capture_mode,
-            "camera_preset": config.camera_preset, "motion_trigger_enabled": False, "motion_threshold": 5,
+            "camera_preset": config.camera_preset, "motion_trigger_enabled": config.motion_trigger_enabled,
+            "motion_threshold": config.motion_threshold,
             "frame_size": "VGA" if low else "QXGA", "jpeg_quality": 24 if low else 12,
             "model_id": config.model_id, "pi_frame_size": config.frame_size, "pi_jpeg_quality": config.jpeg_quality}
 
@@ -105,20 +106,16 @@ def start_control_server(service, storage: Storage, port: int) -> ThreadingHTTPS
                     or form["quality"] not in QUALITY_PRESETS):
                 self.send_json(400, {"error": "Not a safe setting combination.", "errorCode": "unsafe_combination"})
                 return
-            if form["motionTriggerEnabled"] == "true":
-                # Not built on the Pi yet; refuse rather than save a setting that would be ignored.
-                self.send_json(400, {"error": "This camera cannot save only when something moves yet.",
-                                     "errorCode": "motion_not_supported"})
-                return
+            motion = form["motionTriggerEnabled"] == "true"
             frame_size, quality = QUALITY_PRESETS[form["quality"]]
-            pilot = interval_ms == 1000 and form["quality"] == "high" and duration_s == 3600
+            pilot = not motion and interval_ms == 1000 and form["quality"] == "high" and duration_s == 3600
             duration_id = "infinite" if duration_s == 0 else f"{duration_s}s"
             preset = ("imx708_3mp_q85_1fps" if pilot
-                      else f"custom_{form['quality']}_{interval_ms}ms_{duration_id}")
+                      else f"custom_{form['quality']}_{interval_ms}ms_{duration_id}" + ("_motion" if motion else ""))
             config = {"schema_version": 1, "capture_fps": 1, "capture_interval_ms": interval_ms,
                       "max_session_seconds": duration_s, "capture_mode": "pilot" if pilot else "custom",
                       "camera_preset": preset, "frame_size": frame_size, "jpeg_quality": quality,
-                      "motion_trigger_enabled": False, "motion_threshold": 5, "model_id": "none",
+                      "motion_trigger_enabled": motion, "motion_threshold": 5, "model_id": "none",
                       "log_level": "info"}
             storage.write_atomic("config.json", json.dumps(config, indent=2) + "\n")
             self.send_json(202, {"accepted": True})

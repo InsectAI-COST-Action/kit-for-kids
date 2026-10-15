@@ -17,6 +17,7 @@ from pathlib import Path
 
 from insectcam.capture import (FIRMWARE_VERSION, FRAME_SIZES, PEEK_SIZE, PERFORMANCE_HEADER,
                                PERFORMANCE_SAMPLE_INTERVAL, Config, Session, Storage)
+from insectcam.motion import MotionDetector, preview_from_luma
 
 
 # --------------------------------------------------------------------------- camera
@@ -46,19 +47,32 @@ class Camera:
         while time.monotonic() < deadline:
             self.picam.capture_metadata()
 
-    def capture(self) -> tuple[bytes, bytes, int, int]:
-        """One frame: (photo JPEG, peek JPEG, capture_ms, encode_ms). The peek is ~20 KB, ~7 ms."""
+    def capture(self, motion: "MotionDetector | None" = None) -> tuple[bytes, bytes, int, int, float]:
+        """One frame: (photo JPEG, peek JPEG, capture_ms, encode_ms, motion score).
+
+        The peek is ~20 KB and ~7 ms. With a motion detector, the frame is only
+        JPEG-encoded (~100 ms) when the scene changed; otherwise the photo is
+        empty. The score is -1 without a detector and for the baseline check.
+        """
         started = time.monotonic()
         request = self.picam.capture_request()
         captured = time.monotonic()
         try:
-            buffer = io.BytesIO()
-            request.save("main", buffer, format="jpeg")
+            yuv = request.make_array("lores")
+            peek = self._peek_jpeg(yuv)
+            keep, score = True, -1.0
+            if motion is not None:
+                width, height = PEEK_SIZE
+                keep, score = motion.check(preview_from_luma(yuv[:height, :width]))
+            photo = b""
+            if keep:
+                buffer = io.BytesIO()
+                request.save("main", buffer, format="jpeg")
+                photo = buffer.getvalue()
             encoded = time.monotonic()
-            peek = self._peek_jpeg(request.make_array("lores"))
         finally:
             request.release()
-        return buffer.getvalue(), peek, int((captured - started) * 1000), int((encoded - captured) * 1000)
+        return photo, peek, int((captured - started) * 1000), int((encoded - captured) * 1000), score
 
     @staticmethod
     def _peek_jpeg(yuv) -> bytes:
@@ -126,6 +140,7 @@ class Service:
         self.session_started = 0.0
         self.session_ended = 0.0  # freezes elapsedMs once a session finishes
         self.peek = b""
+        self.motion_recent: list[float] = []
         self.stop_requested = threading.Event()
         self.start_requested = threading.Event()
         self.shutdown = threading.Event()
@@ -139,7 +154,7 @@ class Service:
             return {"state": self.state, "runId": self.run_id, "captureCount": self.capture_count,
                     "savedCount": self.saved_count, "elapsedMs": elapsed,
                     "sdMounted": self.storage.root.is_dir(), "error": self.error, "errorCode": self.error_code,
-                    "hasPeek": bool(self.peek), "motionRecent": []}
+                    "hasPeek": bool(self.peek), "motionRecent": list(self.motion_recent)}
 
     def latest_peek(self) -> bytes:
         with self.lock:
@@ -173,6 +188,7 @@ class Service:
             self.state, self.error, self.error_code = "warming_up", "", ""
             self.capture_count = self.saved_count = 0
             self.peek = b""
+            self.motion_recent = []
             self.session_started = time.monotonic()
             self.session_ended = 0.0
         config, note = Config.load(self.storage.path("config.json"))
@@ -214,6 +230,8 @@ class Service:
 
     def capture_loop(self, camera: Camera, session: Session, config: Config, performance_path: str) -> None:
         interval = config.capture_interval_ms / 1000
+        # Motion mode: every scheduled check costs a row; only a changed scene costs a photo.
+        detector = MotionDetector(config.motion_threshold) if config.motion_trigger_enabled else None
         session_start = time.monotonic()
         next_due = session_start
         while not self.stop_requested.is_set():
@@ -230,9 +248,12 @@ class Service:
             capture_id = session.next_capture_id()
             image_path = session.image_path(capture_id)
             outcome, save_outcome, error_code = "completed", "saved", ""
-            jpeg, peek, capture_ms, encode_ms, write_ms = b"", b"", 0, 0, 0
+            jpeg, peek, capture_ms, encode_ms, write_ms, motion_score = b"", b"", 0, 0, 0, -1.0
             try:
-                jpeg, peek, capture_ms, encode_ms = camera.capture()
+                jpeg, peek, capture_ms, encode_ms, motion_score = camera.capture(detector)
+                if detector is not None and not jpeg:
+                    # A completed check with no photo, as on the XIAO.
+                    outcome, save_outcome, image_path = "motion_not_detected", "not_saved", ""
             except Exception as error:  # camera faults must not stop the session
                 outcome, save_outcome, error_code, image_path = "capture_error", "not_attempted", type(error).__name__, ""
                 report(f"capture failed: {error}")
@@ -250,7 +271,7 @@ class Service:
                     capture_id=capture_id, uptime_ms=session.uptime_ms(), scheduled_ms=scheduled_ms, outcome=outcome,
                     width=camera.size[0] if jpeg else 0, height=camera.size[1] if jpeg else 0,
                     jpeg_bytes=len(jpeg), capture_ms=capture_ms + encode_ms, image_path=image_path,
-                    save_outcome=save_outcome, error_code=error_code)
+                    save_outcome=save_outcome, error_code=error_code, motion_score=motion_score)
             except OSError as error:
                 report(f"capture log failure: {error}")
             with self.lock:
@@ -259,6 +280,8 @@ class Service:
                     self.saved_count += 1
                 if peek:
                     self.peek = peek
+                if detector is not None:
+                    self.motion_recent = [round(v, 2) for v in detector.recent]
             total_ms = int((time.monotonic() - total_start) * 1000)
             if session.sequence % PERFORMANCE_SAMPLE_INTERVAL == 0:
                 temperature, throttled = soc_health()

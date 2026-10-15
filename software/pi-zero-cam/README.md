@@ -4,7 +4,7 @@ Branch `Pi-zero-cam3`, started 14 October 2026. An alternative to the XIAO ESP32
 
 **Why:** the OV5640 on the XIAO Sense board overheats (it melted a rubber band through its heatsink, even at a 5 s capture interval). The XIAO Sense board supplies the OV5640 core from a 1.3 V regulator, below the sensor's 1.425-1.575 V range, so the sensor falls back on its internal regulator, which OmniVision's datasheet warns causes "a potential heat issue". That is a hardware problem, not fixable in firmware. See `../TomA-insect-ESP32-software/docs/hardware-validation.md` on branch `wip/camera-ov5640`.
 
-**Status (15 October 2026):** working end to end on one Pi. Capture, phone hotspot and control app (peek, finish, start again, settings), the INSECT-AI USB drive, automatic mode choice at power-up, and a read-only system partition are all built and tested. Not built: motion mode, the master image for batch setup, one-click flashing.
+**Status (15 October 2026):** working end to end on one Pi. Capture, phone hotspot and control app (peek, finish, start again, settings), the INSECT-AI USB drive, automatic mode choice at power-up, and a read-only system partition are all built and tested. Not built: the master image for batch setup, one-click flashing.
 
 ### First results
 
@@ -39,6 +39,12 @@ Only `dashboard.html` and `images` are visible at the top of INSECT-AI; the dash
 
 Verified 15 October 2026: dashboard opened from the Pi's drive and checked by the owner - works, including after hiding; on the read-only Pi, tidy removed a planted fragment, hid a stray file, and a rewritten `manifest.js` stayed hidden.
 
+### Motion mode
+
+`insectcam/motion.py` is the XIAO firmware's motion score on the Pi's own frames: grayscale difference between consecutive checks, minus the whole-frame brightness change, scored as the strongest tile of an 8 x 6 grid (mean absolute difference per pixel), threshold 5 (fixed). The first check is the baseline (kept, score -1); later checks are kept when the score is at least 5, otherwise they are recorded as `motion_not_detected` rows with no photo. The same row format, `motion_trigger` save policy and dashboard fields as the XIAO; the phone app's "Save pictures only when something moves" switch and its motion meter work. The Pi uses the camera's 640x360 luma stream block-averaged to 160x90, so nothing is re-initialised between checks and autofocus, exposure and white balance never reset (the XIAO re-initialises its sensor for every check, which is why motion mode switches autofocus off there). A check costs ~7 ms; the ~100 ms JPEG encode only happens for a kept frame. 11 unit tests: `tests/test_motion.py`.
+
+Verified 15 October 2026 (test copy run from RAM on the read-only Pi, motion switched on through the phone app's settings call): 68 checks over 68 s gave 18 saved photos - the baseline plus the 17 checks while the owner waved a hand in front of the camera - and 50 `motion_not_detected` rows. Still-scene scores 0.3-0.5 (maximum 4.0, just after the wave, probably autofocus re-settling - a thin margin to watch in long runs); wave scores 6.8-114.
+
 ### Running the capture service by hand
 
 On a read-write Pi: `cd /opt/insectcam && python3 -m insectcam.service --data-root /srv/insectcam --http-port 8080` (`--once` runs a single session). Stop the systemd service first (`sudo systemctl stop insectcam`) if it is running.
@@ -47,7 +53,7 @@ Needs `python3-picamera2` (the Lite image does not include it; `install.sh` inst
 
 ### Phone hotspot
 
-`InsectCam-<last 4 hex digits of the Pi's serial>` / `antcamera`, the same scheme as the XIAO cameras. WPA2 only on channel 6: NetworkManager's default adds WPA3, and a Pixel 8 then joined and dropped within about 3 s. Address-assignment and name resolution are NetworkManager's shared mode plus a catch-all DNS entry, so phones are sent straight to the control app. `insectcam/control_app.html` is extracted from the ESP32 firmware (`tools/extract_control_app.py`), so both cameras serve the same page and translations. Motion mode is not supported yet; the Pi refuses it with a message.
+`InsectCam-<last 4 hex digits of the Pi's serial>` / `antcamera`, the same scheme as the XIAO cameras. WPA2 only on channel 6: NetworkManager's default adds WPA3, and a Pixel 8 then joined and dropped within about 3 s. Address-assignment and name resolution are NetworkManager's shared mode plus a catch-all DNS entry, so phones are sent straight to the control app. `insectcam/control_app.html` is extracted from the ESP32 firmware (`tools/extract_control_app.py`), so both cameras serve the same page and translations.
 
 ## Preparing a card without the Imager GUI
 
