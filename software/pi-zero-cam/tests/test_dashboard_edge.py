@@ -102,15 +102,10 @@ class DashboardEdgeTests(unittest.TestCase):
         cls.browser.close()
         cls.playwright.stop()
 
-    def open_card(self, model: bool, with_ai: bool = False):
+    def open_card(self, model: bool):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.card_root = Path(tmp.name)
-        build_card(self.card_root, model)
-        if with_ai:
-            (self.card_root / "ai").mkdir()
-            for name in ("antai-test.onnx", "ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.wasm"):
-                shutil.copy(DASHBOARD / "ai" / name, self.card_root / "ai" / name)
+        build_card(Path(tmp.name), model)
         # Served from the card's root over HTTP: the camera's image paths start with "/images/", which a drive's
         # file:// URL resolves against the drive root but a temporary folder's does not.
         class Quiet(http.server.SimpleHTTPRequestHandler):
@@ -193,23 +188,6 @@ class DashboardEdgeTests(unittest.TestCase):
         page.evaluate("() => window.i18n.setLocale('es')")
         self.assertIn("prueba", page.inner_text("#model-note").lower())
         self.assertIn("cajas (prueba)", header())
-        self.assertEqual(self.errors, [])
-
-    def test_compare_runs_a_browser_model_on_the_open_picture_and_draws_its_boxes_beside_the_cameras(self):
-        page = self.open_card(model=True, with_ai=True)
-        page.evaluate("() => { document.querySelector('.adult-details').open = true; }")
-        page.fill("#search", "run_000002_img_3")
-        page.locator(".gallery-item").first.click()
-        page.wait_for_function("() => /\d+ of \d+ boxes shown/.test(document.querySelector('.edge-shown').textContent)", timeout=8000)
-        self.assertIn("load the camera card", page.inner_text("#edge-compare-run").lower())
-        page.set_input_files("#card-picker", str(self.card_root))             # the camera card, with its ai folder
-        page.wait_for_function("() => window.InsectCard.loaded", timeout=60000)
-        self.assertIn("compare on this picture", page.inner_text("#edge-compare-run").lower())
-        page.select_option("#edge-compare-choice", "antai-test")
-        page.click("#edge-compare-run")
-        page.wait_for_function("() => /found|Could not/.test(document.querySelector('.edge-compare-status').textContent)", timeout=180000)
-        self.assertIn("possible insects", page.inner_text(".edge-compare-status"))
-        self.assertIn("both are experiments", page.inner_text(".edge-compare-status").lower())
         self.assertEqual(self.errors, [])
 
     # ---- a card with no detector: a XIAO's, or a Pi with detection off

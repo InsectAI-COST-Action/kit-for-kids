@@ -129,7 +129,6 @@
   let current = null;
   let currentState = 'idle';    // idle | loading | ready | missing
   const slider = { element: null, text: null, shown: null, model: null };
-  const compare = { box: null, select: null, button: null, status: null, boxes: [], for: null };
 
   const buildViewer = () => {
     if (!modalImage || canvas) return;
@@ -156,73 +155,8 @@
     slider.shown = el('p', 'hint edge-shown');
     slider.model = el('p', 'hint edge-model-line');
     controls.append(label, slider.shown, slider.model);
-    buildCompare();
     stage.after(controls);
     modalImage.addEventListener('load', draw);
-  };
-
-  const PINK = '#f32b63';        // the colour the browser-AI scanner draws its boxes in
-
-  // "Compare": run this one picture through a browser model (analysis.js) and draw its boxes in pink beside the
-  // camera's own blue ones. Needs the camera card loaded (the model files live in its ai folder). Nothing is stored.
-  const buildCompare = () => {
-    compare.box = el('div', 'edge-compare');
-    compare.box.append(el('p', 'edge-compare-title'));
-    const row = el('div', 'edge-compare-row');
-    compare.select = el('select');
-    compare.select.id = 'edge-compare-choice';
-    for (const key of ['antai-test', 'flatbug-quick', 'flatbug-close']) {
-      const option = el('option');
-      option.value = key;
-      compare.select.append(option);
-    }
-    compare.button = el('button', 'secondary-button');
-    compare.button.type = 'button';
-    compare.button.id = 'edge-compare-run';
-    compare.button.addEventListener('click', runCompare);
-    row.append(compare.select, compare.button);
-    compare.status = el('p', 'hint edge-compare-status');
-    compare.box.append(row, compare.status);
-    controls.append(compare.box);
-  };
-  const updateCompareText = () => {
-    if (!compare.box) return;
-    const available = Boolean(window.InsectAnalysis);
-    compare.box.hidden = !available;
-    if (!available) return;
-    compare.box.querySelector('.edge-compare-title').textContent = t('edge.compare');
-    [...compare.select.options].forEach((option) => { option.textContent = t(`edge.choice.${option.value}`); });
-    const cardReady = Boolean(window.InsectCard && window.InsectCard.loaded);
-    compare.button.textContent = cardReady ? t('edge.compareRun') : t('edge.compareLoadCard');
-  };
-  const runCompare = async () => {
-    if (!current) return;
-    const card = window.InsectCard;
-    if (!card || !card.loaded) { card.request(); return; }
-    const file = card.fileFor(current.imagePath);
-    if (!file) { compare.status.textContent = t('edge.compareFailed'); return; }
-    compare.button.disabled = true;
-    compare.status.textContent = t('edge.compareWorking');
-    const target = current;
-    let bitmap;
-    try {
-      bitmap = await createImageBitmap(file);
-      const result = await window.InsectAnalysis.analyseOne(bitmap, compare.select.value);
-      if (current !== target) return;
-      if (result.error) {
-        compare.status.textContent = result.error === 'busy' ? t('edge.compareBusy') : t('edge.compareFailed');
-        return;
-      }
-      compare.boxes = result.boxes.map((box) => ({ x: box.x / bitmap.width, y: box.y / bitmap.height, w: box.width / bitmap.width, h: box.height / bitmap.height, score: box.score }));
-      compare.for = target;
-      compare.status.textContent = t('edge.compareResult', result.name, compare.boxes.length, boxesFor(target).filter((box) => box[4] >= threshold()).length);
-      draw();
-    } catch (error) {
-      compare.status.textContent = t('edge.compareFailed');
-    } finally {
-      if (bitmap) bitmap.close();
-      compare.button.disabled = false;
-    }
   };
 
   const threshold = () => Number(slider.element ? slider.element.value : 0.25);
@@ -239,7 +173,6 @@
       slider.shown.textContent = t('edge.shown', shown, stored.length, Number(current.predictionCount) || 0);
     }
     slider.model.textContent = t('edge.modelLine', String(current.modelId), isTest(current), Number(current.inferenceMs) || 0);
-    updateCompareText();
   };
 
   const draw = () => {
@@ -254,11 +187,6 @@
     context.lineWidth = Math.max(2, canvas.width / 450);
     context.strokeStyle = BOX_COLOUR;
     for (const [x, y, w, h] of boxes) context.strokeRect(x * canvas.width, y * canvas.height, w * canvas.width, h * canvas.height);
-    if (compare.for === current && compare.boxes.length) {
-      context.strokeStyle = PINK;
-      context.lineWidth = Math.max(3, canvas.width / 300);
-      for (const box of compare.boxes) context.strokeRect(box.x * canvas.width, box.y * canvas.height, box.w * canvas.width, box.h * canvas.height);
-    }
     // Scores only on the strongest few: 50 labels would cover the photo.
     const fontSize = Math.max(14, Math.round(canvas.width / 55));
     context.font = `700 ${fontSize}px system-ui, sans-serif`;
@@ -318,9 +246,6 @@
     controls.hidden = !current;
     if (!current) { draw(); return; }
     currentState = 'loading';
-    compare.boxes = [];
-    compare.for = null;
-    if (compare.status) compare.status.textContent = '';
     updateControlText();
     loadBoxes(current).then((found) => {
       if (!current || current !== capture) return;
@@ -335,7 +260,6 @@
     draw();
   };
   window.i18n.onLocaleChange(() => { updateControlText(); draw(); });
-  window.addEventListener('insect-card-loaded', updateCompareText);
 
   // ---------------------------------------------------------------- per-adventure summary
   const runSummaries = () => {

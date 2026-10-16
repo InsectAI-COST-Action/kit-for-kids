@@ -77,9 +77,7 @@
     'flatbug-quick': { model: MODELS.flatbug, mode: 'quick', noteKey: 'analysis.flatbugQuickNote' },
     'flatbug-close': { model: MODELS.flatbug, mode: 'close', noteKey: 'analysis.flatbugCloseNote' },
   };
-  // forcedChoice lets analyseOne() (below) run a choice without touching the scanner's radio buttons.
-  let forcedChoice = null;
-  const selectedChoice = () => ANALYSIS_CHOICES[forcedChoice || analysisChoiceInputs.find((input) => input.checked)?.value || 'antai-test'];
+  const selectedChoice = () => ANALYSIS_CHOICES[analysisChoiceInputs.find((input) => input.checked)?.value || 'antai-test'];
   const selectedAnalysisMode = () => selectedChoice().mode;
   const selectedModel = () => selectedChoice().model;
   const updateChoiceNote = () => { analysisChoiceNote.textContent = t(selectedChoice().noteKey); };
@@ -370,30 +368,6 @@
     // immediately, before the user had asked to run anything.
     setCardProgress(0, cardReadyStatus());
   };
-  // One picture through one browser choice, with no scanner UI: used by the frame viewer's "Compare" (edge-results.js)
-  // to put the browser model's boxes beside the camera's own. Same model, tiles and decoding as the scanner above.
-  // Returns { boxes, name, mode } (boxes in source pixels) or { error } ('busy', 'card', 'model').
-  const analyseOne = async (image, choiceKey) => {
-    if (!ANALYSIS_CHOICES[choiceKey] || state.active) return { error: 'busy' };
-    if (!card.loaded) return { error: 'card' };
-    forcedChoice = choiceKey;
-    try {
-      if (!session || loadedModelFile !== selectedModel().file) await loadModel();
-      if (!session) return { error: 'model' };
-      const candidates = [];
-      for (const tile of makeTiles(image, selectedChoice().mode)) {
-        const prepared = makeInput(image, tile);
-        const output = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', prepared.input, [1, 3, prepared.inputSize, prepared.inputSize]) });
-        candidates.push(...decode(output[session.outputNames[0]], prepared.scale, prepared.padX, prepared.padY, tile.width, tile.height, tile.x, tile.y));
-      }
-      return { boxes: suppress(candidates), name: selectedModel().name, mode: selectedChoice().mode };
-    } catch (error) {
-      return { error: 'model' };
-    } finally {
-      forcedChoice = null;
-    }
-  };
-  window.InsectAnalysis = { analyseOne, choices: Object.keys(ANALYSIS_CHOICES) };
   const open = () => { lastFocus = document.activeElement; modal.hidden = false; setup.hidden = false; scanner.hidden = true; if (card.loaded) loadCard(); else loadCardButton.focus(); };
   const close = () => { state.active = false; modal.hidden = true; if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); };
   if (!modal || !openButton || !loadCardButton) return;
