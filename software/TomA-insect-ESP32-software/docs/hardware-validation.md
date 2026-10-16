@@ -5,7 +5,7 @@ Update this record as evidence is collected. SD endurance and final cadence vali
 | Check | Required evidence | Result |
 | --- | --- | --- |
 | Board | ESP32-S3R8 XIAO ESP32S3 Sense; clean PlatformIO build and upload | Verified on physical board (COM4). Independently reproduced 9 September 2026 on a second, clean Windows 10 machine with no prior toolchain: `git clone` → `py -m pip install platformio` → `py -m platformio run` → upload → boot evidence → 1 FPS QXGA capture → clean `dev_bridge_client.py stop`. Setup-doc gaps found in that run are fixed in [setup-guide.md](setup-guide.md) / [next-session.md](next-session.md). |
-| Camera | OV3660 PID reported at boot | Verified at boot |
+| Camera | OV3660 or OV5640 PID reported at boot (both supported, see "Dual-sensor support" below) | OV3660 verified at boot (original board). OV5640 verified via `PROBE` (17 September 2026, after this board's camera module was replaced - see the dated entry below). Dual-sensor firmware (1 October 2026) booted on the OV5640 board: boot report `camera initialised: OV5640`, `PROBE` `camera=ok detail=camera initialised: OV5640`, manifest `"sensor": "OV5640"` (see "First OV5640 boot" below). **Not yet booted on an OV3660 board.** Rows in this table cite OV3660 unless marked otherwise - none of them has yet been re-run on OV5640. |
 | PSRAM | `psramFound()` succeeds | Verified at boot |
 | SD | FAT32 card mounts and survives 3,600 QXGA writes | Two independent one-hour endurance runs, 28 August 2026: dark (`run_000041`, 3,589/3,600) and daylight (`run_000050`, 3,585/3,600). Both self-finished cleanly, no reboot, no storage error, no corruption. **Neither hit the exact 3,600 target** - see finding below; the shortfall is confirmed present regardless of lighting/JPEG size. Historical run 000012 retained 2,384 smaller JPEGs in 24 bounded shards; completed QXGA run 000004 retained 120 images. Card corruption observed once after normal battery-cable removal; see incident below. |
 | Capture | QXGA/JPEG-quality-12 frame every 1,000 ms | Dark run: 3,589/3,600 (99.7%). Daylight run: 3,585/3,600 (99.6%), `interval_mean_ms=1004`, `interval_max_ms=2363`. No reboot/crash in either. Completed QXGA run 000004 captured 120 images at a 1,000 ms median interval. QXGA/2-FPS was rejected (171/240 images; write time exceeded its budget). **Image-quality review done 28 August 2026** (daylight, `run_000050`) - see finding below: soft focus throughout, exposure acceptable, a colour-balance issue at session start that clears within ~30 minutes (a fix was attempted 28-29 August 2026; it did not resolve the issue - see finding below). |
@@ -154,5 +154,84 @@ The owner's own proposal, after the fast-warm-up result above: seed AWB from a k
 While prototyping the device control app ([ADR 0001](adr/0001-device-hosted-control-app.md)), two live motion-mode sessions with the SoftAP running showed a 100% save rate — every scheduled motion check triggered a save, with scores clustering just above the threshold of 5 (5.8–12) rather than the wide, mostly-sub-threshold spread seen in earlier motion-mode testing. A same-scene control run with Wi-Fi disabled (`WIFI_CONTROL_DISABLED_FOR_TEST` build flag) and everything else identical showed normal discrimination: 131 of 132 checks correctly returned `motion_not_detected`, scores maxing at 3.57. Only Wi-Fi differed between the two conditions, so this is a confirmed effect, not a lighting or environmental confound (an initial lighting hypothesis was raised and specifically ruled out by this control test).
 
 Suspected mechanism: SoftAP TX current draw introducing exposure micro-flicker that the motion score's whole-frame brightness correction does not fully cancel. Not yet confirmed at the electrical level. See [device-control-app-plan.md](device-control-app-plan.md) Phase 1 for mitigation options and current status — this blocks running Wi-Fi and motion-triggered capture concurrently until resolved. Retain-every-frame capture is unaffected.
+
+## Camera swap: OV3660 → OV5640 (17 September 2026)
+
+The camera module on the test board was physically replaced with an OV5640, on the same connector/pin header the OV3660 used. Verified via the firmware's serial dev-bridge `PROBE` command (`py tools\dev_bridge_client.py --port COM8 probe`, independent of the SD card - see [dev-bridge.md](dev-bridge.md)):
+
+```
+camera=ok detail=camera initialised: unexpected_pid_22080
+```
+
+`22080` decimal = `0x5640`, the OV5640's real PID - `esp_camera_init()` succeeds and the sensor answers over SCCB correctly; at that point this project's own code still only recognised `OV3660_PID` by name, hence `unexpected_pid_22080` instead of a friendly label. Fixed on the `camera/ov5640` branch (see `src/camera_service.cpp`).
+
+**Register compatibility confirmed from source, not assumed.** Fetched the real OV5640 driver (`sensors/ov5640.c`, `espressif/esp32-camera`, matching the same practice used for the original OV3660 investigation above) and confirmed it uses the *identical* manual-AWB-gain register layout: R/G/B gain at `0x3400`/`0x3402`/`0x3404`, manual/auto latch at `0x3406`, same `set_wb_mode`/`set_awb_gain` wiring, same SCCB address `0x3C`. So `CameraService::seedWhiteBalance()`/`manualGainStatus()` needed no register-address changes - only the sensor-identity check and comments citing where the numbers came from.
+
+**Open follow-up, not yet done:** the actual seed gain values (`kWhiteBalanceSeedRedGain/Green/BlueGain` = 1055/1024/2100 in `main.cpp`) were measured from OV3660's real-world colour response (see `run_000078`/`run_000082` above) and carried over unchanged to OV5640. The write mechanism is proven to work on the new sensor, but whether *these specific values* are still a good starting seed for OV5640's own colour response has not been checked - needs the same kind of real-hardware daylight capture-and-look trial this file already documents for OV3660, once a card and daylight session are available on the OV5640 board.
+
+## Dual-sensor support: OV3660 and OV5640 (1 October 2026)
+
+Decision: support both modules rather than move wholesale to OV5640, since kits may ship with either. The firmware now carries one `SensorProfile` per supported sensor (`kSensorProfiles` in `src/camera_service.cpp`): PID, name, white-balance seed gain, and whether that seed was measured on that sensor. At boot it matches the reported PID against the table, names the sensor in the boot report and the run manifest's `sensor` field, and seeds white balance from that sensor's own profile. An unrecognised PID still boots and captures, labelled `unexpected_pid_<n>`, but skips the white-balance register writes rather than write registers whose meaning on that part is unknown. `tools/camera_trial_report.py` now shows each run's sensor, so results from the two sensors are never compared as if they were one.
+
+Register layout re-checked against `sensors/ov5640.c` (espressif/esp32-camera master, 1 October 2026): `set_wb_mode()` writes the latch at `0x3406` and 16-bit gains at `0x3400`/`0x3402`/`0x3404`, and `set_reg`/`get_reg` use the same mask-width rule (mask > `0xFF` selects 16-bit access) as `ov3660.c`. Both drivers are enabled in the pinned framework (`CONFIG_OV3660_SUPPORT`/`CONFIG_OV5640_SUPPORT` in the `qio_opi` sdkconfig).
+
+The OV5640 profile's seed (1055/1024/2100) is **borrowed from OV3660** and flagged `seed_measured=false`; its boot line says `provisional seed, not yet measured on this sensor`. The settled QXGA/quality-12/1-FPS pilot setting also applies unchanged to OV5640 but was not chosen on it.
+
+Still to verify on hardware, OV5640 board first:
+
+1. Boot and dev-bridge `PROBE` on each sensor - expect `camera initialised: OV3660` / `OV5640` (not `unexpected_pid_...`) and the matching `measured`/`provisional seed` boot line. **OV5640 done 1 October 2026** (below); OV3660 still outstanding (item 7).
+2. Daylight seed measurement on OV5640 using the "Seeded white balance" method, then replace the borrowed values and set `seed_measured` to `true`.
+3. A full one-hour QXGA/1-FPS endurance run on OV5640 - JPEG size, write time, cadence and the 3,600-frame target were all established on OV3660.
+4. Image-quality and colour review on OV5640, including the start-of-session cast, with a live insect subject.
+5. Motion-trigger mode on OV5640 (repeated JPEG/grayscale reinitialisation).
+6. Enclosure temperature on OV5640, which typically runs warmer than OV3660; drop XCLK below 20 MHz only if image faults appear.
+7. One regression boot on an OV3660 board, confirming nothing changed for the stock sensor.
+
+### First OV5640 boot on the dual-sensor firmware (1 October 2026)
+
+Board `CC:BA:97:01:38:58` on COM4 (Wi-Fi name `InsectCam-3858`), 8 GB card, `pilot/qxga_q12_1fps` config, flashed from branch `wip/camera-ov5640`.
+
+- **Identity:** boot report `camera initialised: OV5640`; `PROBE` `camera=ok detail=camera initialised: OV5640`; run manifest `"sensor": "OV5640"`. Previously `unexpected_pid_22080`.
+- **White-balance seed:** `seeded OV5640 gain r=1055 g=1024 b=2100 (provisional seed, not yet measured on this sensor)`. After the 12 s warm-up AWB had moved to `r=1109-1111 g=1024 b=1999-2005` on two consecutive boots, indoors (lighting not controlled). That is close to the borrowed seed, but it is not a seed measurement - the method still needs a daylight session with a visual neutral check.
+- **Warm-up rate:** 28 frames in 12 s (2.3 fps) at QXGA, against 57 frames in ~10 s recorded for OV3660. Not a problem at 1 FPS, but it means AWB gets fewer frames to converge on during warm-up.
+- **Short capture (`run_000009`, ~110 s, `AUDIT`):** 110/110 images saved, 0 temp/partial files, `captures.csv` 110 completed/0 other, `interval_mean_ms=995`, `interval_max_ms=1409`. Performance sample at frame 97: capture 290 ms, image write 131 ms, total 456 ms - within the 1,000 ms budget.
+- **JPEG size roughly 1.8x OV3660:** 172.7-192.7 KiB (mean 183.1 KiB) per QXGA/quality-12 frame, against the ~98-110 KiB recorded for OV3660. A one-hour session is therefore roughly 645 MiB rather than ~370 MiB - fine on the 8 GB card, but the one-hour run (item 3) is needed to show write time stays flat at this size.
+- **Consequence for remote diagnostics:** dev-bridge `GET` of an OV5640 frame failed (`length mismatch: expected 183246 bytes, got 48363`, then a `fromhex()` error), consistent with the large-transfer bug in [dev-bridge.md](dev-bridge.md) (reliable only up to ~87 KB). Single-frame remote checks that worked on OV3660 no longer work on OV5640; the image review (item 4) needs the card in a reader.
+- `run_000008` (`interrupted_power_removed`) is the session cut short by the `REBOOT` used to capture this boot log, not a fault.
+
+## OV5640 continuous autofocus (1 October 2026)
+
+Decision (owner): when an OV5640 is detected, run its **continuous** autofocus, because children may move the camera mid-session. The OV3660 profile is fixed-focus and unchanged. This also bears on the "soft focus throughout" finding above: without AF firmware the OV5640's voice-coil lens just sits at its rest position.
+
+- **Firmware source:** the OV5640's AF needs a 4,077-byte OmniVision microcontroller firmware written to the sensor after every `esp_camera_init()` (init resets the sensor and clears it). Taken unchanged from Espressif's official driver, `espressif/esp32-camera` commit `1d73d881b` (13 February 2026, first released in v2.1.5), Apache-2.0 - see `include/vendor/README.md`. A community copy (`0015/ESP32-OV5640-AF`, MIT, provenance of the bytes unstated) was considered and rejected in favour of the first-party source.
+- **Why ported rather than upgraded:** the pinned framework's prebuilt camera driver predates v2.1.5. Espressif's sequence (`sensors/ov5640_af.c`) needs only the public `get_reg`/`set_reg` calls, so `CameraService::startAutofocus()` ports it directly; no framework change or ADR needed.
+- **Behaviour:** started after each capture-mode init; never fatal - on failure the camera keeps capturing at the rest position and the boot report says why. Boot report: `camera initialised: OV5640, autofocus continuous (firmware loaded in N ms)`; the warm-up line adds the live state (`continuous, focused` / `focusing`).
+- **Not in motion-trigger mode:** that mode reinitialises the sensor for every retained frame, which would mean reloading the firmware and refocusing each time. Reported as `autofocus off in motion-trigger mode` rather than silently missing.
+- **First hardware boots (1 October 2026, evening, room dark):**
+  - Firmware load takes **~4.9 s** per capture-mode init (4,077 bytes via read-modify-write `set_reg`), so a session now starts ~5 s later; `PROBE` also pays it.
+  - Espressif's sequence sends the release command (0x08) without first setting ACK, so its wait passes immediately and the continuous command (0x04) arrives while the MCU is still busy. Fixed: both commands now use the full handshake (set ACK, write, wait for clear), and release is then acknowledged.
+  - On this module the continuous command **never clears ACK** but the MCU immediately reports status `0x00` (focusing). Treated as running; the boot report says `running without ack`.
+  - During capture (`run_000018`, ~3 min, ~160 frames) the status moved `0x00` -> `0x20` at the first frame and stayed `0x20`; it never reported `0x10` (focused). `0x20` is not in the status codes documented in Espressif's driver. The room was dark, and OV5640 AF is contrast-detect, so this run cannot distinguish "nothing to focus on" from "lens not moving". A serial-only trace now logs every AF status change during capture for the daylight test.
+- **Still to verify on hardware (daylight):** that the lens actually moves (some modules leave the AF motor's supply unconnected, in which case the commands succeed but focus never changes); whether continuous refocusing causes visibly soft frames or cadence slips at 1 FPS; and a near/far subject test.
+
+### Daylight session (2 October 2026)
+
+**Autofocus works.** `run_000019`, near/far test by the owner while watching the phone peek: status cycles `0x20` -> `0x00` (focusing, 2-3 s) -> `0x20` each time the scene changes, with one `0x10` (focused) seen; the owner saw the peek visibly refocus. `0x20` behaves as "settled" in continuous mode (every focusing burst returns to it). In the dark (1 October) it sat at `0x20` throughout - contrast-detect AF had nothing to work with. Each refocus can leave ~2-3 soft frames at 1 FPS.
+
+**OV5640 JPEGs are much larger in daylight:** 105-445 KB (mean ~302 KB) in `run_000019`, against ~185 KB indoors the night before and ~98-110 KB on OV3660. Image write 360-460 ms, total cycle 600-690 ms of the 1,000 ms budget; `interval_max_ms=1547`. An hour is ~1.06 GiB. The settled quality-12 setting was chosen on OV3660 and may need revisiting for OV5640.
+
+**Phone peek, three problems found and fixed:**
+1. *Intermittent:* the 250 KB peek buffer silently skipped every larger frame, so it only updated on small (often soft, mid-refocus) frames. Raised to 512 KB; a too-large frame is now reported once per boot.
+2. *Slow transfer:* the full 300-450 KB frame blocked the capture loop while it went over the SoftAP. The peek now sends a 512x384 re-encode (~18-26 KB, sent in 22-218 ms). First attempt had scrambled colours - `jpg2rgb565` and `fmt2jpg` in this framework disagree on RGB565 byte order; fixed with a byte swap.
+3. *Cost to capture:* decoding a QXGA frame takes ~2.1-2.4 s. Done in the request handler it cost ~2 retained frames per tap (`run_000024`: ~19 s behind schedule after 9 taps). Moved to a core-0 worker that keeps a fresh preview while anyone has peeked in the last 30 s; the handler answers at once (29-43 ms) or with 202 so the page retries. At priority 1 the back-to-back decodes starved core 0's idle task and **the task watchdog reset the board twice** (`run_000025`); now at idle priority with a 500 ms pause between builds - **built, not yet hardware-tested**.
+
+**Heat:** the camera heatsink got too hot to keep touching and the owner unplugged it. Taken out of its case with a heatsink fitted to the lens, the OV5640 module still got hot enough to **melt a rubber band** at 20 MHz XCLK. Owner is redesigning the enclosure physically; software changes made the same day:
+
+- **XCLK 20 -> 10 MHz for OV5640** (per-sensor `xclk_hz` in `kSensorProfiles`; OV3660 unchanged at its validated 20 MHz). The sensor streams continuously, so XCLK sets how much work it does between kept frames: streamed rate fell from 2.3 to **1.3 frames/s**, still enough for the 1 FPS schedule. Owner: "pretty warm but not so hot as before". Continuous AF still works, refocusing in ~5 s instead of 2-3 s. Standby between photos was rejected for 1 FPS because continuous AF needs a live stream; it remains the right tool for the 30/60 s interval modes.
+- **SoftAP transmit power 20 -> 8.5 dBm.** Owner's walk-away test: range fine for someone next to the device. No noticeable heat change by touch - the receiver is on continuously regardless of transmit power, so the saving is small. Kept as harmless. A bigger main-board saving would be switching Wi-Fi off when no phone has connected for a while (a design decision, not made). A USB inline power meter is recommended for any further heat work rather than touch.
+
+**Background peek preview, hardware-tested** (`run_000034`, 10 MHz, 8.5 dBm, ~12 min): 38 peeks, all served (decode mean 2,349 ms on core 0 with ~50 ms pauses inside the decode, send mean 48 ms); **707/707 frames, `interval_mean_ms=1000`**, `interval_max_ms=2776`; no watchdog reset, no SD error. Owner: "peeking works great, fast after the first image, lag not too bad"; AF giving "nice crisp focus up close". The idle-priority version before it (no pauses) made each decode take ~4.5 s, so previews were always older than the 6 s freshness limit and the page reported "could not load a picture".
+
+**SD dropout from a disturbed connector** (`run_000030`): the expansion board was briefly knocked loose during a touch heat check (owner confirmed). The card failed for ~45 s (`Card Failed`, 133 errors), the firmware retried every ~5 s and recovered without a reboot, but ~8 frames were lost **with no record on the card** - `captures.csv` is on the same card. Follow-up: record an outage summary once the card returns.
 
 The detailed component specification is in `docs/camera-spec.md`. The next validation actions are listed in `docs/next-session.md`.

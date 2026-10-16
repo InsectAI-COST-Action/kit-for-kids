@@ -1,0 +1,65 @@
+#!/bin/sh
+# insectcam-boot: choose the camera's mode once at power-up.
+#
+#   Computer on the data micro-USB port -> TRANSFER: the Pi becomes the
+#       INSECT-AI drive (dashboard + photos); nothing is captured.
+#   Anything else (power bank, or power on the PWR port) -> CAPTURE: mount the
+#       photo drive and start the camera service with its phone app.
+#
+# Detection: present the drive over USB and wait for a computer to configure
+# it (/sys/class/udc/*/state becomes "configured"). A power bank never does.
+# Mass storage needs no driver on Windows, macOS or Linux, so any computer is
+# detected - unlike the USB network link, which needs a driver on Windows.
+#
+# Development: if /boot/firmware/insectcam-dev exists, keep the USB network link
+# (SSH over USB) and capture as normal. The file is on the card's FAT boot
+# partition, so it can be added or removed from a PC too.
+set -u
+
+DEV_FLAG=/boot/firmware/insectcam-dev
+WAIT_S=${INSECTCAM_HOST_WAIT_S:-12}
+
+log() { echo "[insectcam-boot] $*"; }
+
+udc_state() { cat /sys/class/udc/*/state 2>/dev/null | head -n1; }
+
+start_capture() {
+  /usr/local/sbin/insectcam-drive mount
+  systemctl start insectcam.service
+  log "capture mode"
+}
+
+dev_flag_on_drive() {
+  # Also honoured at the top of the INSECT-AI drive, so a developer whose Pi is
+  # in transfer mode (no SSH) can drop the file there from the computer, eject,
+  # and replug to get the USB network link back.
+  mnt=$(mktemp -d)
+  found=1
+  if mount -o ro "${INSECTCAM_DEVICE:-/dev/disk/by-label/INSECT-AI}" "$mnt" 2>/dev/null; then
+    [ -e "$mnt/insectcam-dev" ] && found=0
+    umount "$mnt"
+  fi
+  rmdir "$mnt"
+  return $found
+}
+
+if [ -e "$DEV_FLAG" ] || dev_flag_on_drive; then
+  log "development flag present: USB network link kept"
+  start_capture
+  exit 0
+fi
+
+/usr/local/sbin/insectcam-drive transfer
+i=0
+while [ "$i" -lt "$WAIT_S" ]; do
+  if [ "$(udc_state)" = "configured" ]; then
+    log "computer detected after ${i}s: transfer mode (drive INSECT-AI)"
+    exit 0
+  fi
+  sleep 1
+  i=$((i + 1))
+done
+
+log "no computer on the data port (USB state: $(udc_state)); switching to capture"
+modprobe -r g_mass_storage 2>/dev/null || true
+start_capture

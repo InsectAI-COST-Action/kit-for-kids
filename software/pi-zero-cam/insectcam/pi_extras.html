@@ -1,0 +1,227 @@
+<!-- Pi-only additions to the phone page. control.py splices the three sections below into the shared page
+     (extracted from the XIAO firmware) at serve time; the XIAO never sees any of it. Each marker line is an
+     insertion point and is not served. Strings go into the page's own TRANSLATIONS table. -->
+
+<!-- @@after-peek-button -->
+<button class="btn-peek" id="btnLive" type="button" hidden>&#x1F3A5; Live view (experimental)</button>
+<p class="settings-hint" id="liveNote" hidden></p>
+
+<!-- @@after-motion-setting -->
+<label class="settings-check" id="detectRow" hidden><input type="checkbox" id="cfgDetect"> <span id="detectText">Ant detection (experimental)</span></label>
+<p class="settings-hint" id="detectHint" hidden></p>
+
+<!-- @@before-body-end -->
+<style>
+  /* Live frames are 16:9 with a banner burned into the top edge: show them whole, not cropped to the 4:3 peek box. */
+  .peek-stage.live-on { aspect-ratio:16/9; }
+  .peek-stage.live-on img { object-fit:contain; }
+  #btnLive { margin-top:8px; }
+  #btnLive[disabled] { opacity:.55; }
+  #liveNote { margin-top:8px; }
+</style>
+<script>
+(function () {
+  'use strict';
+  Object.assign(TRANSLATIONS.en, {
+    'control.liveView': '\u{1F3A5} Live view (experimental)',
+    'control.liveStop': '\u{23F9} Stop live view',
+    'control.liveAlt': 'Live view with detection boxes',
+    'control.liveNote': 'Each picture appears after the camera’s ant-spotting test model has looked at it. This is an experiment — the boxes are not reliable.',
+    'control.liveNoModel': 'No detection model is installed on this camera.',
+    'control.liveBusy': 'Two people are already watching live view.',
+    'control.liveNotRunning': 'Live view needs the camera to be running. Start an adventure first.',
+    'control.liveFailed': 'Live view stopped.',
+    'control.liveTimeUp': 'Live view paused after 10 minutes. Tap Live view to start it again.',
+    'control.detectLabel': 'Ant detection (experimental)',
+    'control.detectHint': 'Records what a placeholder test model thinks it sees in each saved picture. The results are not reliable and are marked as test data. Takes effect from the next adventure.',
+    'control.detectSaved': 'Saved. It will apply from the next adventure.',
+    'control.detectNoModel': 'No detection model is installed on this camera.',
+    'control.detectSaveFailed': 'Could not save that setting.',
+  });
+  Object.assign(TRANSLATIONS.es, {
+    'control.liveView': '\u{1F3A5} Vista en directo (experimental)',
+    'control.liveStop': '\u{23F9} Detener la vista en directo',
+    'control.liveAlt': 'Vista en directo con recuadros de detección',
+    'control.liveNote': 'Cada imagen aparece después de que el modelo de prueba de detección de hormigas la haya revisado. Es un experimento: los recuadros no son fiables.',
+    'control.liveNoModel': 'No hay ningún modelo de detección instalado en esta cámara.',
+    'control.liveBusy': 'Ya hay dos personas viendo la vista en directo.',
+    'control.liveNotRunning': 'La vista en directo necesita que la cámara esté funcionando. Empieza primero una aventura.',
+    'control.liveFailed': 'La vista en directo se ha detenido.',
+    'control.liveTimeUp': 'La vista en directo se pausó tras 10 minutos. Pulsa Vista en directo para empezar de nuevo.',
+    'control.detectLabel': 'Detección de hormigas (experimental)',
+    'control.detectHint': 'Guarda lo que un modelo de prueba cree ver en cada foto guardada. Los resultados no son fiables y se marcan como datos de prueba. Se aplica a partir de la próxima aventura.',
+    'control.detectSaved': 'Guardado. Se aplicará a partir de la próxima aventura.',
+    'control.detectNoModel': 'No hay ningún modelo de detección instalado en esta cámara.',
+    'control.detectSaveFailed': 'No se ha podido guardar ese ajuste.',
+  });
+
+  const stage = document.getElementById('peekStage');
+  const btnLive = document.getElementById('btnLive');
+  const liveNote = document.getElementById('liveNote');
+  const detectRow = document.getElementById('detectRow');
+  const cfgDetect = document.getElementById('cfgDetect');
+  const detectHint = document.getElementById('detectHint');
+  let live = false;
+  let status = {};
+
+  function showHint(el, key) { el.hidden = !key; if (key) el.textContent = t(key); }
+
+  function refreshText() {
+    btnLive.textContent = live ? t('control.liveStop') : t('control.liveView');
+    document.getElementById('detectText').textContent = t('control.detectLabel');
+    if (live) showHint(liveNote, 'control.liveNote');
+    else if (status.features && !status.modelInstalled) showHint(liveNote, 'control.liveNoModel');
+    else showHint(liveNote, null);
+    if (!detectHint.dataset.custom) showHint(detectHint, 'control.detectHint');
+  }
+
+  // Live view fetches one annotated picture at a time (not a multipart stream: current Chromium/Edge do not show
+  // those in an <img>). The random id lets the camera count viewers by their requests; stopping, or a phone that
+  // simply disappears, frees the slot (the camera forgets a viewer after a few seconds of silence).
+  let liveId = '';
+  let liveToken = 0;      // identifies this live-view session, so a stale loop ends itself
+  let frameUrl = '';
+
+  function newViewerId() {
+    const bytes = new Uint8Array(12);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => (b % 36).toString(36)).join('');
+  }
+
+  function dropFrame() {
+    if (frameUrl) URL.revokeObjectURL(frameUrl);
+    frameUrl = '';
+  }
+
+  function showFrame(blob) {
+    const img = document.getElementById('liveImg');
+    if (!img) return;
+    const previous = frameUrl;
+    frameUrl = URL.createObjectURL(blob);
+    img.onload = () => { if (previous) URL.revokeObjectURL(previous); };
+    img.src = frameUrl;
+    img.hidden = false;
+    const wait = document.getElementById('liveWait');
+    if (wait) wait.remove();
+  }
+
+  function stopLive(clearStage) {
+    if (!live) return;
+    live = false;
+    liveToken += 1;
+    fetch('/api/live/stop?id=' + liveId, { method: 'POST', keepalive: true }).catch(() => {});
+    stage.classList.remove('live-on');
+    if (clearStage) { stage.replaceChildren(); dropFrame(); }
+    refreshText();
+  }
+
+  function failLive(code) {
+    live = false;
+    liveToken += 1;
+    stage.classList.remove('live-on');
+    dropFrame();
+    const keys = { no_model_installed: 'control.liveNoModel', live_busy: 'control.liveBusy',
+                   live_not_available: 'control.liveNotRunning', live_time_up: 'control.liveTimeUp' };
+    const message = document.createElement('p');
+    message.className = 'peek-empty';
+    message.textContent = t(keys[code] || 'control.liveFailed');
+    stage.replaceChildren(message);
+    refreshText();
+  }
+
+  async function liveLoop(token) {
+    let seq = 0;
+    let failures = 0;
+    while (live && token === liveToken) {
+      try {
+        const response = await fetch('/api/live/frame?id=' + liveId + '&after=' + seq + '&t=' + Date.now(), { cache: 'no-store' });
+        if (token !== liveToken) return;
+        if (response.status === 200) {
+          failures = 0;
+          seq = Number(response.headers.get('X-Seq')) || seq;
+          showFrame(await response.blob());
+        } else if (response.status !== 204) {   // 204: nothing newer yet, ask again
+          const data = await response.json().catch(() => ({}));
+          failLive(data.errorCode);
+          return;
+        }
+      } catch (error) {
+        failures += 1;
+        if (failures >= 5) { failLive('unreachable'); return; }
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+    }
+  }
+
+  function startLive() {
+    if (live) return;
+    live = true;
+    liveId = newViewerId();
+    stage.classList.add('live-on');
+    const wait = document.createElement('p');
+    wait.id = 'liveWait';
+    wait.className = 'peek-empty';
+    wait.textContent = t('control.gettingPicture');
+    const img = document.createElement('img');
+    img.id = 'liveImg';
+    img.alt = t('control.liveAlt');
+    img.hidden = true;
+    stage.replaceChildren(wait, img);
+    refreshText();
+    liveLoop(liveToken += 1);
+  }
+
+  btnLive.addEventListener('click', () => { if (live) stopLive(true); else startLive(); });
+  // The page's own handler fetches the still picture and replaces the stage itself; just end the stream.
+  document.getElementById('btnPeek').addEventListener('click', () => stopLive(false));
+
+  async function pollStatus() {
+    try {
+      status = await (await fetch('/api/status')).json();
+    } catch (error) { return; }
+    const features = status.features || [];
+    btnLive.hidden = !features.includes('live');
+    detectRow.hidden = !features.includes('detect');
+    btnLive.disabled = !live && !status.liveAvailable;
+    if (live && !status.liveAvailable) stopLive(true);
+    refreshText();
+  }
+
+  async function loadDetectSetting() {
+    try {
+      const cfg = await (await fetch('/api/config')).json();
+      cfgDetect.checked = Boolean(cfg.model_id) && cfg.model_id !== 'none';
+    } catch (error) { /* keep the box as it is */ }
+  }
+
+  cfgDetect.addEventListener('change', async () => {
+    const wanted = cfgDetect.checked;
+    detectHint.dataset.custom = '1';
+    try {
+      const response = await fetch('/api/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ enabled: wanted ? 'true' : 'false' }),
+      });
+      if (response.status === 202) showHint(detectHint, 'control.detectSaved');
+      else {
+        const data = await response.json().catch(() => ({}));
+        cfgDetect.checked = !wanted;
+        showHint(detectHint, data.errorCode === 'no_model_installed' ? 'control.detectNoModel' : 'control.detectSaveFailed');
+      }
+    } catch (error) {
+      cfgDetect.checked = !wanted;
+      showHint(detectHint, 'control.detectSaveFailed');
+    }
+  });
+
+  // Keep the labels right when the language picker re-runs the page's own text pass.
+  const originalApplyStaticText = applyStaticText;
+  window.applyStaticText = function () { originalApplyStaticText(); refreshText(); };
+
+  refreshText();
+  loadDetectSetting();
+  pollStatus();
+  setInterval(pollStatus, 3000);
+})();
+</script>

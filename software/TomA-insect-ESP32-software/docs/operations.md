@@ -43,7 +43,7 @@ one half; `--port`, `--card` and `--yes` make it non-interactive. See the
 - Missing or corrupt `config.json`: restore `config.example.json` as `config.json`.
 - A missing or empty `manifest.js` means only the current open chunk can be loaded. Do not overwrite a runtime manifest with the starter dashboard file; `py tools\prepare_sd.py` now preserves it automatically.
 - On the next boot, the firmware promotes the previous open chunk and marks its run `interrupted_power_removed` before starting a new run.
-- Run `py tools\audit_card.py <card-root>` before cleanup. The audit is read-only and reports missing CSV-referenced images, temporary files, unlisted chunks, stale run states, and raw/dashboard count drift.
+- Run `py tools\audit_card.py <card-root>` before cleanup. The audit is read-only and reports missing CSV-referenced images, zero-byte images (a photo that exists but holds no data), boxes files that disagree with `detections.csv`, temporary files, unlisted chunks, stale run states, and raw/dashboard count drift.
 - Camera/SD fault: record the serial diagnostic, firmware version, card type, and run identifier before retrying.
 
 ## Experimental direct dashboard configuration

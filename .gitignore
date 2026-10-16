@@ -8,3 +8,10 @@ Gemfile.lock
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Detection model weights are never committed (ADR 0002; licence still undecided). Stage them by hand.
+software/pi-zero-cam/models/
+
+# Python bytecode
+__pycache__/
+*.pyc

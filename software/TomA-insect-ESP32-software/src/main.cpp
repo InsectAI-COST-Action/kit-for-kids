@@ -42,7 +42,7 @@ constexpr uint32_t kPerformanceSampleInterval = 97;
 // to iterate on. Two active-pump designs followed (see
 // docs/hardware-validation.md "Fix attempted"/"Seeded white balance" for
 // the full trail) before landing here. 31 August 2026: seed AWB directly
-// via CameraService::seedWhiteBalance() (real OV3660 register writes,
+// via CameraService::seedWhiteBalance() (real sensor register writes,
 // confirmed from driver source, not guessed) with a value measured from
 // this room's actual lighting, then pump briefly in the real capture mode
 // so AWB walks from that seed to whatever's optimal right now, rather than
@@ -54,19 +54,11 @@ constexpr uint32_t kPerformanceSampleInterval = 97;
 // already-configured capture sensor. Measured convergence with no reset in
 // the way plateaus within ~10 s (57 frames); kept some margin above that.
 constexpr uint32_t kCameraWarmupMs = 12000;
-// Measured 31 August 2026 (run_000078, this room, daylight): AWB converges
-// to approximately this gain and produces a visually neutral image within
-// ~10 s of continuous pumping with no sensor reset. Used as a starting
-// point, not a locked value - seedWhiteBalance() hands control straight
-// back to auto AWB, which keeps adjusting for whatever the light actually
-// is when the device boots. If the camera moves to a different location or
-// lighting, expect the *speed* of settling to matter less than usual (it's
-// already close) but the seed itself may need remeasuring for a very
-// different environment - see docs/hardware-validation.md "Seeded white
-// balance" for how these were found and how to redo it.
-constexpr uint16_t kWhiteBalanceSeedRedGain = 1055;
-constexpr uint16_t kWhiteBalanceSeedGreenGain = 1024;
-constexpr uint16_t kWhiteBalanceSeedBlueGain = 2100;
+// The seed gain itself is per sensor (OV3660 or OV5640) and lives in
+// camera_service.cpp's kSensorProfiles, alongside how each was measured. It
+// is a starting point, not a locked value - seedWhiteBalance() hands control
+// straight back to auto AWB, which keeps adjusting for whatever the light
+// actually is when the device boots.
 
 struct CaptureTiming {
   uint32_t scheduled_ms = 0;
@@ -118,7 +110,7 @@ void recordCaptureFailure(const String& capture_id, uint32_t scheduled_ms, const
 }
 
 bool refreshMotionBaseline(String& diagnostic) {
-  // Reinitialising the OV3660 after a JPEG changes auto exposure for its first
+  // Reinitialising the sensor after a JPEG changes auto exposure for its first
   // grayscale frames. Discard two of them, then compare future scheduled checks
   // against the settled preview rather than the pre-JPEG image.
   if (!camera.captureMotionPreview(current_motion_preview, diagnostic)) return false;
@@ -255,8 +247,27 @@ CaptureTiming captureOnce(uint32_t scheduled_ms) {
   const uint32_t image_write_started = millis();
   const bool image_saved = storage.writeBinaryAtomicCreate(record.image_path, frame->buf, frame->len, diagnostic);
   timing.image_write_ms = millis() - image_write_started;
-  control_server.updatePeek(frame->buf, frame->len);
+  if (!control_server.updatePeek(frame->buf, frame->len, frame->width, frame->height)) {
+    // Once per boot: the peek keeps showing an older frame, which is worth
+    // knowing but not worth a line every second.
+    static bool reported_peek_skip = false;
+    if (!reported_peek_skip) {
+      report("peek not updated: frame of " + String(static_cast<unsigned long>(frame->len)) +
+             " bytes exceeds the peek buffer");
+      reported_peek_skip = true;
+    }
+  }
   camera.release(frame);
+  {
+    // Serial-only trace of autofocus state changes (one SCCB read per frame),
+    // so a near/far test can show whether the lens is actually refocusing.
+    static String last_autofocus_status;
+    const String autofocus_status = camera.autofocusStatus();
+    if (autofocus_status != last_autofocus_status) {
+      report(capture_id + " autofocus " + autofocus_status);
+      last_autofocus_status = autofocus_status;
+    }
+  }
   if (config.motion_trigger_enabled) {
     String restore_diagnostic;
     if (!camera.restoreMotionPreview(restore_diagnostic)) {
@@ -370,8 +381,7 @@ void setup() {
   {
     const uint32_t warmup_wall_start_ms = millis();
     String seed_diagnostic;
-    if (!camera.seedWhiteBalance(kWhiteBalanceSeedRedGain, kWhiteBalanceSeedGreenGain, kWhiteBalanceSeedBlueGain,
-                                  seed_diagnostic)) {
+    if (!camera.seedWhiteBalance(seed_diagnostic)) {
       report("white-balance seed failed (" + seed_diagnostic + "), starting from AWB default instead");
     } else {
       report("camera warm-up: " + seed_diagnostic);
@@ -391,7 +401,8 @@ void setup() {
       }
     }
     report("camera warm-up complete: " + String(warmup_frames) + " frames in " + String(kCameraWarmupMs / 1000) +
-           "s (" + String(warmup_frames * 1000.0f / kCameraWarmupMs, 1) + " fps), " + camera.manualGainStatus());
+           "s (" + String(warmup_frames * 1000.0f / kCameraWarmupMs, 1) + " fps), " + camera.manualGainStatus() +
+           ", autofocus " + camera.autofocusStatus());
     report("camera warm-up total wall time: " + String(millis() - warmup_wall_start_ms) + " ms");
   }
   session_started_ms = millis();

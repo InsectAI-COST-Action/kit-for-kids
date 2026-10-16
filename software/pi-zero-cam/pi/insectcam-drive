@@ -1,0 +1,102 @@
+#!/bin/sh
+# insectcam-drive: the Pi's photo "card" is its third partition, a FAT32
+# filesystem labelled INSECT-AI. It is either mounted on the Pi (capture mode)
+# or handed to a computer as a USB drive (transfer mode), never both at once
+# (two writers on one FAT filesystem corrupt it).
+#
+#   insectcam-drive mount            mount it at $MOUNT for the capture service
+#   insectcam-drive unmount
+#   insectcam-drive transfer         unmount, then present it over USB as a drive
+#   insectcam-drive network          stop being a drive, return to the USB network
+#                                    link (rpi-usb-gadget's g_ether) and remount
+#   insectcam-drive transfer-test S  transfer for S seconds, then network (development:
+#                                    keeps SSH-over-USB reachable afterwards)
+#   insectcam-drive status
+#
+# The volume label is INSECT-AI because the dashboard tells children to pick
+# the drive by that name (see prepare_sd.py in the ESP32 project).
+#
+# The system partition can be read-only (overlay file system, see install.sh
+# --read-only); this partition is the only thing the camera writes to, so a
+# plug pulled mid-capture can at worst lose the last photo (the capture
+# service writes every file atomically).
+set -eu
+
+DEVICE=${INSECTCAM_DEVICE:-/dev/disk/by-label/INSECT-AI}
+MOUNT=${INSECTCAM_MOUNT:-/srv/insectcam}
+OWNER_UID=$(id -u pi)
+OWNER_GID=$(id -g pi)
+
+log() { echo "[insectcam-drive] $*"; }
+
+is_mounted() { mountpoint -q "$MOUNT"; }
+
+do_mount() {
+  is_mounted && return 0
+  [ -e "$DEVICE" ] || { log "no INSECT-AI partition ($DEVICE)"; exit 1; }
+  mkdir -p "$MOUNT"
+  # fsck first: the computer may have been unplugged mid-copy in transfer mode,
+  # or the power pulled mid-photo in capture mode.
+  fsck.vfat -a "$DEVICE" >/dev/null 2>&1 || true
+  mount -o uid="$OWNER_UID",gid="$OWNER_GID",umask=022,flush "$DEVICE" "$MOUNT"
+  log "mounted $DEVICE at $MOUNT"
+  tidy
+}
+
+# fsck.vfat -a salvages the cluster chains of photos cut off mid-save as
+# FSCK####.REC files at the top of the drive; delete them, and keep everything
+# but the dashboard page and the photos folder hidden.
+tidy() {
+  (cd /opt/insectcam && python3 -m insectcam.tidy "$MOUNT") || log "tidy failed (continuing)"
+}
+
+do_unmount() {
+  is_mounted || return 0
+  sync
+  umount "$MOUNT"
+  log "unmounted $MOUNT"
+}
+
+do_transfer() {
+  # Anchored: an unanchored match also hits any shell whose command line
+  # merely mentions the module (e.g. the SSH command that launched this).
+  # The service runs under the venv's python (systemd); a hand-started one is found by its command line.
+  if systemctl is-active --quiet insectcam.service || pgrep -f '(^|/)python3? -m insectcam\.service' >/dev/null; then
+    log "capture service is running; stop it first"; exit 1
+  fi
+  # Mount first (this runs fsck and tidies) so the computer is handed a clean
+  # drive, then give the partition up.
+  do_mount
+  do_unmount
+  modprobe -r g_ether 2>/dev/null || true
+  # removable=1: the computer may eject it; stall=0 for Windows compatibility.
+  modprobe g_mass_storage file="$(readlink -f "$DEVICE")" removable=1 ro=0 stall=0 \
+    iManufacturer="InsectAI" iProduct="Insect camera" idVendor=0x2E8A idProduct=0x0014
+  log "presenting $DEVICE to the computer as drive INSECT-AI"
+}
+
+do_network() {
+  modprobe -r g_mass_storage 2>/dev/null || true
+  modprobe g_ether
+  do_mount
+  log "back to USB network link"
+}
+
+case "${1:-status}" in
+  mount) do_mount ;;
+  unmount) do_unmount ;;
+  transfer) do_transfer ;;
+  network) do_network ;;
+  transfer-test)
+    seconds=${2:-120}
+    do_transfer
+    sleep "$seconds"
+    do_network
+    ;;
+  status)
+    is_mounted && log "mounted at $MOUNT" || log "not mounted"
+    lsmod | grep -qE '^g_mass_storage' && log "USB: drive" || log "USB: network"
+    log "USB link state: $(cat /sys/class/udc/*/state 2>/dev/null)"
+    ;;
+  *) echo "usage: $0 mount|unmount|transfer|network|transfer-test SECONDS|status"; exit 2 ;;
+esac

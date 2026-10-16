@@ -5,6 +5,7 @@ Run with: py tests\check_project.py
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -61,9 +62,47 @@ def check_pilot_configuration() -> None:
 def check_camera_contract() -> None:
     source = text("src/camera_service.cpp")
     for fragment in ("kXclkPin = 10", "kSccbSdaPin = 40", "kSccbSclPin = 39", "kY9Pin = 48"):
-        require(fragment in source, f"Missing expected XIAO OV3660 mapping: {fragment}")
+        require(fragment in source, f"Missing expected XIAO camera-connector mapping: {fragment}")
     require("psramFound()" in source, "Camera must reject missing PSRAM")
-    require("OV3660_PID" in source, "Camera must report the actual sensor PID")
+    # Both the stock OV3660 and the OV5640 replacement module are supported on
+    # the same connector; each needs its own profile and identity string.
+    # Last two fields: has_autofocus (only the OV5640 has a voice-coil lens)
+    # and XCLK. OV3660 stays at its validated 20 MHz; OV5640 runs slower
+    # because at 20 MHz it overheated (2 October 2026). Datasheet floor ~6 MHz.
+    for pid, name, autofocus in (("OV3660_PID", "OV3660", "false"), ("OV5640_PID", "OV5640", "true")):
+        match = re.search(r"\{" + pid + r',\s*"' + name + r'",\s*\d+,\s*\d+,\s*\d+,\s*(true|false),\s*' + autofocus + r",\s*(\d+)\}", source)
+        require(match is not None, f"Camera must carry a sensor profile for {name} with has_autofocus={autofocus}")
+        xclk = int(match.group(2))
+        require(6_000_000 <= xclk <= 27_000_000, f"{name} XCLK {xclk} Hz is outside the sensor's 6-27 MHz input range")
+        if name == "OV3660":
+            require(xclk == 20_000_000, "OV3660 XCLK must stay at the 20 MHz its validation ran at")
+        else:
+            require(xclk < 20_000_000, "OV5640 XCLK must stay below the 20 MHz that overheated it")
+    require("camera_config.xclk_freq_hz = xclk_hz_;" in source, "Camera init must use the detected sensor's XCLK")
+    require("kAfCmdContinuous" in source and "startAutofocus(af_diagnostic)" in source,
+            "OV5640 must start continuous autofocus after each capture-mode init")
+    require('"off in motion-trigger mode"' in source,
+            "Autofocus must be reported off, not silently missing, in motion-trigger mode")
+    require("camera.autofocusStatus()" in text("src/main.cpp"), "Boot report must include the autofocus state")
+    # Vendored third-party firmware: pin the exact file so an accidental edit
+    # fails here, and require its provenance and licence to stay alongside it.
+    # Hashes the firmware bytes, not the file, so checkout line-ending
+    # conversion cannot cause a false failure.
+    firmware = text("include/vendor/ov5640_af_firmware.h")
+    firmware_bytes = bytes(int(value, 16) for value in re.findall(r"0x[0-9a-fA-F]{2}\b", firmware[firmware.index("{"):firmware.rindex("}")]))
+    require(len(firmware_bytes) == 4077 and hashlib.sha256(firmware_bytes).hexdigest() == "439245623bc99f3b0d8c44d47baed3cc17cad01b9191509c89bb8d92a98949c9",
+            "OV5640 AF firmware must be the unchanged espressif/esp32-camera 1d73d881b payload")
+    require((ROOT / "include" / "vendor" / "esp32-camera-LICENSE.txt").is_file() and "1d73d881b" in text("include/vendor/README.md"),
+            "OV5640 AF firmware must keep its Apache-2.0 licence and provenance note")
+    require('"unexpected_pid_"' in source, "Camera must report an unrecognised sensor PID rather than mislabel it")
+    require("profile_ == nullptr" in source and "not writing its registers" in source,
+            "White-balance seeding must refuse an unrecognised sensor rather than write its registers")
+    require("seed_measured" in source and "provisional seed" in source,
+            "Boot report must say when a sensor's white-balance seed is provisional")
+    require(not re.search(r'"OV(3660|5640) ready', source),
+            "Camera mode diagnostics must name the detected sensor, not a hard-coded one")
+    main = text("src/main.cpp")
+    require("kWhiteBalanceSeed" not in main, "White-balance seeds belong to the per-sensor profiles, not main.cpp")
     require("FRAMESIZE_QXGA" in source, "Camera must support the maximum-resolution quality trial")
     require("PIXFORMAT_GRAYSCALE" in source and "FRAMESIZE_QQVGA" in source and "esp_camera_deinit()" in source, "Camera must reinitialise the bounded motion-preview mode with matching buffers")
 
@@ -104,6 +143,11 @@ def check_dashboard_contract() -> None:
     require("demo-autoload.js" in text("dashboard/demo.html") and (ROOT / "dashboard" / "demo-autoload.js").is_file(), "The demo must auto-load its own card - there is no real folder for a person to point the picker at")
     require("generate_embedded_files_js" in text("tools/install_dashboard_demo.py") and "InsectDemoFiles" in text("dashboard/demo-autoload.js"), "The demo installer must embed images/AI models as base64 so the demo works with no folder-picker interaction")
     require("session-duration" in html and "image-resolution" in html and "total-recorded" in html, "Dashboard front page must show session duration, picture size, and total recorded time")
+    edge = text("dashboard/edge-results.js")
+    require("edge-results.js" in html and "edge-results.js" in text("dashboard/demo.html") and '"edge-results.js"' in text("tools/prepare_sd.py") and '"edge-results.js"' in text("tools/install_dashboard_demo.py"), "The edge-results module must be loaded by both pages and deployed by both installers")
+    require("innerHTML" not in edge and "fetch(" not in edge, "Edge results come from card data: set text with textContent/fillText only, and never fetch")
+    require("hasModel" in edge and "validated" in edge and "edge.banner" in edge, "Edge results must stay hidden without a model and be labelled as a test model unless the record says validated")
+    require("window.InsectEdge" in javascript and "ai.hasEdgeResults" in text("dashboard/i18n.js"), "The dashboard must call the edge-results hooks and carry their wording")
     require("not connected yet" not in javascript, "The AI note must not imply AI is unavailable when interactive browser analysis exists")
     # The "Memory card" tile it replaced could only ever read "Soon": the firmware
     # never writes sdTotalBytes/sdUsedBytes because SdStorage::totalBytes() is
@@ -188,11 +232,31 @@ def check_dashboard_contract() -> None:
     require("settings.js" in text("tools/prepare_sd.py"), "SD preparation must deploy the camera-settings module")
     scheduler = text("src/main.cpp")
     require("config.capture_interval_ms" in scheduler and "config.max_session_seconds > 0" in scheduler, "Firmware must schedule the selected interval and support an infinite session")
-    require("kCameraWarmupMs = 12000" in scheduler and "seedWhiteBalance" in scheduler and "kWhiteBalanceSeedRedGain" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
+    require("kCameraWarmupMs = 12000" in scheduler and "camera.seedWhiteBalance(seed_diagnostic)" in scheduler and "motionLocalScore" in scheduler and "motion_not_detected" in scheduler and "refreshMotionBaseline" in scheduler and "motion_preview_settle_failed" in scheduler, "Firmware must implement warm-up, settled-baseline, and motion-capture policy")
     require((ROOT / "spikes" / "motion-detection" / "motion_detection_spike.py").is_file(), "Tracked motion spike is missing")
     control_server = text("src/control_server.cpp")
     require("const LOCALES = [" in control_server and "const TRANSLATIONS = {" in control_server and "'control.takeAPeek'" in control_server and "'control.finishAdventure'" in control_server, "Phone control app must offer a language registry, not a hardcoded English-only page")
     require("errorCode" in control_server and "adventure_in_progress" in control_server and "no_card_mounted" in control_server, "Phone control app's fixed error responses must carry a stable, translatable error code")
+    # Peek: holds OV5640 daylight frames (up to ~445 KB measured) and sends a
+    # downscaled preview rather than the full frame over the SoftAP.
+    control_header = text("include/control_server.h")
+    capacity = re.search(r"kPeekBufferCapacity = (\d+) \* 1024", control_header)
+    require(capacity is not None and int(capacity.group(1)) >= 512, "Peek buffer must hold a full OV5640 daylight frame (>= 512 KB)")
+    require("esp_jpg_decode(" in control_server and "fmt2jpg(" in control_server and "buildPeekPreview(slot, jpeg, jpeg_length, error)" in control_server,
+            "Peek must send a downscaled preview, not the full frame")
+    # The ~2 s decode must stay off the capture loop: built by a core-0 worker,
+    # and the request handler must never decode.
+    handler = control_server[control_server.index("void ControlServer::handlePeek()"):control_server.index("void ControlServer::handleStatus()")]
+    require("xTaskCreatePinnedToCore(previewTaskEntry" in control_server and "jpg2rgb565" not in handler and "buildPeekPreview" not in handler,
+            "Peek preview must be built off the capture loop, never in the request handler")
+    write_callback = control_server[control_server.index("bool previewWrite("):control_server.index("}  // namespace") if "}  // namespace" in control_server else len(control_server)]
+    require("vTaskDelay(1)" in write_callback, "Peek decode must pause periodically, or its long decodes trip the task watchdog")
+    require("kPeekSlots = 3" in control_header and "peek_pinned_slot_" in control_server,
+            "Peek frame slots must keep the frame being decoded from being overwritten")
+    # SoftAP transmit power is cut for heat: the phone is within a metre or two.
+    require("kApTxPower = WIFI_POWER_8_5dBm" in control_server and control_server.index("WiFi.setTxPower(") > control_server.index("WiFi.softAP("),
+            "SoftAP must run at reduced transmit power, set after softAP() starts")
+    require("peek not updated" in text("src/main.cpp"), "A frame too large for the peek must be reported, not skipped silently")
     dev_bridge = text("src/dev_bridge.cpp")
     require('verb == "WIPE"' in dev_bridge and 'argument != "CONFIRM"' in dev_bridge and 'remove("/config.json")' not in dev_bridge, "The remote card-wipe command must refuse without an explicit confirmation and must never itself remove config.json")
     require("wipe" in text("tools/dev_bridge_client.py") and "--confirm" in text("tools/dev_bridge_client.py"), "The dev-bridge client must require its own --confirm before sending WIPE")
