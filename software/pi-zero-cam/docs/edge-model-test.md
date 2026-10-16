@@ -75,7 +75,11 @@ The models detect **dark specks**: crumbs, black shapes on the CD, and the head,
 - **Live view:** the phone fetches one annotated JPEG per request (long-poll), because Edge 155 does not render `multipart/x-mixed-replace` in an `<img>`. 640x360 frames, shown only after detection; two viewers at most, ten minutes per viewing. Stages are pipelined (next frame grabbed and converted while the current one is in the detector): 1.86 -> 2.24 frames per second with capture running at the same time (median gap 419 ms against 403 ms of inference).
 - **Power cut with recording on** found a data-safety bug unrelated to the model: Linux FAT writes a renamed file's directory entry with size 0 until the next inode writeback (up to ~30 s), so `echo b > /proc/sysrq-trigger` mid-capture left 33 of 36 photos as zero-length files (the earlier power-cut check counted files, not whether they opened). Fixed by fsyncing each file again under its final name; the same test afterwards: 38 of 38 photos readable, 38 capture rows, no `.tmp` files.
 
+## In the dashboard (16 October 2026)
+
+The shared dashboard shows what the Pi's detector found, only when a card's records carry a model: a frame-viewer overlay (score slider, TEST MODEL banner burned into the overlay), a gallery badge, table columns and filters, a card note that says the camera ran a test detector, and an adventure summary with a boxes-per-picture timeline and a top-score histogram. Checked in Edge against cards written by the real Pi writer (`tests/test_dashboard_edge.py`) and against the Pi's own card (run 42: 48 boxes on a four-ant photo, 4 left at a 60% slider). The capture interval with 49 boxes per photo and the boxes files being written: 1,007 ms mean, 1,068 ms max (inference now runs while the photo is written). Format: `TomA-insect-ESP32-software/docs/data-schema.md`.
+
 ## Not done
 
 - **Live test of the camera's own view with an ant under it:** the room light was off, so the frame was black (lux 0.1, mean pixel 1.6). Stand-in: earlier saved photos.
-- Detection rows from a lit scene in `raw/detections.csv`, the Windows audit and the dashboard's reading of placeholder rows; live view on a phone.
+- The camera was not yet re-checked in a full power-cut test with the new boxes files being written, nor on a literal cable pull.

@@ -28,6 +28,14 @@ Calendar time is intentionally unavailable in this pilot. `uptime_ms` is millise
 
 The dashboard reads `manifest.js`, `summary.js`, and closed JavaScript chunks under `/data/`. The raw CSV remains authoritative. A `.part` chunk is not listed in the manifest and must not be shown by the dashboard after an unexpected power loss. Run `py tools\audit_card.py <card-root>` after transfer to compare raw rows, image links, run manifests, and derived chunks. The audit never modifies the card.
 
+### Edge-detector results in the dashboard files (Pi camera; optional)
+
+A camera that runs a detector on its own photos (the Pi camera with its Ant detection switch on; the XIAO does not) adds, on top of the rows in `/raw/detections.csv`, optional derived data for the dashboard. A card without a model has none of it, and every reader must treat each item as absent:
+
+- In each capture chunk record: `modelId`, `modelStatus` (for example `placeholder_unvalidated`; any status other than `validated` is shown as a test model), and, when the inference outcome was `ok`, `predictionCount` and `maxConfidence`.
+- `/data/detections_NNNNNN.js` beside each closed captures chunk, and `/data/detections_current.js` beside the open one: one line per photo that had boxes, `window.InsectData.addDetections("<capture id>", [[x, y, w, h, score], ...])`, normalised 0-1 with the top-left corner, highest score first and at most 100 boxes per photo (the raw CSV keeps them all). The closed files that exist are listed in `manifest.js` as `detectionChunks`. The dashboard loads one only when a photo of that chunk is opened.
+- These files are derived from `/raw/detections.csv`, which stays authoritative, and are not synced per photo: after a power cut the last lines may be missing (a torn last line is dropped at the next start). `tools\audit_card.py` reports a line whose box count disagrees with the CSV or that names an unknown capture.
+
 ## Images
 
 Every successful capture uses `/images/<run-id>/shard_<nnnn>/<capture-id>.jpg`. Image presence is confirmed only after a complete write and promotion; a CSV row must leave `image_path` empty after an image write error.

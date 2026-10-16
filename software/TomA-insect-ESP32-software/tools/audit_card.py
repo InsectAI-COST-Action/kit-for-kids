@@ -9,6 +9,8 @@ from pathlib import Path
 IMAGE_SUFFIXES = {".jpg", ".jpeg"}
 TEMP_SUFFIXES = {".tmp", ".part"}
 CHUNK_PATTERN = re.compile(r'"(data/captures_[0-9]{6}\.js)"')
+BOXES_LINE = re.compile(r'addDetections\("([^"]+)",\[(.*)\]\);\s*$')
+MAX_BOXES_IN_CHUNK = 100    # the Pi camera keeps this many boxes per photo in the dashboard's boxes files
 
 
 def card_path(root: Path, value: str) -> Path:
@@ -66,6 +68,34 @@ def audit(root: Path) -> dict:
     derived_records = closed_records + current_records
     if rows and derived_records != len(rows):
         findings.append({"severity": "warning", "code": "raw_derived_count_mismatch", "detail": f"raw={len(rows)} dashboard={derived_records}"})
+    # Boxes files (data/detections_*.js, written by the Pi camera when its detector is on) are derived from
+    # raw/detections.csv. They are not synced per photo, so after a power cut the last lines may be missing: only
+    # disagreeing or orphaned lines are reported, never absent ones.
+    csv_counts: dict[str, int] = {}
+    detections_csv = root / "raw" / "detections.csv"
+    if detections_csv.exists():
+        with detections_csv.open(newline="", encoding="utf-8-sig", errors="replace") as handle:
+            for detection in csv.DictReader(handle):
+                capture_id = detection.get("capture_id", "")
+                csv_counts[capture_id] = csv_counts.get(capture_id, 0) + 1
+    known_captures = {row.get("capture_id", "") for row in rows}
+    boxes_files = sorted((root / "data").glob("detections_*.js")) if (root / "data").is_dir() else []
+    boxes_lines = 0
+    for boxes_file in boxes_files:
+        for line in boxes_file.read_text(encoding="utf-8", errors="replace").splitlines():
+            match = BOXES_LINE.search(line)
+            if not match:
+                if line.strip():
+                    findings.append({"severity": "warning", "code": "unreadable_boxes_line", "path": rel_path(root, boxes_file)})
+                continue
+            boxes_lines += 1
+            capture_id, body = match.group(1), match.group(2)
+            count = body.count("],[") + 1 if body.strip() else 0
+            if capture_id not in known_captures:
+                findings.append({"severity": "warning", "code": "boxes_for_unknown_capture", "path": rel_path(root, boxes_file), "detail": capture_id})
+            elif count != min(csv_counts.get(capture_id, 0), MAX_BOXES_IN_CHUNK):
+                findings.append({"severity": "warning", "code": "boxes_count_mismatch", "path": rel_path(root, boxes_file),
+                                 "detail": f"{capture_id}: file={count} csv={csv_counts.get(capture_id, 0)}"})
     states = {}
     runs_dir = root / "raw" / "runs"
     for path in sorted(runs_dir.glob("run_*.json")):
@@ -78,7 +108,7 @@ def audit(root: Path) -> dict:
                 findings.append({"severity": "warning", "code": "run_still_marked_running", "path": rel_path(root, path), "detail": run_id})
         except (OSError, json.JSONDecodeError) as exc:
             findings.append({"severity": "error", "code": "invalid_run_manifest", "path": rel_path(root, path), "detail": str(exc)})
-    return {"card": str(root), "raw_capture_rows": len(rows), "referenced_images": len(referenced), "image_files": len(image_files), "missing_referenced_images": missing_images, "unreferenced_complete_images": orphan_images, "temporary_or_partial_files": temporary, "zero_byte_images": zero_byte, "listed_chunks": listed, "available_chunks": available, "closed_chunk_records": closed_records, "current_chunk_records": current_records, "derived_dashboard_records": derived_records, "run_states": states, "findings": findings}
+    return {"card": str(root), "raw_capture_rows": len(rows), "referenced_images": len(referenced), "image_files": len(image_files), "missing_referenced_images": missing_images, "unreferenced_complete_images": orphan_images, "temporary_or_partial_files": temporary, "zero_byte_images": zero_byte, "boxes_files": [rel_path(root, f) for f in boxes_files], "boxes_lines": boxes_lines, "listed_chunks": listed, "available_chunks": available, "closed_chunk_records": closed_records, "current_chunk_records": current_records, "derived_dashboard_records": derived_records, "run_states": states, "findings": findings}
 
 
 def print_report(report: dict) -> None:
@@ -88,6 +118,8 @@ def print_report(report: dict) -> None:
     print(f"Dashboard records: {report['derived_dashboard_records']} ({len(report['listed_chunks'])} listed chunks + current)")
     print(f"Temporary/partial files: {len(report['temporary_or_partial_files'])}")
     print(f"Zero-byte images: {len(report['zero_byte_images'])}")
+    if report["boxes_files"]:
+        print(f"Dashboard boxes: {report['boxes_lines']} photos in {len(report['boxes_files'])} files")
     print(f"Run states: {', '.join(f'{run}={state}' for run, state in report['run_states'].items()) or 'none'}")
     if report["findings"]:
         print("Findings:")

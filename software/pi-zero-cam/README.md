@@ -53,7 +53,7 @@ Needs `python3-picamera2` (the Lite image does not include it; `install.sh` inst
 
 ### Ant detection and live view (experimental)
 
-Needs the detector installed (`pi/install.sh`, with a model staged in the gitignored `models/` folder; without one the controls say "no model installed"). The only model so far is a **placeholder** that finds dark specks, not ants, and everything it produces is labelled as such. **Live view** (button beside Take a peek) shows annotated frames, about 2 per second, only after the detector has run. **Ant detection** (settings) records predictions for each saved photo in `raw/detections.csv`; it is off by default and never changes which photos are kept. Details and measurements: `docs/edge-model-test.md`.
+Needs the detector installed (`pi/install.sh`, with a model staged in the gitignored `models/` folder; without one the controls say "no model installed"). The only model so far is a **placeholder** that finds dark specks, not ants, and everything it produces is labelled as such. **Live view** (button beside Take a peek) shows annotated frames, about 2 per second, only after the detector has run. **Ant detection** (settings) records predictions for each saved photo in `raw/detections.csv`; it is off by default and never changes which photos are kept. The dashboard on the drive shows the boxes when a card has them (frame viewer, summary), labelled as a test model. Details and measurements: `docs/edge-model-test.md`.
 
 ### Phone hotspot
 
