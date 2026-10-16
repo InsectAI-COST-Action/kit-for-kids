@@ -107,6 +107,69 @@ class RecordingTests(unittest.TestCase):
         self.assertIn('"inferenceOutcome":"timeout"', self.storage.path("data/captures_current.js").read_text())
         self.assertEqual(len(read_csv(self.storage.path("raw/detections.csv"))), 0)
 
+    # --- the dashboard's view of the results: optional record fields and per-chunk box files
+    def boxes(self, n):
+        return [(0, "Ant", 0.30 + 0.005 * i, 0.01 * i, 0.1, 0.02, 0.03) for i in range(n)]
+
+    def test_chunk_record_carries_model_and_counts_and_boxes_go_to_their_own_file(self):
+        s = self.session(model_id="ant_test")
+        cid = self.record(s, result(predictions=self.boxes(3)))
+        record = self.storage.path("data/captures_current.js").read_text()
+        for expected in ('"modelId":"ant_test"', '"modelStatus":"placeholder_unvalidated"', '"predictionCount":3',
+                         '"maxConfidence":0.31'):
+            self.assertIn(expected, record)
+        line = self.storage.path("data/detections_current.js").read_text().strip()
+        self.assertTrue(line.endswith(");"))
+        self.assertIn(f'addDetections("{cid}",[[0.02,0.1,0.02,0.03,0.31],', line)   # highest score first
+        self.assertEqual(line.count("],["), 2)
+
+    def test_without_a_model_nothing_new_appears_so_a_xiao_style_card_is_unchanged(self):
+        s = self.session()
+        self.record(s)
+        text = self.storage.path("data/captures_current.js").read_text()
+        for absent in ("modelId", "modelStatus", "predictionCount", "maxConfidence"):
+            self.assertNotIn(absent, text)
+        self.assertFalse(self.storage.path("data/detections_current.js").exists())
+        s.finish()
+        self.assertNotIn("detectionChunks", self.storage.path("manifest.js").read_text())
+
+    def test_a_failed_inference_has_the_model_but_no_counts_and_no_boxes_line(self):
+        s = self.session(model_id="ant_test")
+        self.record(s, result(outcome="timeout", ms=1500))
+        text = self.storage.path("data/captures_current.js").read_text()
+        self.assertIn('"modelId":"ant_test"', text)
+        self.assertNotIn("predictionCount", text)
+        self.assertFalse(self.storage.path("data/detections_current.js").exists())
+
+    def test_boxes_per_photo_are_capped_in_the_dashboard_file_but_not_in_the_csv(self):
+        s = self.session(model_id="ant_test")
+        self.record(s, result(predictions=self.boxes(130)))
+        line = self.storage.path("data/detections_current.js").read_text().strip()
+        self.assertEqual(line.count("],[") + 1, 100)
+        self.assertEqual(len(read_csv(self.storage.path("raw/detections.csv"))), 130)
+
+    def test_boxes_file_is_closed_with_its_captures_chunk_and_listed_in_the_manifest(self):
+        s = self.session(model_id="ant_test")
+        for n in range(100):
+            self.record(s, result(predictions=self.boxes(2) if n % 2 == 0 else ()), n=n + 1)
+        self.assertTrue(self.storage.path("data/captures_000001.js").is_file())
+        self.assertTrue(self.storage.path("data/detections_000001.js").is_file())
+        self.assertFalse(self.storage.path("data/detections_current.js").exists())
+        self.assertEqual(self.storage.path("data/detections_000001.js").read_text().count("addDetections(\""), 50)   # one line per photo that had boxes
+        self.assertIn('"detectionChunks":["data/detections_000001.js"]', self.storage.path("manifest.js").read_text())
+
+    def test_a_torn_last_boxes_line_is_dropped_on_restart_so_the_file_still_loads(self):
+        s = self.session(model_id="ant_test")
+        self.record(s, result(predictions=self.boxes(2)))
+        path = self.storage.path("data/detections_current.js")
+        path.write_text(path.read_text() + 'window.InsectData.addDetections("run_x_img_9",[[0.1,0.2,0.0')   # cut mid-line
+        s2 = self.session(model_id="ant_test")      # a new session recovers the old files
+        self.assertFalse(path.exists() and "img_9" in path.read_text())
+        for text in (self.storage.path("data/detections_000001.js").read_text(),):
+            self.assertTrue(text.strip().endswith(");"))
+            self.assertNotIn("img_9", text)
+        del s2
+
     def test_manifest_names_the_model_and_its_status(self):
         s = self.session(model_id="ant_test", detection_confidence=0.4)
         manifest = json.loads(self.storage.path(f"raw/runs/{s.run_id}.json").read_text())

@@ -48,6 +48,10 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 FIRMWARE_VERSION = "pi-0.1.0-dev"
 CHUNK_SIZE = 100
+MAX_BOXES_IN_CHUNK = 100     # per photo, in the dashboard's boxes files (the raw CSV keeps all)
+BOXES_PRELUDE = ("window.InsectData=window.InsectData||{captures:[],addCapture:function(c){this.captures.push(c);}};"
+                 "window.InsectData.addDetections=window.InsectData.addDetections||function(i,b){"
+                 "(this.detections=this.detections||{})[i]=b;};")
 SHARD_SIZE = 100
 PERFORMANCE_SAMPLE_INTERVAL = 97  # prime, so samples do not land on chunk promotions (see ESP32 docs)
 
@@ -232,12 +236,13 @@ class Storage:
         self._sync_file(target)
         self._sync_dir(target.parent)
 
-    def append_line(self, relative: str, line: str) -> None:
-        self.append_lines(relative, [line])
+    def append_line(self, relative: str, line: str, sync: bool = True) -> None:
+        self.append_lines(relative, [line], sync)
 
-    def append_lines(self, relative: str, lines: list[str]) -> None:
+    def append_lines(self, relative: str, lines: list[str], sync: bool = True) -> None:
         """Append rows with one write and one fsync: an fsync on the SD card costs ~100 ms, so a photo with 60
-        detections written row by row held the capture loop for ~8 s (measured 16 October 2026)."""
+        detections written row by row held the capture loop for ~8 s (measured 16 October 2026). sync=False is for
+        derived files only (the dashboard's boxes file): the raw CSV is authoritative and stays synced."""
         if not lines:
             return
         target = self.path(relative)
@@ -245,7 +250,8 @@ class Storage:
         with open(target, "a", encoding="utf-8", newline="\n") as handle:
             handle.write("".join(line + "\n" for line in lines))
             handle.flush()
-            os.fsync(handle.fileno())
+            if sync:
+                os.fsync(handle.fileno())
 
     def read_text(self, relative: str) -> str:
         target = self.path(relative)
@@ -296,9 +302,11 @@ class DashboardWriter:
             self.closed_chunks, self.closed_captures = 0, 0
         self.current_count = 0
         self.current_path = "data/captures_current.js"
+        self.boxes_path = "data/detections_current.js"
         self._recover()
 
     def _recover(self) -> None:
+        self._repair_boxes()
         current = self.storage.path(self.current_path)
         if not current.is_file():
             return
@@ -309,10 +317,34 @@ class DashboardWriter:
         self.current_count = len(lines)
         self._promote()
 
-    def append(self, record: dict) -> None:
+    def _repair_boxes(self) -> None:
+        """A power cut can tear the last line of the open boxes file, and one bad line stops the whole script
+        from loading in the browser: keep only the complete lines."""
+        path = self.storage.path(self.boxes_path)
+        if not path.is_file():
+            return
+        lines = path.read_text(encoding="utf-8", errors="replace").split(chr(10))
+        complete = [line for line in lines[:-1] if line.endswith(");")]
+        if len(complete) != len([line for line in lines if line.strip()]):
+            if complete:
+                self.storage.write_atomic(self.boxes_path, chr(10).join(complete) + chr(10))
+            else:
+                path.unlink()
+
+    def append(self, record: dict, boxes: list | None = None) -> None:
+        """One line per photo in the open captures chunk, and, when the detector found boxes, one line in the open
+        boxes file (data/detections_NNNNNN.js, same chunk numbering). Boxes are [x, y, w, h, score], normalised,
+        the highest scores first; the raw CSV keeps every one."""
         line = ("window.InsectData=window.InsectData||{captures:[],addCapture:function(c){this.captures.push(c);}};"
                 f"window.InsectData.addCapture({json.dumps(record, separators=(',', ':'))});")
         self.storage.append_line(self.current_path, line)
+        if boxes:
+            top = sorted(boxes, key=lambda box: -box[4])[:MAX_BOXES_IN_CHUNK]
+            payload = json.dumps([[round(v, 4) for v in box[:4]] + [round(box[4], 3)] for box in top], separators=(",", ":"))
+            # Derived from detections.csv (authoritative, synced): not synced per photo (~190 ms each on the SD card,
+            # measured 16 October 2026); synced when the chunk closes. A power cut can lose the last lines or tear
+            # one, which _repair_boxes drops at the next start.
+            self.storage.append_line(self.boxes_path, BOXES_PRELUDE + f"window.InsectData.addDetections({json.dumps(record['captureId'])},{payload});", sync=False)
         self.current_count += 1
         if self.current_count >= CHUNK_SIZE:
             self._promote()
@@ -326,16 +358,23 @@ class DashboardWriter:
         chunk_id = self.closed_chunks + 1
         final = self.storage.path(f"data/captures_{chunk_id:06d}.js")
         os.replace(self.storage.path(self.current_path), final)
+        boxes = self.storage.path(self.boxes_path)
+        if boxes.is_file():
+            Storage._sync_file(boxes)
+            os.replace(boxes, self.storage.path(f"data/detections_{chunk_id:06d}.js"))
         Storage._sync_dir(final.parent)
         self.closed_chunks += 1
         self.closed_captures += self.current_count
         self.current_count = 0
         self.storage.write_atomic("system/dashboard_state.txt", f"{self.closed_chunks},{self.closed_captures}")
         chunks = ",".join(f'"data/captures_{index:06d}.js"' for index in range(1, self.closed_chunks + 1))
+        # Optional (absent when no photo on the card has boxes, as on a XIAO card): the boxes files that exist.
+        boxes_files = sorted(self.storage.path("data").glob("detections_[0-9][0-9][0-9][0-9][0-9][0-9].js"))
+        extra = ('"detectionChunks":[' + ",".join(f'"data/{path.name}"' for path in boxes_files) + "],") if boxes_files else ""
         self.storage.write_atomic(
             "manifest.js",
             'window.InsectData=window.InsectData||{};window.InsectData.manifest={"schemaVersion":1,'
-            f'"captureChunks":[{chunks}],"lastCommittedCaptureCount":{self.closed_captures}}};\n')
+            f'"captureChunks":[{chunks}],{extra}"lastCommittedCaptureCount":{self.closed_captures}}};\n')
         self._write_summary()
 
     def _write_summary(self) -> None:
@@ -437,11 +476,19 @@ class Session:
         raw_ms = int((time.monotonic() - started) * 1000)
         started = time.monotonic()
         assert self.dashboard is not None
-        self.dashboard.append({
+        record = {
             "runId": self.run_id, "captureId": capture_id, "uptimeMs": uptime_ms, "outcome": outcome,
             "imagePath": image_path, "width": width, "height": height, "jpegBytes": jpeg_bytes,
             "captureMs": capture_ms, "inferenceMs": inference_ms, "inferenceOutcome": inference_outcome,
-            "motionScore": round(motion_score, 3), "motionThreshold": float(threshold)})
+            "motionScore": round(motion_score, 3), "motionThreshold": float(threshold)}
+        if self.config.detection_enabled:
+            # Optional fields, absent on cards without a model (a XIAO's, or a Pi with detection off).
+            record["modelId"] = self.config.model_id
+            record["modelStatus"] = self.model_status or "unspecified"
+            if detection is not None and detection.outcome == "ok":
+                record["predictionCount"] = len(predictions)
+                record["maxConfidence"] = round(max_confidence, 4)
+        self.dashboard.append(record, [[p.x, p.y, p.w, p.h, p.confidence] for p in predictions])
         return raw_ms, int((time.monotonic() - started) * 1000)
 
     def finish(self) -> None:

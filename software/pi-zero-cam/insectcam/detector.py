@@ -221,16 +221,25 @@ class DetectorWorker(threading.Thread):
         self._busy = False
         self._stopping = False
 
-    def detect_for_capture(self, image: Image.Image, timeout: float = 1.5) -> DetectionResult:
+    def submit_for_capture(self, image: Image.Image) -> _Ticket:
+        """Start the inference for a photo's frame; collect it with wait_for_capture (lets the caller write the
+        photo while the model runs)."""
         ticket = _Ticket(image)
         with self._condition:
             self._capture_job = ticket
             self._condition.notify()
+        return ticket
+
+    @staticmethod
+    def wait_for_capture(ticket: _Ticket, timeout: float = 1.5) -> DetectionResult:
         if not ticket.done.wait(timeout):
             ticket.cancelled = True
             return DetectionResult(OUTCOME_TIMEOUT, int(timeout * 1000))
         assert ticket.result is not None
         return ticket.result
+
+    def detect_for_capture(self, image: Image.Image, timeout: float = 1.5) -> DetectionResult:
+        return self.wait_for_capture(self.submit_for_capture(image), timeout)
 
     def idle(self) -> bool:
         """True when a live-view frame would be accepted right now (lets a producer skip grabbing frames)."""

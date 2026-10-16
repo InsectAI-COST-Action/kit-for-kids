@@ -308,6 +308,11 @@ class Service:
             except Exception as error:  # camera faults must not stop the session
                 outcome, save_outcome, error_code, image_path = "capture_error", "not_attempted", type(error).__name__, ""
                 report(f"capture failed: {error}")
+            ticket = None
+            if worker is not None and outcome == "completed" and rgb is not None:
+                # The model runs while the photo is written (the SD card is the slow part); the result is only
+                # collected after the write, and never changes whether or how the photo is saved (ADR 0002).
+                ticket = worker.submit_for_capture(rgb)
             if outcome == "completed":
                 write_start = time.monotonic()
                 try:
@@ -316,12 +321,15 @@ class Service:
                     outcome, save_outcome, error_code, image_path = "storage_error", "failed", "image_write_failed", ""
                     report(f"image write failed: {error}")
                 write_ms = int((time.monotonic() - write_start) * 1000)
-            # After the photo is safely written: detect on the frame of a photo that was kept. Never
-            # changes whether or how the photo is saved (ADR 0002).
-            if worker is not None and outcome == "completed" and rgb is not None:
-                detection = worker.detect_for_capture(rgb)
-                if detection.outcome != "ok":
-                    report(f"detection {detection.outcome} for {capture_id}")
+            # The detection of a photo that was kept is attached to its record only once the photo is safely
+            # written. Never changes whether or how the photo is saved (ADR 0002).
+            if ticket is not None:
+                if outcome == "completed":
+                    detection = worker.wait_for_capture(ticket)
+                    if detection.outcome != "ok":
+                        report(f"detection {detection.outcome} for {capture_id}")
+                else:
+                    ticket.cancelled = True      # the photo could not be written: no record to attach it to
             raw_ms = dashboard_ms = 0
             try:
                 raw_ms, dashboard_ms = session.record(
