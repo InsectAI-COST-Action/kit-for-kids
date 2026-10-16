@@ -51,6 +51,22 @@ The models detect **dark specks**: crumbs, black shapes on the CD, and the head,
 
 5 minutes with one detection per second (int8 480, 3 threads, from a 640x360 frame) **and** normal capture at 1 photo per second together: detection median 410 ms (p95 414, max 443), processor 48 -> 58 C and flat, never throttled; capture 300 photos, interval mean 999 ms, max 1,098 ms, none over 1.5 s (per-photo work rose from ~140 ms to ~440 ms from CPU sharing). Detection every second alongside capture is sustainable; running it only on photos that motion mode keeps would cost far less.
 
+## FlatBug Nano as the dashboard runs it (16 October 2026)
+
+`tools/flatbug_bench.py` reproduces the dashboard's two FlatBug modes (640 input, grey padding, score 0.20, overlap suppression 0.20): **Quick look** = whole picture in one pass; **Look closely** = 4 x 3 grid of 640 x 640 pieces cut from the full-size picture (12 passes for a 2304 x 1296 photo; a picture no larger than 640 would be one piece). Pi Zero 2 W, onnxruntime 1.31, 4 threads, 11.9 MB model (FP16 weights, 37-channel output incl. 32 mask coefficients; all outputs computed, as in the dashboard), peak memory 184 MB. The service was stopped for the run.
+
+| | AntTestModel int8 480 | FlatBug Nano, Quick look | FlatBug Nano, Look closely |
+|---|---|---|---|
+| One pass on the Pi | 313 ms | 1,495 ms | 1,495-1,570 ms |
+| One 2304 x 1296 photo | ~400 ms (with preprocessing) | **1.7 s** | **19.3-19.5 s** (12 passes) |
+| 25 labelled ant frames, recall / precision at 0.20 | 0.98 / 0.94 | **0 / n/a** (0 boxes) | **0.005 / 0.10** (1 of 193 ants; 9 wrong boxes) |
+| Pi photo with 4 ants (run 12, img 150) | dozens of boxes on specks | **5 boxes: all 4 ants + 1 soil clump** | **5 boxes: all 4 ants (one ant split in two) - 1 duplicate** |
+
+- **Speed:** FlatBug Nano is ~5x slower per pass than our int8 ant model (it is bigger, 640 input, not quantised, and computes mask outputs we do not use). Look closely costs 12 passes: ~19 s per photo, and the processor went from 42 C to 80 C with frequency capping (0x20000) during the run, so it is not sustainable at 1 photo per second, nor usable for live view. Quick look at ~1.7 s per photo would run at about one photo every 2 s.
+- **Accuracy on the labelled frames:** the 25 frames (800 x 600 to 2048 x 1536) hold dozens of ants a few pixels wide. In the whole-picture pass the model scores them <= 0.02 (nothing at 0.20); the 12-piece pass finds 1 of 193. These ants are far below the scale FlatBug works at, so this is a poor test of FlatBug and says nothing about larger ants.
+- **On the Pi's own photos it is much better than the placeholder:** on the photo with four ants (each ~1/10 of the frame) Quick look boxes all four plus one soil clump, one pass. Look closely adds nothing here except a split ant. One photo is anecdotal; it needs a labelled set from the Pi camera.
+- Timings are native onnxruntime on the Pi; the dashboard runs the same model in the browser (WebAssembly) on the user's computer.
+
 ## Built into the camera (15 October 2026)
 
 - **Runtime:** Debian's `python3-onnxruntime` 1.21 dies with "Illegal instruction" on the Pi Zero 2 W (Cortex-A53, no asimddp). `pi/install.sh` therefore installs the benchmarked PyPI wheels (onnxruntime 1.31.0 and its three needed dependencies, hash-pinned in `pi/requirements-edge.txt`) into `/opt/insectcam/venv`, which also sees the apt packages (picamera2, numpy, Pillow); the service runs from that venv.
