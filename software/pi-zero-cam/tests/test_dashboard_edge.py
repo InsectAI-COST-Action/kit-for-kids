@@ -200,7 +200,7 @@ class DashboardEdgeTests(unittest.TestCase):
         page.evaluate("() => { document.querySelector('.adult-details').open = true; }")
         page.fill("#search", "run_000002_img_3")
         page.locator(".gallery-item").first.click()
-        page.wait_for_function("() => /\d+ of \d+ boxes shown/.test(document.querySelector('.edge-shown').textContent)", timeout=8000)
+        page.wait_for_function("() => /[0-9]+ of [0-9]+ boxes shown/.test(document.querySelector('.edge-shown').textContent)", timeout=8000)
         self.assertIn("load the camera card", page.inner_text("#edge-compare-run").lower())
         page.set_input_files("#card-picker", str(self.card_root))             # the camera card, with its ai folder
         page.wait_for_function("() => window.InsectCard.loaded", timeout=60000)
