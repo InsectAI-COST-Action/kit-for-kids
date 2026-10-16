@@ -228,3 +228,8 @@ th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
 .edge-axis { fill: var(--muted); font-size: 12px; }
 .edge-line { stroke: #1d6fe8; stroke-width: 2.5; }
 .edge-bar { fill: #1d6fe8; }
+.edge-compare { border-top: 1px solid var(--line); margin-top: .8rem; padding-top: .8rem; }
+.edge-compare[hidden] { display: none; }
+.edge-compare-title { font-weight: 900; margin-bottom: .4rem; }
+.edge-compare-row { align-items: center; display: flex; flex-wrap: wrap; gap: .6rem; }
+.edge-compare-row select { font: inherit; max-width: 100%; padding: .4rem; }
