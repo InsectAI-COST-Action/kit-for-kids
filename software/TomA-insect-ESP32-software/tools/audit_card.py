@@ -42,6 +42,11 @@ def audit(root: Path) -> dict:
     orphan_images = sorted(set(image_files) - referenced)
     for path in orphan_images:
         findings.append({"severity": "warning", "code": "unreferenced_complete_image", "path": path})
+    # A photo that exists but holds no data (a power cut after the rename but before the file size reached the card)
+    # still counts as "present" above, so it is flagged on its own.
+    zero_byte = sorted(path for path, file in image_files.items() if file.stat().st_size == 0)
+    for path in zero_byte:
+        findings.append({"severity": "error", "code": "zero_byte_image", "path": path})
     temporary = sorted(rel_path(root, path) for path in (root / "images").rglob("*") if path.is_file() and path.suffix.lower() in TEMP_SUFFIXES)
     for path in temporary:
         findings.append({"severity": "warning", "code": "temporary_or_partial_file", "path": path})
@@ -73,7 +78,7 @@ def audit(root: Path) -> dict:
                 findings.append({"severity": "warning", "code": "run_still_marked_running", "path": rel_path(root, path), "detail": run_id})
         except (OSError, json.JSONDecodeError) as exc:
             findings.append({"severity": "error", "code": "invalid_run_manifest", "path": rel_path(root, path), "detail": str(exc)})
-    return {"card": str(root), "raw_capture_rows": len(rows), "referenced_images": len(referenced), "image_files": len(image_files), "missing_referenced_images": missing_images, "unreferenced_complete_images": orphan_images, "temporary_or_partial_files": temporary, "listed_chunks": listed, "available_chunks": available, "closed_chunk_records": closed_records, "current_chunk_records": current_records, "derived_dashboard_records": derived_records, "run_states": states, "findings": findings}
+    return {"card": str(root), "raw_capture_rows": len(rows), "referenced_images": len(referenced), "image_files": len(image_files), "missing_referenced_images": missing_images, "unreferenced_complete_images": orphan_images, "temporary_or_partial_files": temporary, "zero_byte_images": zero_byte, "listed_chunks": listed, "available_chunks": available, "closed_chunk_records": closed_records, "current_chunk_records": current_records, "derived_dashboard_records": derived_records, "run_states": states, "findings": findings}
 
 
 def print_report(report: dict) -> None:
@@ -82,6 +87,7 @@ def print_report(report: dict) -> None:
     print(f"Referenced images: {report['referenced_images']} (files present: {report['image_files']})")
     print(f"Dashboard records: {report['derived_dashboard_records']} ({len(report['listed_chunks'])} listed chunks + current)")
     print(f"Temporary/partial files: {len(report['temporary_or_partial_files'])}")
+    print(f"Zero-byte images: {len(report['zero_byte_images'])}")
     print(f"Run states: {', '.join(f'{run}={state}' for run, state in report['run_states'].items()) or 'none'}")
     if report["findings"]:
         print("Findings:")
