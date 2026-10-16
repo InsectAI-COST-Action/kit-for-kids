@@ -233,10 +233,17 @@ class Storage:
         self._sync_dir(target.parent)
 
     def append_line(self, relative: str, line: str) -> None:
+        self.append_lines(relative, [line])
+
+    def append_lines(self, relative: str, lines: list[str]) -> None:
+        """Append rows with one write and one fsync: an fsync on the SD card costs ~100 ms, so a photo with 60
+        detections written row by row held the capture loop for ~8 s (measured 16 October 2026)."""
+        if not lines:
+            return
         target = self.path(relative)
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "a", encoding="utf-8", newline="\n") as handle:
-            handle.write(line + "\n")
+            handle.write("".join(line + "\n" for line in lines))
             handle.flush()
             os.fsync(handle.fileno())
 
@@ -422,12 +429,11 @@ class Session:
         # prediction for a capture that has no row.
         metadata = csv_escape(json.dumps({"model_status": self.model_status or "unspecified",
                                           "model_sha256": self.model_sha256}, separators=(",", ":")))
-        for index, prediction in enumerate(predictions):
-            self.storage.append_line("raw/detections.csv", ",".join([
-                str(SCHEMA_VERSION), csv_escape(self.run_id), csv_escape(capture_id), str(index),
-                str(prediction.class_id), csv_escape(prediction.label), f"{prediction.confidence:.4f}",
-                f"{prediction.x:.5f}", f"{prediction.y:.5f}", f"{prediction.w:.5f}", f"{prediction.h:.5f}",
-                csv_escape(self.config.model_id), metadata]))
+        self.storage.append_lines("raw/detections.csv", [",".join([
+            str(SCHEMA_VERSION), csv_escape(self.run_id), csv_escape(capture_id), str(index),
+            str(prediction.class_id), csv_escape(prediction.label), f"{prediction.confidence:.4f}",
+            f"{prediction.x:.5f}", f"{prediction.y:.5f}", f"{prediction.w:.5f}", f"{prediction.h:.5f}",
+            csv_escape(self.config.model_id), metadata]) for index, prediction in enumerate(predictions)])
         raw_ms = int((time.monotonic() - started) * 1000)
         started = time.monotonic()
         assert self.dashboard is not None

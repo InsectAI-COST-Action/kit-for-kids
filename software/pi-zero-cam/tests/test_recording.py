@@ -75,6 +75,17 @@ class RecordingTests(unittest.TestCase):
         self.assertEqual(meta["model_status"], "placeholder_unvalidated")
         self.assertEqual(meta["model_sha256"], "ab" * 32)
 
+    def test_many_predictions_cost_one_sync_for_the_detection_file(self):
+        """60 boxes written one fsync each held the Pi's capture loop for ~8 s (16 October 2026)."""
+        import os
+        from unittest import mock
+        s = self.session(model_id="ant_test")
+        many = [(0, "Ant", 0.5, 0.01 * i, 0.1, 0.02, 0.02) for i in range(60)]
+        with mock.patch("insectcam.capture.os.fsync", wraps=os.fsync) as fsync:
+            self.record(s, result(predictions=many))
+        self.assertEqual(len(read_csv(self.storage.path("raw/detections.csv"))), 60)
+        self.assertLess(fsync.call_count, 12)     # not 60+: the capture row, one detection write, dashboard chunk
+
     def test_dashboard_chunk_carries_inference_values(self):
         s = self.session(model_id="ant_test")
         self.record(s, result(ms=412, predictions=[(0, "Ant", 0.8, 0, 0, 0.1, 0.1)]))
