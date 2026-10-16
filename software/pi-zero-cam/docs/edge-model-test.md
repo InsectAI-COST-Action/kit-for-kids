@@ -59,7 +59,7 @@ The models detect **dark specks**: crumbs, black shapes on the CD, and the head,
 |---|---|---|---|
 | One pass on the Pi | 313 ms | 1,495 ms | 1,495-1,570 ms |
 | One 2304 x 1296 photo | ~400 ms (with preprocessing) | **1.7 s** | **19.3-19.5 s** (12 passes) |
-| 25 labelled ant frames, recall / precision at 0.20 | 0.98 / 0.94 | **0 / n/a** (0 boxes) | **0.005 / 0.10** (1 of 193 ants; 9 wrong boxes) |
+| 25 labelled ant frames, recall / precision (ant model at 0.25, FlatBug at its 0.20) | 0.98 / 0.94 | **0 / n/a** (0 boxes) | **0.005 / 0.10** (1 of 193 ants; 9 wrong boxes) |
 | Pi photo with 4 ants (run 12, img 150) | dozens of boxes on specks | **5 boxes: all 4 ants + 1 soil clump** | **5 boxes: all 4 ants (one ant split in two) - 1 duplicate** |
 
 - **Speed:** FlatBug Nano is ~5x slower per pass than our int8 ant model (it is bigger, 640 input, not quantised, and computes mask outputs we do not use). Look closely costs 12 passes: ~19 s per photo, and the processor went from 42 C to 80 C with frequency capping (0x20000) during the run, so it is not sustainable at 1 photo per second, nor usable for live view. Quick look at ~1.7 s per photo would run at about one photo every 2 s.
