@@ -82,4 +82,4 @@ The shared dashboard shows what the Pi's detector found, only when a card's reco
 ## Not done
 
 - **Live test of the camera's own view with an ant under it:** the room light was off, so the frame was black (lux 0.1, mean pixel 1.6). Stand-in: earlier saved photos.
-- The camera was not yet re-checked in a full power-cut test with the new boxes files being written, nor on a literal cable pull.
+- **Power cut with the boxes files being written** (`echo b > /proc/sysrq-trigger` 38 s into a run, 32 photos in): no torn line in any boxes or captures chunk file, manifest intact, the run marked `interrupted_power_removed`, 32 capture rows. Of 33 photos on the card one was a zero-byte file with no capture row: the photo in flight at the moment of the cut (a cut between the rename and the final sync, about 100 ms per photo, can leave that one empty; the audit reports it as `zero_byte_image`). Before the fsync fix 33 of 36 were empty. A literal cable pull on the read-only build is still to do.
