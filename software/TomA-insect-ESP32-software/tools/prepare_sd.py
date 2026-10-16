@@ -27,6 +27,7 @@ STATIC_DASHBOARD_FILES = (
     "dashboard.js",
     "settings.js",
     "analysis.js",
+    "edge-results.js",
     "card-access.js",
     "i18n.js",
     "favicon.svg",

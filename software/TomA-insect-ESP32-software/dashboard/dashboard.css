@@ -206,3 +206,25 @@ th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
 .motion-swatch-saved { background: var(--coral); }
 .motion-swatch-quiet { background: var(--motion-quiet); }
 .motion-swatch-threshold { background: none; border-top: 2px dashed var(--muted); border-radius: 0; height: 0; width: .9rem; }
+
+/* Edge-detector results (edge-results.js): hidden unless the card's records carry a model. */
+.gallery-item.edge-item { position: relative; }
+.edge-badge { background: #b00000; border-radius: 999px; color: #fff; font-size: .72rem; font-weight: 900; padding: .2rem .55rem; position: absolute; right: .5rem; top: .5rem; }
+.edge-stage { display: block; margin: 0 auto; max-width: 100%; position: relative; width: fit-content; }
+.edge-overlay { height: 100%; left: 0; pointer-events: none; position: absolute; top: 0; width: 100%; }
+.edge-controls { margin-top: .8rem; }
+.edge-controls[hidden], .edge-filters[hidden] { display: none; }
+.edge-threshold, .edge-min { align-items: center; display: flex; flex-wrap: wrap; font-weight: 800; gap: .6rem; }
+.edge-threshold input, .edge-min input { flex: 1 1 10rem; max-width: 20rem; }
+.edge-filters { border-top: 1px solid var(--line); display: grid; gap: .6rem; margin-top: 1rem; padding-top: 1rem; }
+.edge-check { align-items: center; display: flex; font-weight: 800; gap: .5rem; }
+.edge-test-note { background: #fde8e8; border-left: .4rem solid #b00000; border-radius: .6rem; color: #6b0000; font-weight: 800; padding: .8rem 1rem; }
+.edge-panel table { border-collapse: collapse; width: 100%; }
+.edge-panel th, .edge-panel td { border-bottom: 1px solid var(--line); padding: .5rem .6rem; text-align: left; }
+.edge-run-chosen td { background: #eef6ff; }
+.edge-chart-title { font-size: 1rem; margin: 1.2rem 0 .3rem; }
+.edge-chart { display: block; max-width: 100%; }
+.edge-grid { stroke: var(--line); }
+.edge-axis { fill: var(--muted); font-size: 12px; }
+.edge-line { stroke: #1d6fe8; stroke-width: 2.5; }
+.edge-bar { fill: #1d6fe8; }

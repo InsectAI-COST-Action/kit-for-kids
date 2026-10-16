@@ -143,6 +143,11 @@ def check_dashboard_contract() -> None:
     require("demo-autoload.js" in text("dashboard/demo.html") and (ROOT / "dashboard" / "demo-autoload.js").is_file(), "The demo must auto-load its own card - there is no real folder for a person to point the picker at")
     require("generate_embedded_files_js" in text("tools/install_dashboard_demo.py") and "InsectDemoFiles" in text("dashboard/demo-autoload.js"), "The demo installer must embed images/AI models as base64 so the demo works with no folder-picker interaction")
     require("session-duration" in html and "image-resolution" in html and "total-recorded" in html, "Dashboard front page must show session duration, picture size, and total recorded time")
+    edge = text("dashboard/edge-results.js")
+    require("edge-results.js" in html and "edge-results.js" in text("dashboard/demo.html") and '"edge-results.js"' in text("tools/prepare_sd.py") and '"edge-results.js"' in text("tools/install_dashboard_demo.py"), "The edge-results module must be loaded by both pages and deployed by both installers")
+    require("innerHTML" not in edge and "fetch(" not in edge, "Edge results come from card data: set text with textContent/fillText only, and never fetch")
+    require("hasModel" in edge and "validated" in edge and "edge.banner" in edge, "Edge results must stay hidden without a model and be labelled as a test model unless the record says validated")
+    require("window.InsectEdge" in javascript and "ai.hasEdgeResults" in text("dashboard/i18n.js"), "The dashboard must call the edge-results hooks and carry their wording")
     require("not connected yet" not in javascript, "The AI note must not imply AI is unavailable when interactive browser analysis exists")
     # The "Memory card" tile it replaced could only ever read "Soon": the firmware
     # never writes sdTotalBytes/sdUsedBytes because SdStorage::totalBytes() is

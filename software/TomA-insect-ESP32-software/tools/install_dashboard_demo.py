@@ -29,6 +29,7 @@ FILES = {
     DASHBOARD / "dashboard.css": Path("demo/dashboard.css"),
     DASHBOARD / "dashboard.js": Path("demo/dashboard.js"),
     DASHBOARD / "analysis.js": Path("demo/analysis.js"),
+    DASHBOARD / "edge-results.js": Path("demo/edge-results.js"),
     DASHBOARD / "settings.js": Path("demo/settings.js"),
     DASHBOARD / "card-access.js": Path("demo/card-access.js"),
     DASHBOARD / "demo-autoload.js": Path("demo/demo-autoload.js"),

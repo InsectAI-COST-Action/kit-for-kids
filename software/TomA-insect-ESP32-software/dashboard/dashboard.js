@@ -126,25 +126,29 @@
   };
   const filteredCaptures = () => {
     const query = search.value.trim().toLowerCase();
-    return data.captures.filter((capture) => !query ||
+    return data.captures.filter((capture) => (!query ||
       String(capture.captureId || '').toLowerCase().includes(query) ||
-      String(capture.outcome || '').toLowerCase().includes(query));
+      String(capture.outcome || '').toLowerCase().includes(query)) &&
+      (!window.InsectEdge || window.InsectEdge.keep(capture)));
   };
   const cell = (row, value) => {
     const element = document.createElement('td');
     element.textContent = value;
     row.append(element);
   };
-  const openImage = (path, caption) => {
+  // `capture` is optional: with a record that carries edge-detector results, edge-results.js draws its boxes.
+  const openImage = (path, caption, capture) => {
     lastFocus = document.activeElement;
     modalImage.src = path;
     modalImage.alt = caption;
     modalCaption.textContent = caption;
     modal.hidden = false;
+    if (window.InsectEdge) window.InsectEdge.onOpen(capture);
     modalClose.focus();
   };
   const closeImage = () => {
     modal.hidden = true;
+    if (window.InsectEdge) window.InsectEdge.onClose();
     modalImage.removeAttribute('src');
     if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
   };
@@ -554,11 +558,12 @@
         link.className = 'inline-button';
         link.type = 'button';
         link.textContent = t('table.openImage');
-        link.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId)));
+        link.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId), capture));
         imageCell.append(link);
       } else if (capture.imagePath) imageCell.textContent = t('table.noLongerOnCard');
       else imageCell.textContent = t('table.unavailable');
       row.append(imageCell);
+      if (window.InsectEdge) window.InsectEdge.decorateRow(row, capture);
       rows.append(row);
     });
     frameToggle.hidden = captures.length <= initialLimit;
@@ -575,7 +580,8 @@
       image.src = capture.imagePath;
       image.alt = t('table.frameCaption', capture.captureId);
       item.querySelector('span').textContent = capture.captureId;
-      item.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId)));
+      item.addEventListener('click', () => openImage(capture.imagePath, t('table.frameCaption', capture.captureId), capture));
+      if (window.InsectEdge) window.InsectEdge.decorateGalleryItem(item, capture);
       gallery.append(item);
     });
     galleryToggle.hidden = images.length <= initialLimit;
@@ -587,12 +593,18 @@
     // unavailable - the interactive helper below genuinely works. Fixed 29
     // August 2026: the previous wording here wrongly implied no AI existed
     // at all.
-    document.querySelector('#model-note').textContent = inferenceOutcomes.has('model_unavailable')
+    // A card whose camera ran a detector says so (edge-results.js, labelled as a test model unless validated). Any
+    // other card keeps the wording above: a single model_unavailable row (a skipped motion check, an older
+    // session) must not override results that are really there.
+    const edgeNote = window.InsectEdge ? window.InsectEdge.note(data.captures) : null;
+    document.querySelector('#model-note').textContent = edgeNote || (inferenceOutcomes.has('model_unavailable')
       ? t('ai.noAIYet')
-      : t('ai.hasResults');
+      : t('ai.hasResults'));
     document.title = t('pageTitle.cameraAdventure', allImages.length);
     renderCardCheck();
+    if (window.InsectEdge) window.InsectEdge.afterRender();
   };
+  window.InsectDashboard = { render };
 
   const finishLoading = () => {
     loadingProgress.style.width = '100%';
@@ -609,8 +621,12 @@
     let currentLoaded = false;
     const totalSteps = Math.max(1, chunks.length + 1);
     setLoading(t('loading.message'), t('loading.readingCurrent'), 12);
+    // Each record remembers which chunk it came from, so the boxes file beside that chunk can be found later.
+    const tagChunk = (from, chunk) => { for (let i = from; i < data.captures.length; i += 1) data.captures[i]._chunk = chunk; };
     try {
+      const before = data.captures.length;
       await loadScript('data/captures_current.js');
+      tagChunk(before, 'current');
       currentLoaded = true;
     } catch (error) {
       // The current chunk is optional when the camera finished cleanly.
@@ -618,7 +634,9 @@
     setLoading(t('loading.message'), currentLoaded ? t('loading.foundNewest') : t('loading.checkingGroups'), 100 / totalSteps);
     for (const [index, chunk] of chunks.entries()) {
       try {
+        const before = data.captures.length;
         await loadScript(chunk);
+        tagChunk(before, Number((/captures_(\d+)\.js$/.exec(chunk) || [])[1]) || null);
       } catch (error) {
         failures.push(error.message);
       }
